@@ -1,0 +1,22 @@
+[project]
+name = "port-map"
+version = "0.1.0"
+description = "A Django application to monitor IP addresses and ports using Celery."
+authors = [{name = "Suporte"}]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "django>=4.2",
+    "celery[redis]>=5.3.6",
+    "redis>=5.0.1",
+    "python-dotenv>=1.0.1",
+    "django-celery-beat>=2.5.0",
+    "psycopg2-binary>=2.9.9",
+]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
