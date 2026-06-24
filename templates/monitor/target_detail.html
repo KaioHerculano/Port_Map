@@ -1,0 +1,321 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalhes {{ target.host }}:{{ target.port }} - Port Monitor{% endblock %}
+
+{% block extra_head %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="header-title">
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+      <a href="{% url 'dashboard' %}" class="btn btn-secondary btn-icon" title="Voltar ao Painel" style="padding: 0.35rem 0.6rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 16px; height: 16px;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+      </a>
+      <h1 style="margin: 0; font-size: 1.65rem;">
+        {% if target.label %}{{ target.label }}{% else %}{{ target.host }}{% endif %}
+      </h1>
+    </div>
+    <p>Estatísticas de latência e histórico de atividade da porta</p>
+  </div>
+  <div class="header-actions">
+    <button id="btn-check-now" class="btn btn-primary" onclick="checkNow({{ target.id }})">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+      </svg>
+      Testar Agora
+    </button>
+  </div>
+</div>
+
+<!-- Metrics & Overview Grid -->
+<div class="metrics-grid">
+  <!-- Chart Card -->
+  <div class="glass-panel chart-card">
+    <div class="chart-card-header">
+      <h3 style="color: white; font-size: 1.1rem;">Histórico de Latência (Últimos 50 Testes)</h3>
+      <span style="color: var(--text-muted); font-size: 0.8rem;">tempo em milissegundos (ms)</span>
+    </div>
+    
+    <div class="chart-canvas-container">
+      {% if chart_timestamps %}
+        <canvas id="latencyChart"></canvas>
+      {% else %}
+        <div style="position: absolute; top: 0; left: 0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color: var(--text-muted); font-size: 0.9rem;">
+          Aguardando coletas de dados para gerar o gráfico.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Uptime Status Card -->
+  <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
+    <h3 style="color: white; font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+      Informações Gerais
+    </h3>
+    
+    <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.9rem;">
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Endereço IP/Host:</span>
+        <span style="font-family: monospace; font-weight: 600; color: white;">{{ target.host }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Porta TCP:</span>
+        <span style="font-weight: 600; color: var(--primary);">{{ target.port }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="text-muted">Estado Atual:</span>
+        <div>
+          {% if not target.is_active %}
+            <span class="status-badge inactive"><span class="dot"></span>Inativo</span>
+          {% elif target.last_status == True %}
+            <span class="status-badge online"><span class="dot"></span>Aberta</span>
+          {% elif target.last_status == False %}
+            <span class="status-badge offline"><span class="dot"></span>Fechada</span>
+          {% else %}
+            <span class="status-badge inactive"><span class="dot"></span>Sem Dados</span>
+          {% endif %}
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Uptime (Últimas 24h):</span>
+        <span style="font-weight: 700; color: {% if uptime_24h > 95 %}var(--success){% else %}var(--warning){% endif %};">
+          {{ uptime_24h }}%
+        </span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Latência Média (24h):</span>
+        <span style="font-weight: 600; color: white;">
+          {% if avg_latency > 0 %}{{ avg_latency }} ms{% else %}-{% endif %}
+        </span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Criado em:</span>
+        <span class="text-muted">{{ target.created_at|date:"d/m/Y H:i" }}</span>
+      </div>
+      
+      <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+        <!-- Delete and toggle -->
+        <button class="btn btn-secondary" style="flex-grow: 1; font-size: 0.8rem; padding: 0.5rem;" onclick="toggleActive({{ target.id }})">
+          {% if target.is_active %}Pausar Monitoramento{% else %}Ativar Monitoramento{% endif %}
+        </button>
+        
+        <form method="post" action="{% url 'delete_target' target.pk %}" style="display: inline;" onsubmit="return confirm('Excluir este monitoramento permanentemente?');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger" style="font-size: 0.8rem; padding: 0.5rem;">
+            Excluir
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Logs History Table -->
+<div class="table-container glass-panel">
+  <div style="padding: 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="color: white; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+      Histórico de Varreduras
+    </h3>
+  </div>
+  
+  {% if page_obj %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Data e Hora do Teste</th>
+        <th>Estado</th>
+        <th>Latência de Conexão</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in page_obj %}
+      <tr>
+        <td class="td-time" style="color: white; font-size: 0.95rem;">
+          {{ log.timestamp|date:"d/m/Y - H:i:s" }}
+        </td>
+        <td>
+          {% if log.status %}
+            <span class="status-badge online"><span class="dot"></span>ABERTA (Online)</span>
+          {% else %}
+            <span class="status-badge offline"><span class="dot"></span>FECHADA (Offline)</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="td-latency {% if log.status %}{% if log.latency < 150 %}fast{% else %}slow{% endif %}{% else %}none{% endif %}">
+            {% if log.status %}{{ log.latency }} ms{% else %}- (Erro de Conexão){% endif %}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+      <a href="?page=1" class="page-link">&laquo; Primeira</a>
+      <a href="?page={{ page_obj.previous_page_number }}" class="page-link">Anterior</a>
+    {% endif %}
+    
+    <span class="page-link active">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}" class="page-link">Próxima</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}" class="page-link">Última &raquo;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+  
+  {% else %}
+  <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
+    Nenhum log de conexão disponível ainda.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if chart_timestamps %}
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const ctx = document.getElementById('latencyChart').getContext('2d');
+    
+    const rawTimestamps = {{ chart_timestamps|safe }};
+    const rawLatencies = {{ chart_latencies|safe }};
+    const rawStatuses = {{ chart_statuses|safe }};
+    
+    // Gradient fill for line
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(110, 68, 255, 0.4)');
+    gradient.addColorStop(1, 'rgba(110, 68, 255, 0.0)');
+    
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: rawTimestamps,
+        datasets: [{
+          label: 'Latência (ms)',
+          data: rawLatencies,
+          borderColor: '#6e44ff',
+          borderWidth: 3,
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: function(context) {
+            const index = context.dataIndex;
+            return rawStatuses[index] === 1 ? '#10b981' : '#ef4444';
+          },
+          pointBorderColor: '#0f131a',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: 'rgba(24, 29, 38, 0.95)',
+            titleColor: '#fff',
+            bodyColor: '#e5e7eb',
+            borderColor: 'rgba(255,255,255,0.08)',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context) {
+                const index = context.dataIndex;
+                if (rawStatuses[index] === 0) {
+                  return 'Estado: FECHADA (Falha de Conectividade)';
+                }
+                return `Latência: ${context.parsed.y} ms`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(255, 255, 255, 0.03)'
+            },
+            ticks: {
+              color: '#9ca3af',
+              font: {
+                family: 'Plus Jakarta Sans',
+                size: 10
+              }
+            }
+          },
+          y: {
+            grid: {
+              color: 'rgba(255, 255, 255, 0.03)'
+            },
+            ticks: {
+              color: '#9ca3af',
+              font: {
+                family: 'Plus Jakarta Sans'
+              }
+            },
+            suggestedMin: 0
+          }
+        }
+      }
+    });
+  });
+</script>
+{% endif %}
+<script>
+  // Manual trigger check
+  function checkNow(id) {
+    const btn = document.getElementById('btn-check-now');
+    btn.disabled = true;
+    
+    fetch(`/target/${id}/check/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        // reload in 1.5s
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        btn.disabled = false;
+        alert('Erro ao agendar varredura.');
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      alert('Erro de rede.');
+    });
+  }
+
+  // Toggle active status
+  function toggleActive(id) {
+    fetch(`/target/${id}/toggle/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        window.location.reload();
+      } else {
+        alert('Erro ao alterar status.');
+      }
+    })
+    .catch(err => alert('Erro de rede.'));
+  }
+</script>
+{% endblock %}

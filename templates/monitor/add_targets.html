@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}Cadastrar Portas - Port Monitor{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="header-title">
+    <h1>Cadastrar Novos Alvos</h1>
+    <p>Adicione portas de rede individuais ou faixas de IPs inteiras para iniciar a varredura</p>
+  </div>
+</div>
+
+<div class="grid-2col" style="grid-template-columns: 2fr 1fr;">
+  <!-- Forms Box -->
+  <div class="glass-panel form-panel">
+    <!-- Navigation Tabs -->
+    <div class="form-tabs">
+      <button class="form-tab-btn active" onclick="switchTab('single')">Cadastro Individual</button>
+      <button class="form-tab-btn" onclick="switchTab('bulk')">Importar em Lote (Bulk)</button>
+    </div>
+    
+    <!-- Single Form -->
+    <div id="tab-single" class="tab-content active">
+      <form method="post" action="{% url 'add_targets' %}">
+        {% csrf_token %}
+        <input type="hidden" name="import_type" value="single">
+        
+        <div class="form-group">
+          <label for="id_label">Rótulo / Identificação (Opcional)</label>
+          <input type="text" id="id_label" name="label" class="form-input" placeholder="Ex: Servidor de Câmeras, Banco de Dados, etc.">
+          <span class="form-help">Um nome amigável para identificar esse alvo nas listas e gráficos.</span>
+        </div>
+        
+        <div class="form-group">
+          <label for="id_host">Endereço IP ou Hostname</label>
+          <input type="text" id="id_host" name="host" class="form-input" placeholder="Ex: 45.174.193.10 ou gateway.loja.com" required>
+          <span class="form-help">Insira o endereço IP ou domínio DNS correspondente.</span>
+        </div>
+        
+        <div class="form-group">
+          <label for="id_port">Porta TCP</label>
+          <input type="number" id="id_port" name="port" class="form-input" placeholder="Ex: 40001" min="1" max="65535" required>
+          <span class="form-help">Insira o número da porta TCP que será testada.</span>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Cadastrar e Iniciar Teste</button>
+          <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Bulk Form -->
+    <div id="tab-bulk" class="tab-content">
+      <form method="post" action="{% url 'add_targets' %}">
+        {% csrf_token %}
+        <input type="hidden" name="import_type" value="bulk">
+        
+        <div class="form-group">
+          <label for="id_bulk_text">Lista de IPs e Portas (Um por linha)</label>
+          <textarea id="id_bulk_text" name="bulk_text" placeholder="Cole sua lista aqui...
+Ex:
+45.174.193.10:40001-40048 [Faixa de Servidores]
+192.168.1.1:80,443,8080 (Servidor Web)
+google.com:443 (Google HTTPS)"></textarea>
+          <span class="form-help">Copie e cole listas inteiras. Suporta faixas de portas por hífen e separação por vírgula.</span>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Importar Lista Completa</button>
+          <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Instruction Help Card -->
+  <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; height: fit-content;">
+    <h3 style="color: white; font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+      Formatos de Importação
+    </h3>
+    
+    <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 1rem;">
+      <div>
+        <strong style="color: white; display: block; margin-bottom: 0.25rem;">1. Faixa de Portas (Hífen):</strong>
+        <p style="margin-bottom: 0.35rem;">Ideal para cadastros sequenciais. O sistema expandirá e criará um registro individual para cada porta da faixa.</p>
+        <code style="display: block; padding: 0.4rem; background: rgba(0,0,0,0.3); border-radius: 6px; color: var(--primary);">45.174.193.10:40001-40048 [Loja Main]</code>
+      </div>
+      
+      <div>
+        <strong style="color: white; display: block; margin-bottom: 0.25rem;">2. Múltiplas Portas (Vírgula):</strong>
+        <p style="margin-bottom: 0.35rem;">Para testar portas específicas de um mesmo IP.</p>
+        <code style="display: block; padding: 0.4rem; background: rgba(0,0,0,0.3); border-radius: 6px; color: var(--primary);">192.168.1.1:80,443,8080 (Web App)</code>
+      </div>
+      
+      <div>
+        <strong style="color: white; display: block; margin-bottom: 0.25rem;">3. Porta Única Simples:</strong>
+        <p style="margin-bottom: 0.35rem;">Apenas o IP e a porta desejada.</p>
+        <code style="display: block; padding: 0.4rem; background: rgba(0,0,0,0.3); border-radius: 6px; color: var(--primary);">google.com:443</code>
+      </div>
+
+      <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
+        <span style="display: flex; gap: 0.5rem; color: var(--warning);">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px; flex-shrink: 0;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <strong>Importante:</strong>
+        </span>
+        <p style="margin-top: 0.25rem; font-size: 0.8rem;">Rótulos opcionais podem ser declarados no fim de cada linha entre colchetes <code style="color: white;">[]</code> ou parênteses <code style="color: white;">()</code>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function switchTab(mode) {
+    // Switch tabs buttons active state
+    const tabs = document.querySelectorAll('.form-tab-btn');
+    tabs.forEach(tab => {
+      if (tab.innerText.toLowerCase().includes(mode === 'single' ? 'individual' : 'lote')) {
+        tab.classList.add('active');
+      } else {
+        tab.classList.remove('active');
+      }
+    });
+
+    // Switch active forms view
+    const contents = document.querySelectorAll('.tab-content');
+    contents.forEach(content => {
+      if (content.id === `tab-${mode}`) {
+        content.classList.add('active');
+      } else {
+        content.classList.remove('active');
+      }
+    });
+  }
+</script>
+{% endblock %}

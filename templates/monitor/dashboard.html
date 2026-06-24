@@ -1,0 +1,452 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Port Monitor{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="header-title">
+    <h1>Painel de Monitoramento</h1>
+    <p>Acompanhe o estado de conectividade das portas TCP em tempo real</p>
+  </div>
+  <div class="header-actions">
+    <button id="btn-scan-all" class="btn btn-secondary" onclick="scanAllTargets()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+      </svg>
+      Testar Todos
+    </button>
+    <a href="{% url 'add_targets' %}" class="btn btn-primary">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      Novo Cadastro
+    </a>
+  </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="stat-grid">
+  <div class="stat-card glass-panel">
+    <div class="stat-header">
+      <span>Total Monitorados</span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
+      </svg>
+    </div>
+    <div class="stat-value" id="stat-total">{{ total_count }}</div>
+  </div>
+  
+  <div class="stat-card online glass-panel">
+    <div class="stat-header">
+      <span>Portas Abertas</span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    </div>
+    <div class="stat-value" id="stat-online">{{ online_count }}</div>
+  </div>
+  
+  <div class="stat-card offline glass-panel">
+    <div class="stat-header">
+      <span>Portas Fechadas</span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    </div>
+    <div class="stat-value" id="stat-offline">{{ offline_count }}</div>
+  </div>
+  
+  <div class="stat-card inactive glass-panel">
+    <div class="stat-header">
+      <span>Monitoramentos Inativos</span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.5 1.5 0 00-1.93 1.93l12.928 12.928a1.5 1.5 0 001.93-1.93L10.05 4.575z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75l16.5 16.5" />
+      </svg>
+    </div>
+    <div class="stat-value" id="stat-inactive">{{ inactive_count }}</div>
+  </div>
+</div>
+
+<!-- Filters Panel -->
+<div class="filter-bar glass-panel">
+  <form class="filter-search" method="get">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
+    </svg>
+    <input type="text" name="q" value="{{ search_query }}" placeholder="Buscar por IP, Porta ou Identificador...">
+    {% if status_filter %}
+      <input type="hidden" name="status" value="{{ status_filter }}">
+    {% endif %}
+  </form>
+  
+  <div class="filter-options">
+    <a href="?q={{ search_query }}" class="filter-tab {% if not status_filter %}active{% endif %}">Todos</a>
+    <a href="?q={{ search_query }}&status=online" class="filter-tab {% if status_filter == 'online' %}active{% endif %}">Abertas</a>
+    <a href="?q={{ search_query }}&status=offline" class="filter-tab {% if status_filter == 'offline' %}active{% endif %}">Fechadas</a>
+    <a href="?q={{ search_query }}&status=inactive" class="filter-tab {% if status_filter == 'inactive' %}active{% endif %}">Inativos</a>
+  </div>
+</div>
+
+<!-- Targets Table -->
+<div class="table-container glass-panel">
+  {% if page_obj %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 25%;">Identificação</th>
+        <th style="width: 25%;">IP/Hostname : Porta</th>
+        <th style="width: 15%;">Último Estado</th>
+        <th style="width: 12%;">Tempo Resposta</th>
+        <th style="width: 13%;">Último Teste</th>
+        <th style="width: 10%; text-align: center;">Ativo</th>
+        <th style="width: 10%; text-align: center;">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for target in page_obj %}
+      <tr id="target-row-{{ target.id }}">
+        <td class="td-label">
+          {% if target.label %}
+            {{ target.label }}
+          {% else %}
+            <span class="text-muted" style="font-size: 0.85rem; font-style: italic;">Sem identificação</span>
+          {% endif %}
+        </td>
+        <td class="td-host">
+          {{ target.host }}:<strong style="color: white;">{{ target.port }}</strong>
+        </td>
+        <td id="status-cell-{{ target.id }}">
+          {% if not target.is_active %}
+            <span class="status-badge inactive"><span class="dot"></span>Inativo</span>
+          {% elif target.last_status == True %}
+            <span class="status-badge online"><span class="dot"></span>Aberta</span>
+          {% elif target.last_status == False %}
+            <span class="status-badge offline"><span class="dot"></span>Fechada</span>
+          {% else %}
+            <span class="status-badge inactive"><span class="dot"></span>Sem dados</span>
+          {% endif %}
+        </td>
+        <td id="latency-cell-{{ target.id }}">
+          {% if not target.is_active or target.last_latency is None %}
+            <span class="td-latency none">-</span>
+          {% else %}
+            <span class="td-latency {% if target.last_latency < 150 %}fast{% else %}slow{% endif %}">
+              {{ target.last_latency }} ms
+            </span>
+          {% endif %}
+        </td>
+        <td id="time-cell-{{ target.id }}" class="td-time">
+          {% if target.last_checked %}
+            {{ target.last_checked|date:"d/m H:i:s" }}
+          {% else %}
+            Nunca testado
+          {% endif %}
+        </td>
+        <td style="text-align: center;">
+          <label class="switch">
+            <input type="checkbox" {% if target.is_active %}checked{% endif %} onchange="toggleTarget({{ target.id }}, this)">
+            <span class="slider"></span>
+          </label>
+        </td>
+        <td style="text-align: center; display: flex; gap: 0.5rem; justify-content: center;">
+          <!-- Manual trigger check -->
+          <button class="btn btn-secondary btn-icon" title="Testar porta agora" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+            </svg>
+          </button>
+          
+          <!-- Detailed info -->
+          <a href="{% url 'target_detail' target.pk %}" class="btn btn-secondary btn-icon" title="Ver estatísticas completas">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+            </svg>
+          </a>
+          
+          <!-- Delete -->
+          <button class="btn btn-danger btn-icon" title="Excluir monitoramento" onclick="deleteTarget({{ target.id }})">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+      <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="page-link">&laquo; Primeira</a>
+      <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Anterior</a>
+    {% else %}
+      <span class="page-link disabled">&laquo; Primeira</span>
+      <span class="page-link disabled">Anterior</span>
+    {% endif %}
+    
+    <span class="page-link active">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Próxima</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Última &raquo;</a>
+    {% else %}
+      <span class="page-link disabled">Próxima</span>
+      <span class="page-link disabled">Última &raquo;</span>
+    {% endif %}
+  </div>
+  {% endif %}
+  
+  {% else %}
+  <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--border-color);">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+    </svg>
+    <p style="font-size: 1.1rem; font-weight: 600; color: white;">Nenhum alvo cadastrado ou encontrado</p>
+    <p style="font-size: 0.85rem; margin-top: 0.25rem;">Cadastre novos IPs e portas para começar a monitorar.</p>
+    <a href="{% url 'add_targets' %}" class="btn btn-primary" style="margin-top: 1.25rem;">Cadastrar Portas</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Recent Scans / System Logs -->
+<div class="glass-panel" style="padding: 1.5rem;">
+  <h2 style="font-size: 1.2rem; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px; color: var(--primary);">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+    </svg>
+    Últimas Verificações do Sistema
+  </h2>
+  
+  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+    {% for log in recent_logs %}
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: rgba(255,255,255,0.01); border-radius: 8px; border: 1px solid rgba(255,255,255,0.03);">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="status-badge {% if log.status %}online{% else %}offline{% endif %}" style="padding: 0.15rem 0.45rem; font-size: 0.65rem;">
+          <span class="dot"></span>{% if log.status %}ABERTA{% else %}FECHADA{% endif %}
+        </span>
+        <span style="font-family: monospace; font-size: 0.9rem;">{{ log.target.host }}:{{ log.target.port }}</span>
+        {% if log.target.label %}
+          <span style="color: var(--text-muted); font-size: 0.8rem;">({{ log.target.label }})</span>
+        {% endif %}
+      </div>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <span style="font-size: 0.85rem; font-weight: 600; color: {% if log.status %}var(--success){% else %}var(--danger){% endif %};">
+          {{ log.latency }} ms
+        </span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">{{ log.timestamp|date:"H:i:s" }}</span>
+      </div>
+    </div>
+    {% empty %}
+    <span style="font-size: 0.85rem; color: var(--text-muted); text-align: center; display: block; padding: 1rem;">Nenhum teste executado ainda.</span>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Toggle Target status (Active/Inactive)
+  function toggleTarget(id, checkbox) {
+    const isChecked = checkbox.checked;
+    fetch(`/target/${id}/toggle/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken,
+        'Content-Type': 'application/json',
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        // Refresh cells/states visually
+        const statusCell = document.getElementById(`status-cell-${id}`);
+        const latencyCell = document.getElementById(`latency-cell-${id}`);
+        const actionBtn = checkbox.closest('tr').querySelector('button[title="Testar porta agora"]');
+        
+        if (isChecked) {
+          statusCell.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Sem dados</span>`;
+          actionBtn.disabled = false;
+        } else {
+          statusCell.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Inativo</span>`;
+          latencyCell.innerHTML = `<span class="td-latency none">-</span>`;
+          actionBtn.disabled = true;
+        }
+        
+        // Update stats
+        updateStats();
+        showToast(data.message, 'success');
+      } else {
+        checkbox.checked = !isChecked; // revert
+        showToast('Erro ao atualizar status do alvo.', 'error');
+      }
+    })
+    .catch(err => {
+      checkbox.checked = !isChecked; // revert
+      showToast('Ocorreu um erro na requisição.', 'error');
+    });
+  }
+
+  // Delete target
+  function deleteTarget(id) {
+    if (!confirm('Deseja realmente excluir este alvo de monitoramento e todo o seu histórico?')) {
+      return;
+    }
+    
+    fetch(`/target/${id}/delete/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken,
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        const row = document.getElementById(`target-row-${id}`);
+        row.style.transition = 'all 0.5s ease';
+        row.style.opacity = '0';
+        row.style.transform = 'translateX(-20px)';
+        setTimeout(() => {
+          row.remove();
+          updateStats();
+          // If no rows left, reload to show empty state
+          if (document.querySelectorAll('.data-table tbody tr').length === 0) {
+            window.location.reload();
+          }
+        }, 500);
+        showToast(data.message, 'success');
+      } else {
+        showToast('Erro ao excluir o alvo.', 'error');
+      }
+    })
+    .catch(err => {
+      showToast('Ocorreu um erro de rede.', 'error');
+    });
+  }
+
+  // Scan a single target manually
+  function scanSingleTarget(id, button) {
+    button.disabled = true;
+    const originalContent = button.innerHTML;
+    button.innerHTML = `
+      <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 14px; height: 14px; animation: spin 1s linear infinite;">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;"></circle>
+        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" style="opacity: 0.75;"></path>
+      </svg>
+    `;
+    
+    fetch(`/target/${id}/check/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        showToast('Verificação agendada com sucesso. Recarregando dados...', 'info');
+        // Reload page after brief delay to let celery finish the job
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        button.disabled = false;
+        button.innerHTML = originalContent;
+        showToast('Erro ao disparar teste.', 'error');
+      }
+    })
+    .catch(err => {
+      button.disabled = false;
+      button.innerHTML = originalContent;
+      showToast('Ocorreu um erro de rede.', 'error');
+    });
+  }
+
+  // Scan all targets manually
+  function scanAllTargets() {
+    const btn = document.getElementById('btn-scan-all');
+    btn.disabled = true;
+    
+    fetch(`/check-all/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        showToast('Varredura global agendada nas tarefas Celery! Aguarde alguns segundos...', 'success');
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        btn.disabled = false;
+        showToast('Erro ao iniciar varredura global.', 'error');
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      showToast('Ocorreu um erro na requisição.', 'error');
+    });
+  }
+
+  // Recalculate stats cards dynamic numbers (without full page refresh)
+  function updateStats() {
+    // We can run a quick fetch or just reload after actions.
+    // For simplicity and immediate sync, we can query targets status in DOM:
+    const rows = document.querySelectorAll('.data-table tbody tr');
+    let total = rows.length;
+    let online = 0;
+    let offline = 0;
+    let inactive = 0;
+    
+    rows.forEach(row => {
+      const badge = row.querySelector('.status-badge');
+      if (badge.classList.contains('inactive') && badge.innerText.includes('Inativo')) {
+        inactive++;
+      } else if (badge.classList.contains('online')) {
+        online++;
+      } else if (badge.classList.contains('offline')) {
+        offline++;
+      }
+    });
+
+    document.getElementById('stat-total').innerText = total;
+    document.getElementById('stat-online').innerText = online;
+    document.getElementById('stat-offline').innerText = offline;
+    document.getElementById('stat-inactive').innerText = inactive;
+  }
+
+  // Toast notification helper
+  function showToast(message, type) {
+    // Create alert element
+    const container = document.querySelector('.main-content');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} glass-panel`;
+    alert.style.position = 'fixed';
+    alert.style.top = '2rem';
+    alert.style.right = '2rem';
+    alert.style.zIndex = '9999';
+    alert.style.minWidth = '300px';
+    alert.style.boxShadow = 'var(--shadow-lg)';
+    alert.innerHTML = `
+      <span>${message}</span>
+      <button class="alert-close" onclick="this.parentElement.remove();">&times;</button>
+    `;
+    document.body.appendChild(alert);
+    
+    setTimeout(() => {
+      alert.style.transition = 'opacity 0.5s ease';
+      alert.style.opacity = '0';
+      setTimeout(() => alert.remove(), 500);
+    }, 4000);
+  }
+</script>
+
+<style>
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+</style>
+{% endblock %}
