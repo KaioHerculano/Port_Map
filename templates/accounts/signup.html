@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Criar Conta - Port Monitor{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container">
+  <div class="auth-card glass-panel">
+    <div class="auth-header">
+      <div class="brand-logo auth-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="white">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+        </svg>
+      </div>
+      <h2>Criar Nova Conta</h2>
+      <p>Cadastre-se para iniciar o monitoramento de portas</p>
+    </div>
+
+    {% if messages %}
+      <div class="alerts-container">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} glass-panel">
+            <span>{{ message }}</span>
+            <button class="alert-close" onclick="this.parentElement.remove();">&times;</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="form-group">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}
+            <span class="form-help" style="color: var(--danger);">{{ field.errors.0 }}</span>
+          {% endif %}
+        </div>
+      {% endfor %}
+      
+      <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 1rem; padding: 0.85rem;">
+        Registrar e Entrar
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <span>Já possui conta? <a href="{% url 'login' %}">Faça Login</a></span>
+    </div>
+  </div>
+</div>
+{% endblock %}
