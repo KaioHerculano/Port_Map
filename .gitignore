@@ -1,0 +1,40 @@
+# Python gitignore
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+local_settings.py
+staticfiles/
+media/
+
+# Environments
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Poetry
+.poetry/
+dist/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# IDEs
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
