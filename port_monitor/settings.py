@@ -12,7 +12,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-8owyyab&p2co!2&$!rv_g--v+ozb^w&-m^#k5z-e6c2*(g146+')
+SECRET_KEY = os.getenv('SECRET_KEY', 'change-this-in-production-secret-key-placeholder')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
