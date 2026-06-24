@@ -93,14 +93,14 @@ Acesse no seu navegador: **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)**
 ### 2. Iniciar o Celery Worker (Conexões de Teste)
 Processa a fila de varredura assíncrona das portas:
 ```bash
-poetry run celery -A port_monitor worker --loglevel=info -P threads
+poetry run celery -A app worker --loglevel=info -P threads
 ```
 *(Nota: A flag `-P threads` é altamente recomendada no ambiente Windows para garantir estabilidade multithread do Celery).*
 
 ### 3. Iniciar o Celery Beat (Varredura Automática Agendada)
 Caso deseje disparar coletas automatizadas em períodos cronometrados:
 ```bash
-poetry run celery -A port_monitor beat --loglevel=info
+poetry run celery -A app beat --loglevel=info
 ```
 
 ---

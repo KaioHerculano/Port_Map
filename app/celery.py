@@ -2,9 +2,9 @@ import os
 from celery import Celery
 
 # Set default Django settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'port_monitor.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'app.settings')
 
-app = Celery('port_monitor')
+app = Celery('app')
 
 # Load task configuration from settings.py using CELERY_ prefix
 app.config_from_object('django.conf:settings', namespace='CELERY')
