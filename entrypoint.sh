@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
 
-echo "Aguardando banco de dados..."
+# Sanitiza variáveis de ambiente contra caracteres de quebra de linha (\r) do Windows
+APP_ROLE=$(echo "$APP_ROLE" | tr -d '\r')
+POSTGRES_HOST=$(echo "$POSTGRES_HOST" | tr -d '\r')
+POSTGRES_PORT=$(echo "$POSTGRES_PORT" | tr -d '\r')
+DB_ENGINE=$(echo "$DB_ENGINE" | tr -d '\r')
 
 : "${POSTGRES_HOST:=db}"
 : "${POSTGRES_PORT:=5432}"
@@ -14,6 +18,7 @@ fi
 
 # Aguarda PostgreSQL se DB_ENGINE for postgresql (padrão de produção)
 if [[ "$DB_ENGINE" == *"postgresql"* || -z "$DB_ENGINE" ]]; then
+    echo "Aguardando banco de dados..."
     echo "Aguardando PostgreSQL em $POSTGRES_HOST:$POSTGRES_PORT..."
     while ! nc -z -w 1 "$POSTGRES_HOST" "$POSTGRES_PORT"; do
         sleep 0.5
@@ -56,7 +61,7 @@ case "$APP_ROLE" in
     ;;
 
   *)
-    echo "APP_ROLE inválido. Use: web, worker ou beat."
+    echo "APP_ROLE inválido: '$APP_ROLE'. Use: web, worker ou beat."
     exit 1
     ;;
 esac

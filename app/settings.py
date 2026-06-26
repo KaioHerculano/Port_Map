@@ -140,8 +140,24 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Celery Configurations
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/0')
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
+if not CELERY_BROKER_URL or 'default:6379' in CELERY_BROKER_URL or '://default/' in CELERY_BROKER_URL:
+    redis_url = os.getenv('REDIS_URL')
+    if redis_url:
+        CELERY_BROKER_URL = redis_url
+    else:
+        redis_host = os.getenv('REDIS_HOST')
+        if not redis_host or redis_host == 'default':
+            redis_host = 'redis'
+        redis_port = os.getenv('REDIS_PORT', '6379')
+        redis_password = os.getenv('REDIS_PASSWORD', '')
+        redis_db = os.getenv('REDIS_DB', '0')
+        if redis_password:
+            CELERY_BROKER_URL = f"redis://default:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+        else:
+            CELERY_BROKER_URL = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
