@@ -27,14 +27,12 @@ services:
   web:
     build: .
     container_name: port_map_web
-    command: >
-      sh -c "poetry run python manage.py migrate &&
-             poetry run python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
     ports:
       - "8000:8000"
     environment:
+      - APP_ROLE=web
       - DEBUG=True
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -49,14 +47,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/accounts/login/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   celery_worker:
     build: .
     container_name: port_map_worker
-    command: poetry run celery -A app worker --loglevel=info
     volumes:
       - .:/app
     environment:
+      - APP_ROLE=worker
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DB_ENGINE=django.db.backends.postgresql
@@ -66,16 +70,20 @@ services:
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_started
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
 
   celery_beat:
     build: .
     container_name: port_map_beat
-    command: poetry run celery -A app beat --loglevel=info
     volumes:
       - .:/app
     environment:
+      - APP_ROLE=beat
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DB_ENGINE=django.db.backends.postgresql
@@ -85,8 +93,12 @@ services:
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_started
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
 
 volumes:
   postgres_data:
