@@ -22,7 +22,13 @@
     </div>
     <p>Estatísticas de latência e histórico de atividade da porta</p>
   </div>
-  <div class="header-actions">
+  <div class="header-actions" style="display: flex; gap: 0.5rem;">
+    <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.25rem;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+      </svg>
+      Editar Alvo
+    </a>
     <button id="btn-check-now" class="btn btn-primary" onclick="checkNow({{ target.id }})">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
@@ -59,6 +65,14 @@
     </h3>
     
     <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.9rem;">
+      {% if target.group %}
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Grupo:</span>
+        <a href="{% url 'dashboard' %}?group={{ target.group.id }}" style="font-weight: 600; color: var(--primary); text-decoration: none; hover: underline;">
+          {{ target.group.name }}
+        </a>
+      </div>
+      {% endif %}
       <div style="display: flex; justify-content: space-between;">
         <span class="text-muted">Endereço IP/Host:</span>
         <span style="font-family: monospace; font-weight: 600; color: white;">{{ target.host }}</span>

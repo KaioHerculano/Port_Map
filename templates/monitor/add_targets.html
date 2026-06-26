@@ -10,13 +10,14 @@
   </div>
 </div>
 
-<div class="grid-2col" style="grid-template-columns: 2fr 1fr;">
+<div class="grid-3-1-col">
   <!-- Forms Box -->
   <div class="glass-panel form-panel">
     <!-- Navigation Tabs -->
-    <div class="form-tabs">
+    <div class="form-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch;">
       <button class="form-tab-btn active" onclick="switchTab('single')">Cadastro Individual</button>
       <button class="form-tab-btn" onclick="switchTab('bulk')">Importar em Lote (Bulk)</button>
+      <button class="form-tab-btn" onclick="switchTab('group')">Cadastrar Novo Grupo</button>
     </div>
     
     <!-- Single Form -->
@@ -25,6 +26,17 @@
         {% csrf_token %}
         <input type="hidden" name="import_type" value="single">
         
+        <div class="form-group">
+          <label for="id_group_id">Grupo (Opcional)</label>
+          <select id="id_group_id" name="group_id" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+            <option value="">-- Selecione um Grupo --</option>
+            {% for g in groups %}
+              <option value="{{ g.id }}">{{ g.name }}</option>
+            {% endfor %}
+          </select>
+          <span class="form-help">Selecione um grupo pré-cadastrado para este alvo.</span>
+        </div>
+
         <div class="form-group">
           <label for="id_label">Rótulo / Identificação (Opcional)</label>
           <input type="text" id="id_label" name="label" class="form-input" placeholder="Ex: Servidor de Câmeras, Banco de Dados, etc.">
@@ -57,6 +69,17 @@
         <input type="hidden" name="import_type" value="bulk">
         
         <div class="form-group">
+          <label for="id_bulk_group_id">Grupo (Opcional)</label>
+          <select id="id_bulk_group_id" name="group_id" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+            <option value="">-- Selecione um Grupo --</option>
+            {% for g in groups %}
+              <option value="{{ g.id }}">{{ g.name }}</option>
+            {% endfor %}
+          </select>
+          <span class="form-help">Todos os alvos importados nesta lista serão associados a este grupo (a menos que tenham etiqueta na própria linha).</span>
+        </div>
+
+        <div class="form-group">
           <label for="id_bulk_text">Lista de IPs e Portas (Um por linha)</label>
           <textarea id="id_bulk_text" name="bulk_text" placeholder="Cole sua lista aqui...
 Ex:
@@ -68,6 +91,25 @@ google.com:443 (Google HTTPS)"></textarea>
         
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Importar Lista Completa</button>
+          <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Group Form -->
+    <div id="tab-group" class="tab-content">
+      <form method="post" action="{% url 'add_targets' %}">
+        {% csrf_token %}
+        <input type="hidden" name="import_type" value="group">
+        
+        <div class="form-group">
+          <label for="id_group_name">Nome do Grupo</label>
+          <input type="text" id="id_group_name" name="group_name" class="form-input" placeholder="Ex: Câmeras Vigia, Banco de Dados, etc." required>
+          <span class="form-help">Crie um grupo para poder associar alvos individuais ou listas completas.</span>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Cadastrar Grupo</button>
           <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
         </div>
       </form>
@@ -119,7 +161,11 @@ google.com:443 (Google HTTPS)"></textarea>
     // Switch tabs buttons active state
     const tabs = document.querySelectorAll('.form-tab-btn');
     tabs.forEach(tab => {
-      if (tab.innerText.toLowerCase().includes(mode === 'single' ? 'individual' : 'lote')) {
+      if (
+        (mode === 'single' && tab.innerText.toLowerCase().includes('individual')) ||
+        (mode === 'bulk' && tab.innerText.toLowerCase().includes('lote')) ||
+        (mode === 'group' && tab.innerText.toLowerCase().includes('grupo'))
+      ) {
         tab.classList.add('active');
       } else {
         tab.classList.remove('active');

@@ -51,6 +51,14 @@
           <span class="username">{{ user.username }}</span>
           <span class="user-email">{{ user.email }}</span>
         </div>
+        
+        <!-- Toggle button on mobile -->
+        <button type="button" class="menu-toggle" aria-label="Toggle Menu" onclick="toggleMobileMenu()">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
+
         <form action="{% url 'logout' %}" method="post" style="display: inline;">
           {% csrf_token %}
           <button type="submit" class="logout-btn" title="Sair do sistema">
@@ -112,6 +120,11 @@
         }, 5000);
       });
     });
+
+    function toggleMobileMenu() {
+      const nav = document.querySelector('.sidebar nav');
+      nav.classList.toggle('active');
+    }
   </script>
   {% block extra_js %}{% endblock %}
 </body>

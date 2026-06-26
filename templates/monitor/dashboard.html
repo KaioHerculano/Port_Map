@@ -2,6 +2,24 @@
 
 {% block title %}Dashboard - Port Monitor{% endblock %}
 
+{% block extra_head %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .dashboard-overview {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 992px) {
+    .dashboard-overview {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="content-header">
   <div class="header-title">
@@ -24,50 +42,93 @@
   </div>
 </div>
 
-<!-- Statistics Cards -->
-<div class="stat-grid">
-  <div class="stat-card glass-panel">
-    <div class="stat-header">
-      <span>Total Monitorados</span>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
-      </svg>
+<!-- Overview Layout: Cards + Status Chart -->
+<div class="dashboard-overview">
+  <!-- Statistics Cards -->
+  <div class="stat-grid">
+    <div class="stat-card glass-panel">
+      <div class="stat-header">
+        <span>Total Monitorados</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
+        </svg>
+      </div>
+      <div class="stat-value" id="stat-total">{{ total_count }}</div>
     </div>
-    <div class="stat-value" id="stat-total">{{ total_count }}</div>
+    
+    <div class="stat-card online glass-panel">
+      <div class="stat-header">
+        <span>Portas Abertas</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="stat-value" id="stat-online">{{ online_count }}</div>
+    </div>
+    
+    <div class="stat-card offline glass-panel">
+      <div class="stat-header">
+        <span>Portas Fechadas</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="stat-value" id="stat-offline">{{ offline_count }}</div>
+    </div>
+    
+    <div class="stat-card inactive glass-panel">
+      <div class="stat-header">
+        <span>Monitoramentos Inativos</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.5 1.5 0 00-1.93 1.93l12.928 12.928a1.5 1.5 0 001.93-1.93L10.05 4.575z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75l16.5 16.5" />
+        </svg>
+      </div>
+      <div class="stat-value" id="stat-inactive">{{ inactive_count }}</div>
+    </div>
   </div>
-  
-  <div class="stat-card online glass-panel">
-    <div class="stat-header">
-      <span>Portas Abertas</span>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+
+  <!-- Status Distribution Chart -->
+  <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
+    <h3 style="color: white; font-size: 1rem; margin: 0 0 1rem 0; width: 100%; text-align: left; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 18px; height: 18px; color: var(--primary);">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
       </svg>
+      Estado das Portas
+    </h3>
+    <div style="position: relative; width: 100%; max-width: 220px; height: 220px; margin: auto;">
+      <canvas id="systemStatusChart"></canvas>
     </div>
-    <div class="stat-value" id="stat-online">{{ online_count }}</div>
-  </div>
-  
-  <div class="stat-card offline glass-panel">
-    <div class="stat-header">
-      <span>Portas Fechadas</span>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    </div>
-    <div class="stat-value" id="stat-offline">{{ offline_count }}</div>
-  </div>
-  
-  <div class="stat-card inactive glass-panel">
-    <div class="stat-header">
-      <span>Monitoramentos Inativos</span>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.5 1.5 0 00-1.93 1.93l12.928 12.928a1.5 1.5 0 001.93-1.93L10.05 4.575z" />
-        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75l16.5 16.5" />
-      </svg>
-    </div>
-    <div class="stat-value" id="stat-inactive">{{ inactive_count }}</div>
   </div>
 </div>
 
+{% if selected_group %}
+<div class="group-info-bar glass-panel" style="padding: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--primary); border-radius: 12px; background: rgba(124, 58, 237, 0.05);">
+  <div>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">Filtrando por Grupo:</span>
+    <strong style="font-size: 1.2rem; color: white; margin-left: 0.5rem;">{{ selected_group.name }}</strong>
+  </div>
+  <a href="{% url 'dashboard' %}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.25rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 14px; height: 14px;">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+    Limpar Filtro
+  </a>
+</div>
+{% endif %}
+
+<!-- Main View Navigation Tabs -->
+<div class="view-tabs" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+  <button class="view-tab-btn active" id="tab-btn-targets" onclick="switchViewTab('targets')" style="background: none; border: none; color: white; font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid var(--primary); position: relative; bottom: -9px; transition: all 0.2s;">
+    Alvos
+  </button>
+  <button class="view-tab-btn" id="tab-btn-groups" onclick="switchViewTab('groups')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
+    Grupos
+  </button>
+</div>
+
+<div id="view-targets" class="view-content">
 <!-- Filters Panel -->
 <div class="filter-bar glass-panel">
   <form class="filter-search" method="get">
@@ -89,7 +150,7 @@
 </div>
 
 <!-- Targets Table -->
-<div class="table-container glass-panel">
+<div class="table-container glass-panel hide-mobile">
   {% if page_obj %}
   <table class="data-table">
     <thead>
@@ -97,8 +158,8 @@
         <th style="width: 25%;">Identificação</th>
         <th style="width: 25%;">IP/Hostname : Porta</th>
         <th style="width: 15%;">Último Estado</th>
-        <th style="width: 12%;">Tempo Resposta</th>
-        <th style="width: 13%;">Último Teste</th>
+        <th class="hide-mobile" style="width: 12%;">Tempo Resposta</th>
+        <th class="hide-mobile" style="width: 13%;">Último Teste</th>
         <th style="width: 10%; text-align: center;">Ativo</th>
         <th style="width: 10%; text-align: center;">Ações</th>
       </tr>
@@ -111,6 +172,11 @@
             {{ target.label }}
           {% else %}
             <span class="text-muted" style="font-size: 0.85rem; font-style: italic;">Sem identificação</span>
+          {% endif %}
+          {% if target.group %}
+            <div style="font-size: 0.75rem; color: var(--primary); margin-top: 0.25rem;">
+              Grupo: <strong>{{ target.group.name }}</strong>
+            </div>
           {% endif %}
         </td>
         <td class="td-host">
@@ -127,7 +193,7 @@
             <span class="status-badge inactive"><span class="dot"></span>Sem dados</span>
           {% endif %}
         </td>
-        <td id="latency-cell-{{ target.id }}">
+        <td id="latency-cell-{{ target.id }}" class="hide-mobile">
           {% if not target.is_active or target.last_latency is None %}
             <span class="td-latency none">-</span>
           {% else %}
@@ -136,7 +202,7 @@
             </span>
           {% endif %}
         </td>
-        <td id="time-cell-{{ target.id }}" class="td-time">
+        <td id="time-cell-{{ target.id }}" class="td-time hide-mobile">
           {% if target.last_checked %}
             {{ target.last_checked|date:"d/m H:i:s" }}
           {% else %}
@@ -156,6 +222,13 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
             </svg>
           </button>
+          
+          <!-- Edit Target -->
+          <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary btn-icon" title="Editar alvo">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+            </svg>
+          </a>
           
           <!-- Detailed info -->
           <a href="{% url 'target_detail' target.pk %}" class="btn btn-secondary btn-icon" title="Ver estatísticas completas">
@@ -210,6 +283,162 @@
   </div>
   {% endif %}
 </div>
+  
+  <!-- Mobile Targets List (shown on mobile, hidden on desktop) -->
+  {% if page_obj %}
+  <div class="mobile-targets-list show-mobile">
+    {% for target in page_obj %}
+    <div class="mobile-target-card glass-panel" id="target-card-{{ target.id }}">
+      <div class="card-row-main">
+        <div class="card-target-ident">
+          <strong class="card-label">
+            {% if target.label %}
+              {{ target.label }}
+            {% else %}
+              <span class="text-muted" style="font-size: 0.85rem; font-style: italic;">Sem identificação</span>
+            {% endif %}
+          </strong>
+          {% if target.group %}
+            <span class="group-badge">{{ target.group.name }}</span>
+          {% endif %}
+          <span class="card-host">{{ target.host }}:<strong>{{ target.port }}</strong></span>
+        </div>
+        
+        <div class="card-status-toggle">
+          <div id="status-card-cell-{{ target.id }}">
+            {% if not target.is_active %}
+              <span class="status-badge inactive"><span class="dot"></span>Inativo</span>
+            {% elif target.last_status == True %}
+              <span class="status-badge online"><span class="dot"></span>Aberta</span>
+            {% elif target.last_status == False %}
+              <span class="status-badge offline"><span class="dot"></span>Fechada</span>
+            {% else %}
+              <span class="status-badge inactive"><span class="dot"></span>Sem dados</span>
+            {% endif %}
+          </div>
+          <label class="switch">
+            <input type="checkbox" {% if target.is_active %}checked{% endif %} onchange="toggleTarget({{ target.id }}, this)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="card-row-footer">
+        <div class="card-metrics">
+          <span id="latency-card-cell-{{ target.id }}" class="card-metric-latency {% if target.last_latency is not None %}{% if target.last_latency < 150 %}fast{% else %}slow{% endif %}{% endif %}">
+            {% if not target.is_active or target.last_latency is None %}-{% else %}{{ target.last_latency }} ms{% endif %}
+          </span>
+          <span id="time-card-cell-{{ target.id }}" class="card-metric-time">
+            {% if target.last_checked %}
+              {{ target.last_checked|date:"d/m H:i" }}
+            {% else %}
+              Nunca testado
+            {% endif %}
+          </span>
+        </div>
+        
+        <div class="card-actions">
+          <!-- Manual trigger check -->
+          <button class="btn btn-secondary btn-icon" title="Testar porta agora" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+            </svg>
+          </button>
+          
+          <!-- Edit Target -->
+          <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary btn-icon" title="Editar alvo">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+            </svg>
+          </a>
+          
+          <!-- Detailed info -->
+          <a href="{% url 'target_detail' target.pk %}" class="btn btn-secondary btn-icon" title="Ver estatísticas completas">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+            </svg>
+          </a>
+          
+          <!-- Delete -->
+          <button class="btn btn-danger btn-icon" title="Excluir monitoramento" onclick="deleteTarget({{ target.id }})">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- Pagination for Mobile -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination show-mobile" style="margin-top: 1rem; margin-bottom: 2rem;">
+      {% if page_obj.has_previous %}
+        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">&laquo;</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Ant</a>
+      {% endif %}
+      
+      <span class="page-link active" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Pág {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
+      
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Próx</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">&raquo;</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div> <!-- End of #view-targets -->
+
+
+<!-- View Groups Content -->
+<div id="view-groups" class="view-content" style="display: none; margin-bottom: 2rem;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+    {% for g in groups %}
+    <div class="glass-panel group-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative; transition: all 0.3s; border: 1px solid rgba(255,255,255,0.03); border-radius: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <h3 style="color: white; font-size: 1.25rem; margin: 0;">{{ g.name }}</h3>
+        <span class="status-badge" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+          {{ g.total_count }} portas
+        </span>
+      </div>
+      
+      <div style="display: flex; gap: 1rem; font-size: 0.85rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem; margin-top: auto;">
+        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+          <span class="text-muted" style="font-size: 0.75rem;">Abertas</span>
+          <strong style="color: var(--success); font-size: 1rem;">{{ g.online_count }}</strong>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+          <span class="text-muted" style="font-size: 0.75rem;">Fechadas</span>
+          <strong style="color: var(--danger); font-size: 1rem;">{{ g.offline_count }}</strong>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+          <span class="text-muted" style="font-size: 0.75rem;">Inativas</span>
+          <strong style="color: var(--text-muted); font-size: 1rem;">{{ g.inactive_count }}</strong>
+        </div>
+      </div>
+      
+      <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+        <a href="?group={{ g.id }}" class="btn btn-primary" style="width: 100%; text-align: center; justify-content: center; font-size: 0.85rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Ver Portas
+        </a>
+      </div>
+    </div>
+    {% empty %}
+    <div class="glass-panel" style="grid-column: 1 / -1; padding: 3rem; text-align: center; color: var(--text-muted); border-radius: 12px;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--border-color);">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A9 9 0 0118 12v.75m-15 0a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25m-15 0V12a9 9 0 003 6.36M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      <p style="font-size: 1.1rem; font-weight: 600; color: white;">Nenhum grupo criado ainda</p>
+      <p style="font-size: 0.85rem; margin-top: 0.25rem;">Cadastre portas utilizando identificadores entre colchetes, ex: 45.174.193.10:40001 [Grupo Câmeras].</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
 
 <!-- Recent Scans / System Logs -->
 <div class="glass-panel" style="padding: 1.5rem;">
@@ -222,21 +451,23 @@
   
   <div style="display: flex; flex-direction: column; gap: 0.5rem;">
     {% for log in recent_logs %}
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: rgba(255,255,255,0.01); border-radius: 8px; border: 1px solid rgba(255,255,255,0.03);">
-      <div style="display: flex; align-items: center; gap: 0.75rem;">
+    <div class="recent-log-item">
+      <div class="recent-log-left">
         <span class="status-badge {% if log.status %}online{% else %}offline{% endif %}" style="padding: 0.15rem 0.45rem; font-size: 0.65rem;">
           <span class="dot"></span>{% if log.status %}ABERTA{% else %}FECHADA{% endif %}
         </span>
-        <span style="font-family: monospace; font-size: 0.9rem;">{{ log.target.host }}:{{ log.target.port }}</span>
-        {% if log.target.label %}
-          <span style="color: var(--text-muted); font-size: 0.8rem;">({{ log.target.label }})</span>
-        {% endif %}
+        <div class="recent-log-target-info">
+          <span class="recent-log-host">{{ log.target.host }}:{{ log.target.port }}</span>
+          {% if log.target.label %}
+            <span class="recent-log-label">({{ log.target.label }})</span>
+          {% endif %}
+        </div>
       </div>
-      <div style="display: flex; align-items: center; gap: 1rem;">
-        <span style="font-size: 0.85rem; font-weight: 600; color: {% if log.status %}var(--success){% else %}var(--danger){% endif %};">
+      <div class="recent-log-right">
+        <span class="recent-log-latency {% if log.status %}status-online-text{% else %}status-offline-text{% endif %}">
           {{ log.latency }} ms
         </span>
-        <span style="font-size: 0.8rem; color: var(--text-muted);">{{ log.timestamp|date:"H:i:s" }}</span>
+        <span class="recent-log-time">{{ log.timestamp|date:"H:i:s" }}</span>
       </div>
     </div>
     {% empty %}
@@ -251,6 +482,13 @@
   // Toggle Target status (Active/Inactive)
   function toggleTarget(id, checkbox) {
     const isChecked = checkbox.checked;
+    
+    // Sync checkboxes on both table and card views
+    const allCheckboxes = document.querySelectorAll(`input[type="checkbox"][onchange*="toggleTarget(${id}"]`);
+    allCheckboxes.forEach(cb => {
+      cb.checked = isChecked;
+    });
+
     fetch(`/target/${id}/toggle/`, {
       method: 'POST',
       headers: {
@@ -261,30 +499,47 @@
     .then(response => response.json())
     .then(data => {
       if (data.status === 'success') {
-        // Refresh cells/states visually
+        // Refresh cells/states visually on table
         const statusCell = document.getElementById(`status-cell-${id}`);
         const latencyCell = document.getElementById(`latency-cell-${id}`);
-        const actionBtn = checkbox.closest('tr').querySelector('button[title="Testar porta agora"]');
+        const actionBtnTable = statusCell ? statusCell.closest('tr').querySelector('button[title="Testar porta agora"]') : null;
         
-        if (isChecked) {
-          statusCell.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Sem dados</span>`;
-          actionBtn.disabled = false;
-        } else {
-          statusCell.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Inativo</span>`;
-          latencyCell.innerHTML = `<span class="td-latency none">-</span>`;
-          actionBtn.disabled = true;
-        }
+        // Refresh cells/states visually on mobile card
+        const statusCardCell = document.getElementById(`status-card-cell-${id}`);
+        const latencyCardCell = document.getElementById(`latency-card-cell-${id}`);
+        const actionBtnCard = statusCardCell ? statusCardCell.closest('.mobile-target-card').querySelector('button[title="Testar porta agora"]') : null;
+
+        const updateState = (statusEl, latencyEl, btnEl) => {
+          if (!statusEl) return;
+          if (isChecked) {
+            statusEl.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Sem dados</span>`;
+            if (btnEl) btnEl.disabled = false;
+          } else {
+            statusEl.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Inativo</span>`;
+            if (latencyEl) {
+              if (latencyEl.tagName.toLowerCase() === 'span' && latencyEl.classList.contains('card-metric-latency')) {
+                latencyEl.innerHTML = `-`;
+              } else {
+                latencyEl.innerHTML = `<span class="td-latency none">-</span>`;
+              }
+            }
+            if (btnEl) btnEl.disabled = true;
+          }
+        };
+
+        updateState(statusCell, latencyCell, actionBtnTable);
+        updateState(statusCardCell, latencyCardCell, actionBtnCard);
         
         // Update stats
         updateStats();
         showToast(data.message, 'success');
       } else {
-        checkbox.checked = !isChecked; // revert
+        allCheckboxes.forEach(cb => cb.checked = !isChecked); // revert
         showToast('Erro ao atualizar status do alvo.', 'error');
       }
     })
     .catch(err => {
-      checkbox.checked = !isChecked; // revert
+      allCheckboxes.forEach(cb => cb.checked = !isChecked); // revert
       showToast('Ocorreu um erro na requisição.', 'error');
     });
   }
@@ -306,17 +561,28 @@
     .then(data => {
       if (data.status === 'success') {
         const row = document.getElementById(`target-row-${id}`);
-        row.style.transition = 'all 0.5s ease';
-        row.style.opacity = '0';
-        row.style.transform = 'translateX(-20px)';
+        const card = document.getElementById(`target-card-${id}`);
+        
+        const removeElement = (el) => {
+          if (!el) return;
+          el.style.transition = 'all 0.5s ease';
+          el.style.opacity = '0';
+          el.style.transform = 'translateX(-20px)';
+          setTimeout(() => el.remove(), 500);
+        };
+        
+        removeElement(row);
+        removeElement(card);
+        
         setTimeout(() => {
-          row.remove();
           updateStats();
-          // If no rows left, reload to show empty state
-          if (document.querySelectorAll('.data-table tbody tr').length === 0) {
+          // If no items left, reload to show empty state
+          if (document.querySelectorAll('.mobile-target-card').length === 0 && 
+              document.querySelectorAll('.data-table tbody tr').length === 0) {
             window.location.reload();
           }
-        }, 500);
+        }, 550);
+        
         showToast(data.message, 'success');
       } else {
         showToast('Erro ao excluir o alvo.', 'error');
@@ -441,6 +707,116 @@
       setTimeout(() => alert.remove(), 500);
     }, 4000);
   }
+
+  // Switch between Alvos (Targets) and Grupos (Groups) Views
+  function switchViewTab(mode) {
+    const targetsView = document.getElementById('view-targets');
+    const groupsView = document.getElementById('view-groups');
+    const targetsBtn = document.getElementById('tab-btn-targets');
+    const groupsBtn = document.getElementById('tab-btn-groups');
+    
+    if (!targetsView || !groupsView) return;
+
+    if (mode === 'groups') {
+      targetsView.style.display = 'none';
+      groupsView.style.display = 'block';
+      
+      groupsBtn.style.color = 'white';
+      groupsBtn.style.borderBottomColor = 'var(--primary)';
+      
+      targetsBtn.style.color = 'var(--text-muted)';
+      targetsBtn.style.borderBottomColor = 'transparent';
+      
+      sessionStorage.setItem('active_dashboard_tab', 'groups');
+    } else {
+      targetsView.style.display = 'block';
+      groupsView.style.display = 'none';
+      
+      targetsBtn.style.color = 'white';
+      targetsBtn.style.borderBottomColor = 'var(--primary)';
+      
+      groupsBtn.style.color = 'var(--text-muted)';
+      groupsBtn.style.borderBottomColor = 'transparent';
+      
+      sessionStorage.setItem('active_dashboard_tab', 'targets');
+    }
+  }
+
+  // Restore active tab on load
+  document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('group')) {
+      switchViewTab('targets');
+    } else {
+      const savedTab = sessionStorage.getItem('active_dashboard_tab');
+      if (savedTab === 'groups') {
+        switchViewTab('groups');
+      } else {
+        switchViewTab('targets');
+      }
+    }
+
+    // Initialize System Status Doughnut Chart
+    const ctx = document.getElementById('systemStatusChart');
+    if (ctx) {
+      const onlineCount = parseInt(document.getElementById('stat-online').innerText) || 0;
+      const offlineCount = parseInt(document.getElementById('stat-offline').innerText) || 0;
+      const inactiveCount = parseInt(document.getElementById('stat-inactive').innerText) || 0;
+
+      const statusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Abertas', 'Fechadas', 'Inativos'],
+          datasets: [{
+            data: [onlineCount, offlineCount, inactiveCount],
+            backgroundColor: [
+              '#10b981', // green for online
+              '#ef4444', // red for offline
+              '#64748b'  // slate for inactive
+            ],
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.05)'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.parsed || 0;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                  return ` ${label}: ${value} (${percentage}%)`;
+                }
+              }
+            }
+          },
+          cutout: '70%'
+        }
+      });
+
+      // Hook chart update into updateStats function for dynamic scans/toggles
+      const originalUpdateStats = window.updateStats;
+      window.updateStats = function() {
+        if (originalUpdateStats) {
+          originalUpdateStats();
+        }
+        
+        const newOnline = parseInt(document.getElementById('stat-online').innerText) || 0;
+        const newOffline = parseInt(document.getElementById('stat-offline').innerText) || 0;
+        const newInactive = parseInt(document.getElementById('stat-inactive').innerText) || 0;
+        
+        statusChart.data.datasets[0].data = [newOnline, newOffline, newInactive];
+        statusChart.update();
+      };
+    }
+  });
 </script>
 
 <style>
