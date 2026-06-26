@@ -19,6 +19,10 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'https://portmap.livesyncapp.com').split(',') if origin.strip()
+]
+
 
 # Application definition
 
