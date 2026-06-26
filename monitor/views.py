@@ -6,10 +6,10 @@ from django.views import generic, View
 from django.http import HttpRequest, HttpResponse, JsonResponse, HttpResponseRedirect
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.urls import reverse_lazy
 
-from .models import MonitorTarget, MonitorLog
+from .models import MonitorTarget, MonitorLog, Group
 from .services import PortParserService
 from .tasks import check_single_target, check_all_targets
 
@@ -21,18 +21,20 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
     model = MonitorTarget
     template_name = 'monitor/dashboard.html'
     context_object_name = 'targets'
-    paginate_by = 20
+    paginate_by = 10
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related('group')
         search_query = self.request.GET.get('q', '').strip()
         status_filter = self.request.GET.get('status', '').strip()
+        group_id = self.request.GET.get('group', '').strip()
 
         if search_query:
             queryset = queryset.filter(
                 Q(host__icontains=search_query) | 
                 Q(label__icontains=search_query) | 
-                Q(port__icontains=search_query)
+                Q(port__icontains=search_query) |
+                Q(group__name__icontains=search_query)
             )
 
         if status_filter == 'online':
@@ -42,11 +44,21 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
         elif status_filter == 'inactive':
             queryset = queryset.filter(is_active=False)
 
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+
         return queryset
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
         all_targets = MonitorTarget.objects.all()
+        
+        group_id = self.request.GET.get('group', '').strip()
+        if group_id:
+            all_targets = all_targets.filter(group_id=group_id)
+            context['selected_group'] = get_object_or_404(Group, pk=group_id)
+        else:
+            context['selected_group'] = None
 
         context['total_count'] = all_targets.count()
         context['online_count'] = all_targets.filter(last_status=True, is_active=True).count()
@@ -55,9 +67,18 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
 
         context['search_query'] = self.request.GET.get('q', '')
         context['status_filter'] = self.request.GET.get('status', '')
+        context['group_id'] = group_id
+
+        # Fetch groups annotated with counts
+        context['groups'] = Group.objects.annotate(
+            total_count=Count('targets'),
+            online_count=Count('targets', filter=Q(targets__last_status=True, targets__is_active=True)),
+            offline_count=Count('targets', filter=Q(targets__last_status=False, targets__is_active=True)),
+            inactive_count=Count('targets', filter=Q(targets__is_active=False))
+        )
         
         # Optimize query: select_related for related target model to avoid N+1
-        context['recent_logs'] = MonitorLog.objects.select_related('target').order_by('-timestamp')[:15]
+        context['recent_logs'] = MonitorLog.objects.select_related('target', 'target__group').order_by('-timestamp')[:15]
         return context
 
 
@@ -65,8 +86,35 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
     """Class-Based View for target registration (individual or bulk)."""
     template_name = 'monitor/add_targets.html'
 
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context['groups'] = Group.objects.all().order_by('name')
+        return context
+
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
         import_type = request.POST.get('import_type', 'single')
+
+        if import_type == 'group':
+            group_name = request.POST.get('group_name', '').strip()
+            if not group_name:
+                messages.error(request, "O nome do grupo é obrigatório.")
+                return redirect('add_targets')
+            
+            group, created = Group.objects.get_or_create(name=group_name)
+            if created:
+                messages.success(request, f"Grupo '{group_name}' cadastrado com sucesso!")
+            else:
+                messages.info(request, f"O grupo '{group_name}' já existe.")
+            return redirect('add_targets')
+
+        # Retrieve optional group selected in the dropdown
+        group_id = request.POST.get('group_id', '').strip()
+        group = None
+        if group_id:
+            try:
+                group = Group.objects.get(pk=group_id)
+            except Group.DoesNotExist:
+                pass
 
         if import_type == 'single':
             label = request.POST.get('label', '').strip()
@@ -89,7 +137,7 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
             if label:
                 import_str += f" [{label}]"
 
-            created_targets, errors = PortParserService.parse_and_create_targets(import_str)
+            created_targets, errors = PortParserService.parse_and_create_targets(import_str, group=group)
             if created_targets:
                 check_single_target.delay(created_targets[0].id)
                 messages.success(
@@ -105,7 +153,7 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                 messages.error(request, "Cole a lista de IPs e portas antes de enviar.")
                 return redirect('add_targets')
 
-            created_targets, errors = PortParserService.parse_and_create_targets(bulk_text)
+            created_targets, errors = PortParserService.parse_and_create_targets(bulk_text, group=group)
 
             if created_targets:
                 for target in created_targets:
@@ -208,3 +256,25 @@ class TriggerCheckView(LoginRequiredMixin, View):
                 'task_id': task.id,
                 'message': 'Teste global de portas iniciado em segundo plano.'
             })
+
+
+class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
+    """Class-Based View to update target configurations."""
+    model = MonitorTarget
+    context_object_name = 'target'
+    template_name = 'monitor/edit_target.html'
+    fields = ['group', 'label', 'host', 'port']
+    success_url = reverse_lazy('dashboard')
+
+    def form_valid(self, form):
+        host = form.cleaned_data.get('host')
+        port = form.cleaned_data.get('port')
+        
+        # Check if another target already has this host and port
+        if MonitorTarget.objects.filter(host=host, port=port).exclude(pk=self.object.pk).exists():
+            form.add_error('port', 'Este par de Host e Porta já está cadastrado.')
+            return self.form_invalid(form)
+
+        response = super().form_valid(form)
+        messages.success(self.request, f"Alvo {self.object.host}:{self.object.port} atualizado com sucesso!")
+        return response

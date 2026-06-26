@@ -5,7 +5,7 @@ import logging
 from typing import List, Tuple, Optional
 from django.db import transaction
 from django.utils import timezone
-from .models import MonitorTarget, MonitorLog
+from .models import MonitorTarget, MonitorLog, Group
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class PortParserService:
 
     @staticmethod
     @transaction.atomic
-    def parse_and_create_targets(text: str) -> Tuple[List[MonitorTarget], List[str]]:
+    def parse_and_create_targets(text: str, group: Optional[Group] = None) -> Tuple[List[MonitorTarget], List[str]]:
         lines = text.strip().split('\n')
         created_targets: List[MonitorTarget] = []
         errors: List[str] = []
@@ -47,6 +47,11 @@ class PortParserService:
             # Parse ports
             port_parts = ports_str.split(',')
             ports: List[int] = []
+            line_skipped = False
+            
+            max_ports_per_line = 100
+            max_total_targets = 500
+
             for part in port_parts:
                 part = part.strip()
                 if '-' in part:
@@ -56,26 +61,63 @@ class PortParserService:
                         end_p = int(end_p_str.strip())
                         if start_p > end_p:
                             start_p, end_p = end_p, start_p
+                        
+                        # Validate range boundaries first
+                        if not (1 <= start_p <= 65535) or not (1 <= end_p <= 65535):
+                            errors.append(f"Linha {line_num}: Faixa de portas fora do limite 1-65535: '{part}'")
+                            line_skipped = True
+                            break
+                        
+                        # Limit range size to prevent abuse/errors
+                        range_size = end_p - start_p + 1
+                        if range_size > max_ports_per_line:
+                            errors.append(f"Linha {line_num}: Faixa de portas muito grande ({range_size} portas). O limite máximo por faixa é {max_ports_per_line}.")
+                            line_skipped = True
+                            break
+                            
                         ports.extend(range(start_p, end_p + 1))
                     except ValueError:
                         errors.append(f"Linha {line_num}: Faixa de portas inválida '{part}'")
+                        line_skipped = True
+                        break
                 else:
                     try:
-                        ports.append(int(part))
+                        port = int(part)
+                        if not (1 <= port <= 65535):
+                            errors.append(f"Linha {line_num}: Porta fora do limite 1-65535: '{port}'")
+                            line_skipped = True
+                            break
+                        ports.append(port)
                     except ValueError:
                         errors.append(f"Linha {line_num}: Porta inválida '{part}'")
+                        line_skipped = True
+                        break
+
+            if line_skipped:
+                continue
+
+            # Check if this line exceeds line limit
+            if len(ports) > max_ports_per_line:
+                errors.append(f"Linha {line_num}: Quantidade de portas ({len(ports)}) excede o limite máximo de {max_ports_per_line} por linha.")
+                continue
+
+            # Check if adding these ports exceeds total limit
+            if len(created_targets) + len(ports) > max_total_targets:
+                errors.append(f"Limite máximo de {max_total_targets} alvos por importação atingido. Importação interrompida.")
+                break
+
+            # Create/get group if label was specified
+            line_group = group
+            if label:
+                line_group, _ = Group.objects.get_or_create(name=label)
 
             # Create targets in DB
             for port in ports:
-                if not (1 <= port <= 65535):
-                    errors.append(f"Linha {line_num}: Porta fora do limite 1-65535: '{port}'")
-                    continue
-
                 try:
                     target, created = MonitorTarget.objects.update_or_create(
                         host=host,
                         port=port,
-                        defaults={'label': label, 'is_active': True}
+                        defaults={'group': line_group, 'label': label, 'is_active': True}
                     )
                     created_targets.append(target)
                 except Exception as e:

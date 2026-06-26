@@ -7,6 +7,7 @@ urlpatterns = [
     path('target/<int:pk>/', views.TargetDetailView.as_view(), name='target_detail'),
     path('target/<int:pk>/toggle/', views.ToggleTargetView.as_view(), name='toggle_target'),
     path('target/<int:pk>/delete/', views.DeleteTargetView.as_view(), name='delete_target'),
+    path('target/<int:pk>/edit/', views.UpdateTargetView.as_view(), name='edit_target'),
     path('target/<int:pk>/check/', views.TriggerCheckView.as_view(), name='trigger_check_single'),
     path('check-all/', views.TriggerCheckView.as_view(), name='trigger_check_all'),
 ]
