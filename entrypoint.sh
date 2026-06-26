@@ -41,7 +41,7 @@ case "$APP_ROLE" in
     chmod -R 777 /app/staticfiles /app/media || true
 
     echo "Iniciando servidor web..."
-    exec gunicorn app.wsgi:application --bind 0.0.0.0:8000
+    exec gunicorn app.wsgi:application --bind 0.0.0.0:8003
     ;;
 
   worker)

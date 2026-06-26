@@ -88,7 +88,7 @@ Inicia a interface de gerenciamento:
 ```bash
 poetry run python manage.py runserver
 ```
-Acesse no seu navegador: **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)**
+Acesse no seu navegador: **[http://127.0.0.1:8003/](http://127.0.0.1:8003/)**
 
 ### 2. Iniciar o Celery Worker (Conexões de Teste)
 Processa a fila de varredura assíncrona das portas:
@@ -122,7 +122,7 @@ Este comando irá:
 4. Aplicar as migrações automáticas do banco.
 5. Iniciar os serviços Web, Celery Worker e Celery Beat conectados em rede interna.
 
-O painel de controle estará disponível no navegador em **[http://localhost:8000/](http://localhost:8000/)**.
+O painel de controle estará disponível no navegador em **[http://localhost:8003/](http://localhost:8003/)**.
 
 ### Passo 2: Criar um Superuser dentro do container
 Para criar uma conta administrativa no container em execução, execute:

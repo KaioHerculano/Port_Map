@@ -30,7 +30,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "8003:8003"
     environment:
       - APP_ROLE=web
       - DEBUG=True
@@ -48,7 +48,7 @@ services:
       redis:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/accounts/login/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8003/accounts/login/"]
       interval: 5s
       timeout: 5s
       retries: 10

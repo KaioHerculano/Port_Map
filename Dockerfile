@@ -44,6 +44,6 @@ RUN sed -i 's/\r$//g' /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Informa a porta exposta
-EXPOSE 8000
+EXPOSE 8003
 
 ENTRYPOINT ["entrypoint.sh"]
