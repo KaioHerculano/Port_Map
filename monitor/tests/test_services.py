@@ -1,37 +1,8 @@
 from django.test import TestCase
 from django.db import IntegrityError
-from django.utils import timezone
-from datetime import timedelta
 
-from .models import MonitorTarget, MonitorLog, Group
-from .services import PortParserService
-
-class MonitorModelTests(TestCase):
-    def test_create_target(self):
-        target = MonitorTarget.objects.create(
-            label="Servidor de Teste",
-            host="127.0.0.1",
-            port=8000
-        )
-        self.assertEqual(str(target), "127.0.0.1:8000 (Servidor de Teste)")
-        self.assertTrue(target.is_active)
-
-    def test_duplicate_host_port_raises_integrity_error(self):
-        MonitorTarget.objects.create(host="192.168.1.1", port=80)
-        with self.assertRaises(IntegrityError):
-            MonitorTarget.objects.create(host="192.168.1.1", port=80)
-
-    def test_uptime_percentage_and_average_latency_calculation(self):
-        target = MonitorTarget.objects.create(host="127.0.0.1", port=9000, last_status=True)
-        
-        # Create 3 logs: 2 open, 1 closed
-        MonitorLog.objects.create(target=target, status=True, latency=10.5)
-        MonitorLog.objects.create(target=target, status=True, latency=15.5)
-        MonitorLog.objects.create(target=target, status=False, latency=3.2)
-        
-        self.assertEqual(target.uptime_percentage_24h, 66.7)
-        self.assertEqual(target.average_latency_24h, 13.0)
-
+from ..models import MonitorTarget, Group
+from ..services import PortParserService
 
 class BulkImportParserTests(TestCase):
     def test_parse_single_target(self):
@@ -134,7 +105,7 @@ class BulkImportParserTests(TestCase):
         self.assertEqual(targets[0].group.name, "Servidor Web")
         self.assertEqual(targets[0].label, "Servidor Web")
 
-        # 2. Test parsing of range port with label creates a group and links targets, but target labels are set to None
+        # 2. Test parsing of range port with label creates a group and links targets
         text_range = "45.174.193.10:40001-40003 [Cameras Vigia]"
         targets_range, errors_range = PortParserService.parse_and_create_targets(text_range)
         self.assertEqual(len(targets_range), 3)
@@ -153,25 +124,12 @@ class BulkImportParserTests(TestCase):
         self.assertEqual(targets[0].group, group)
         self.assertEqual(targets[1].group, group)
 
-    def test_group_stats_annotation_in_database(self):
-        # Create a group
-        group = Group.objects.create(name="Servidores BD")
-        
-        # Create 3 targets under this group
-        target1 = MonitorTarget.objects.create(host="10.0.0.1", port=5432, group=group, last_status=True, is_active=True)
-        target2 = MonitorTarget.objects.create(host="10.0.0.2", port=5432, group=group, last_status=False, is_active=True)
-        target3 = MonitorTarget.objects.create(host="10.0.0.3", port=5432, group=group, is_active=False) # Inactive
-        
-        # Fetch groups annotated with counts
-        from django.db.models import Count, Q
-        annotated_group = Group.objects.annotate(
-            total_count=Count('targets'),
-            online_count=Count('targets', filter=Q(targets__last_status=True, targets__is_active=True)),
-            offline_count=Count('targets', filter=Q(targets__last_status=False, targets__is_active=True)),
-            inactive_count=Count('targets', filter=Q(targets__is_active=False))
-        ).get(id=group.id)
-        
-        self.assertEqual(annotated_group.total_count, 3)
-        self.assertEqual(annotated_group.online_count, 1)
-        self.assertEqual(annotated_group.offline_count, 1)
-        self.assertEqual(annotated_group.inactive_count, 1)
+    def test_group_association_respects_explicit_selection_with_label(self):
+        group = Group.objects.create(name="Grupo Vigia")
+        text = "192.168.1.1:80 [Camera Frontal]"
+        targets, errors = PortParserService.parse_and_create_targets(text, group=group)
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0].group, group)
+        self.assertEqual(targets[0].label, "Camera Frontal")
+        # Ensure we didn't create a group named "Camera Frontal"
+        self.assertFalse(Group.objects.filter(name="Camera Frontal").exists())
