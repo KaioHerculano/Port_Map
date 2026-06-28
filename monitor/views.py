@@ -388,3 +388,34 @@ class GroupReportPDFView(LoginRequiredMixin, View):
         safe_name = "".join([c if c.isalnum() else "_" for c in group.name.lower()])
         response['Content-Disposition'] = f'filename="relatorio_sla_{safe_name}.pdf"'
         return response
+
+
+class UpdateGroupView(LoginRequiredMixin, View):
+    """Class-Based View to update the group name."""
+    
+    def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
+        group = get_object_or_404(Group, pk=pk)
+        new_name = request.POST.get('name', '').strip()
+        if new_name:
+            if Group.objects.filter(name__iexact=new_name).exclude(pk=pk).exists():
+                messages.error(request, f"Já existe um grupo com o nome '{new_name}'.")
+            else:
+                old_name = group.name
+                group.name = new_name
+                group.save()
+                messages.success(request, f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso.")
+        else:
+            messages.error(request, "O nome do grupo não pode ser vazio.")
+            
+        return redirect('dashboard')
+
+
+class DeleteGroupView(LoginRequiredMixin, View):
+    """Class-Based View to delete a group."""
+    
+    def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
+        group = get_object_or_404(Group, pk=pk)
+        group_name = group.name
+        group.delete()
+        messages.success(request, f"Grupo '{group_name}' excluído com sucesso.")
+        return redirect('dashboard')

@@ -62,3 +62,34 @@ class MonitorViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(len(response.content) > 0)
+
+    def test_update_group_view_successful(self):
+        User = get_user_model()
+        user = User.objects.create_user(username="testuser_edit", password="testpassword", email="edit@test.com")
+        self.client.login(username="testuser_edit", password="testpassword")
+        
+        group = Group.objects.create(name="Grupo Original")
+        url = reverse('edit_group', kwargs={'pk': group.id})
+        response = self.client.post(url, {'name': 'Grupo Modificado'})
+        
+        self.assertEqual(response.status_code, 302)
+        group.refresh_from_db()
+        self.assertEqual(group.name, "Grupo Modificado")
+
+    def test_delete_group_view_successful(self):
+        User = get_user_model()
+        user = User.objects.create_user(username="testuser_del", password="testpassword", email="del@test.com")
+        self.client.login(username="testuser_del", password="testpassword")
+        
+        group = Group.objects.create(name="Grupo Para Apagar")
+        target = MonitorTarget.objects.create(host="192.168.20.1", port=80, group=group)
+        
+        url = reverse('delete_group', kwargs={'pk': group.id})
+        response = self.client.post(url)
+        
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Group.objects.filter(id=group.id).exists())
+        
+        # Verify target is not deleted but group is SET NULL
+        target.refresh_from_db()
+        self.assertIsNone(target.group)
