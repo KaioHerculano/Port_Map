@@ -174,10 +174,10 @@
                 <td style="width: 33.3%; text-align: center; padding: 12px; vertical-align: middle;">
                     <div style="font-size: 8.5pt; color: #4A5568; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">Status do SLA</div>
                     <div style="margin-top: 6px;">
-                        {% if group_availability >= 99.0 %}
+                        {% if group_availability >= 80.0 %}
                             <span class="badge badge-high" style="padding: 3px 10px; font-size: 8pt; font-weight: bold;">EXCELENTE</span>
                         {% elif group_availability >= 70.0 %}
-                            <span class="badge badge-medium" style="padding: 3px 10px; font-size: 8pt; font-weight: bold;">ATENÇÃO</span>
+                            <span class="badge badge-medium" style="padding: 3px 10px; font-size: 8pt; font-weight: bold;">BOM</span>
                         {% else %}
                             <span class="badge badge-low" style="padding: 3px 10px; font-size: 8pt; font-weight: bold;">CRÍTICO</span>
                         {% endif %}
