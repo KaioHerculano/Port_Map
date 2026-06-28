@@ -432,20 +432,26 @@
         </div>
       </div>
       
-      <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-        <a href="?group={{ g.id }}" class="btn btn-primary" style="flex: 1; text-align: center; justify-content: center; font-size: 0.85rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
+      <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <a href="?group={{ g.id }}" class="btn btn-primary" style="width: 100%; text-align: center; justify-content: center; font-size: 0.85rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           Ver Portas
         </a>
-        <div style="flex: 1.5; display: flex; flex-direction: column; gap: 0.25rem;">
-          <div style="display: flex; gap: 2px;">
-            <input type="date" id="pdf_start_date_{{ g.id }}" style="padding: 0.25rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 4px; color: white; font-size: 0.7rem; width: 50%; outline: none; font-family: inherit;">
-            <input type="date" id="pdf_end_date_{{ g.id }}" style="padding: 0.25rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 4px; color: white; font-size: 0.7rem; width: 50%; outline: none; font-family: inherit;">
+        <div style="display: flex; flex-direction: column; gap: 0.25rem; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 0.5rem;">
+          <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
+            <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 0.7rem; color: var(--text-muted);">De:</span>
+              <input type="date" id="pdf_start_date_{{ g.id }}" style="flex: 1; padding: 0.25rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 4px; color: white; font-size: 0.75rem; outline: none; font-family: inherit; min-width: 0;">
+            </div>
+            <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); margin-left: 0.25rem;">Até:</span>
+              <input type="date" id="pdf_end_date_{{ g.id }}" style="flex: 1; padding: 0.25rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 4px; color: white; font-size: 0.75rem; outline: none; font-family: inherit; min-width: 0;">
+            </div>
           </div>
-          <button onclick="downloadGroupPDF({{ g.id }})" class="btn btn-secondary" style="width: 100%; border: 1px solid var(--primary); border-radius: 6px; padding: 0.4rem; background: rgba(124, 58, 237, 0.1); color: white; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
+          <button onclick="downloadGroupPDF({{ g.id }})" class="btn btn-secondary" style="width: 100%; border: 1px solid var(--primary); border-radius: 6px; padding: 0.45rem; background: rgba(124, 58, 237, 0.1); color: white; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.25rem; margin-top: 0.25rem;">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
@@ -928,6 +934,36 @@
   @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+  }
+  
+  @media (max-width: 650px) {
+    .group-info-bar {
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: stretch !important;
+      text-align: center;
+    }
+    .group-info-bar > div:last-child {
+      flex-direction: column;
+      align-items: stretch !important;
+      width: 100%;
+    }
+    .group-info-bar > div:last-child > div {
+      flex-direction: column;
+      width: 100%;
+      gap: 0.5rem !important;
+    }
+    .group-info-bar > div:last-child > div > input {
+      width: 100%;
+    }
+    .group-info-bar > div:last-child > div > button {
+      width: 100%;
+      margin-left: 0 !important;
+    }
+    .group-info-bar > div:last-child > a {
+      width: 100%;
+      justify-content: center;
+    }
   }
 </style>
 {% endblock %}
