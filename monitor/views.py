@@ -248,7 +248,7 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         else:
             timestamp_format = '%H:%M:%S'
 
-        context['chart_timestamps'] = [log.timestamp.strftime(timestamp_format) for log in chart_logs]
+        context['chart_timestamps'] = [timezone.localtime(log.timestamp).strftime(timestamp_format) for log in chart_logs]
         context['chart_latencies'] = [log.latency if log.status else 0 for log in chart_logs]
         context['chart_statuses'] = [1 if log.status else 0 for log in chart_logs]
         
