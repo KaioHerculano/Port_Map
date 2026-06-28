@@ -1,35 +1,49 @@
 FROM python:3.12-slim
 
-# Prevent Python from writing .pyc files and buffer stdout/stderr
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
     POETRY_VERSION=2.3.2 \
     POETRY_HOME="/opt/poetry" \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_NO_INTERACTION=1
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="$POETRY_HOME/bin:$PATH"
 
 WORKDIR /app
 
-# Copy dependency definition files
-COPY pyproject.toml poetry.lock* ./
+# Instala dependências do sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    netcat-openbsd \
+    media-types \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install project dependencies
-RUN poetry install --no-root --only main
+# Instala o Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="$POETRY_HOME/bin:$PATH"
 
-# Copy project files
-COPY . .
+# Copia definição de dependências
+COPY pyproject.toml poetry.lock* /app/
 
-EXPOSE 8000
+# Instala dependências Python no escopo global do container (sem virtualenv)
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-root
 
-CMD ["poetry", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Copia o código do projeto
+COPY . /app/
+
+# Cria o diretório de staticfiles e media (garante que existam)
+RUN mkdir -p /app/staticfiles /app/media
+RUN chown -R www-data:www-data /app/staticfiles /app/media
+RUN chmod -R 755 /app/staticfiles /app/media
+
+# Configura o Entrypoint
+COPY entrypoint.sh /usr/local/bin/
+
+# Remove caracteres invisíveis (\r) do script (correção para Windows)
+RUN sed -i 's/\r$//g' /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Informa a porta exposta
+EXPOSE 8003
+
+ENTRYPOINT ["entrypoint.sh"]

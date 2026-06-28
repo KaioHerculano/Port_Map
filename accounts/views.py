@@ -119,10 +119,10 @@ class UserSignupView(CreateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form: UserSignupForm) -> HttpResponseRedirect:
-        user = form.save()
-        login(self.request, user, backend='accounts.backends.EmailOrUsernameModelBackend')
-        messages.success(self.request, f"Conta criada com sucesso! Bem-vindo, {user.username}!")
-        logger.info("Novo usuario registrado: %s", user.username)
+        self.object = form.save()
+        login(self.request, self.object, backend='accounts.backends.EmailOrUsernameModelBackend')
+        messages.success(self.request, f"Conta criada com sucesso! Bem-vindo, {self.object.username}!")
+        logger.info("Novo usuario registrado: %s", self.object.username)
         return redirect(self.get_success_url())
 
 

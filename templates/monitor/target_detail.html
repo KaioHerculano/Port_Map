@@ -22,7 +22,19 @@
     </div>
     <p>Estatísticas de latência e histórico de atividade da porta</p>
   </div>
-  <div class="header-actions">
+  <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.25rem;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+      </svg>
+      Editar Alvo
+    </a>
+    <button class="btn btn-secondary" onclick="testTelegramAlert()" style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+      </svg>
+      Testar Telegram
+    </button>
     <button id="btn-check-now" class="btn btn-primary" onclick="checkNow({{ target.id }})">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
@@ -36,9 +48,30 @@
 <div class="metrics-grid">
   <!-- Chart Card -->
   <div class="glass-panel chart-card">
-    <div class="chart-card-header">
-      <h3 style="color: white; font-size: 1.1rem;">Histórico de Latência (Últimos 50 Testes)</h3>
-      <span style="color: var(--text-muted); font-size: 0.8rem;">tempo em milissegundos (ms)</span>
+    <div class="chart-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+      <div>
+        <h3 style="color: white; font-size: 1.1rem; margin: 0;">Histórico de Latência</h3>
+        <span style="color: var(--text-muted); font-size: 0.8rem;">tempo em milissegundos (ms)</span>
+      </div>
+      
+      <form method="get" id="chartFilterForm" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+        <select name="period" id="periodSelect" onchange="toggleCustomDates();" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 6px; color: white; font-size: 0.8rem; outline: none; height: 32px; font-family: inherit; cursor: pointer;">
+          <option value="24h" {% if period == '24h' %}selected{% endif %}>Último dia (24h)</option>
+          <option value="7d" {% if period == '7d' %}selected{% endif %}>Últimos 7 dias</option>
+          <option value="30d" {% if period == '30d' %}selected{% endif %}>Últimos 30 dias</option>
+          <option value="custom" {% if period == 'custom' %}selected{% endif %}>Intervalo Personalizado</option>
+        </select>
+        
+        <div id="customDatesWrapper" style="display: {% if period == 'custom' %}flex{% else %}none{% endif %}; gap: 0.25rem; align-items: center;">
+          <input type="date" name="start_date" value="{{ start_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
+          <span style="color: var(--text-muted); font-size: 0.8rem;">até</span>
+          <input type="date" name="end_date" value="{{ end_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 0.25rem; cursor: pointer;">
+          Filtrar
+        </button>
+      </form>
     </div>
     
     <div class="chart-canvas-container">
@@ -59,6 +92,14 @@
     </h3>
     
     <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.9rem;">
+      {% if target.group %}
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Grupo:</span>
+        <a href="{% url 'dashboard' %}?group={{ target.group.id }}" style="font-weight: 600; color: var(--primary); text-decoration: none; hover: underline;">
+          {{ target.group.name }}
+        </a>
+      </div>
+      {% endif %}
       <div style="display: flex; justify-content: space-between;">
         <span class="text-muted">Endereço IP/Host:</span>
         <span style="font-family: monospace; font-weight: 600; color: white;">{{ target.host }}</span>
@@ -157,17 +198,17 @@
   
   <!-- Pagination -->
   {% if page_obj.has_other_pages %}
-  <div class="pagination">
+  <div class="pagination" style="display: flex; gap: 0.25rem; justify-content: center; margin-top: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
     {% if page_obj.has_previous %}
-      <a href="?page=1" class="page-link">&laquo; Primeira</a>
-      <a href="?page={{ page_obj.previous_page_number }}" class="page-link">Anterior</a>
+      <a href="?page=1&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">&laquo; Primeira</a>
+      <a href="?page={{ page_obj.previous_page_number }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Anterior</a>
     {% endif %}
     
-    <span class="page-link active">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    <span class="page-link active" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--primary); color: white; font-size: 0.85rem; background: var(--primary); font-weight: bold;">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
     
     {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}" class="page-link">Próxima</a>
-      <a href="?page={{ page_obj.paginator.num_pages }}" class="page-link">Última &raquo;</a>
+      <a href="?page={{ page_obj.next_page_number }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Próxima</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Última &raquo;</a>
     {% endif %}
   </div>
   {% endif %}
@@ -272,6 +313,20 @@
 </script>
 {% endif %}
 <script>
+  // Toggle custom date range fields visibility
+  function toggleCustomDates() {
+    const periodSelect = document.getElementById('periodSelect');
+    const customDatesWrapper = document.getElementById('customDatesWrapper');
+    if (periodSelect && customDatesWrapper) {
+      if (periodSelect.value === 'custom') {
+        customDatesWrapper.style.display = 'flex';
+      } else {
+        customDatesWrapper.style.display = 'none';
+        document.getElementById('chartFilterForm').submit();
+      }
+    }
+  }
+
   // Manual trigger check
   function checkNow(id) {
     const btn = document.getElementById('btn-check-now');
@@ -296,6 +351,39 @@
     .catch(err => {
       btn.disabled = false;
       alert('Erro de rede.');
+    });
+  }
+
+  // Test Telegram Notification
+  function testTelegramAlert() {
+    if (!confirm('Enviar uma notificação de teste manual para o grupo do Telegram?')) return;
+    
+    const btn = event.currentTarget;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Enviando...';
+    
+    fetch("{% url 'send_test_telegram' target.pk %}", {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken,
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      if (data.success) {
+        alert('Notificação de teste enviada com sucesso no Telegram!');
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      alert('Erro de rede ao enviar teste.');
     });
   }
 

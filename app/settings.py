@@ -19,6 +19,10 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'https://portmap.livesyncapp.com').split(',') if origin.strip()
+]
+
 
 # Application definition
 
@@ -40,6 +44,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -125,7 +130,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 LANGUAGE_CODE = 'pt-br'
 
-TIME_ZONE = 'America/Sao_Paulo'
+TIME_ZONE = 'America/Cuiaba'
 
 USE_I18N = True
 
@@ -137,13 +142,43 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# WhiteNoise storage to compress and hash static files for long-term caching
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Celery Configurations
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/0')
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
+if not CELERY_BROKER_URL or 'default:6379' in CELERY_BROKER_URL or '://default/' in CELERY_BROKER_URL:
+    redis_url = os.getenv('REDIS_URL')
+    if redis_url:
+        CELERY_BROKER_URL = redis_url
+    else:
+        redis_host = os.getenv('REDIS_HOST')
+        if not redis_host or redis_host == 'default':
+            redis_host = 'redis'
+        redis_port = os.getenv('REDIS_PORT', '6379')
+        redis_password = os.getenv('REDIS_PASSWORD', '')
+        redis_db = os.getenv('REDIS_DB', '0')
+        if redis_password:
+            CELERY_BROKER_URL = f"redis://default:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+        else:
+            CELERY_BROKER_URL = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Telegram Notifications
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
