@@ -8,6 +8,8 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.urls import reverse_lazy
+from django.utils import timezone
+from datetime import timedelta
 
 from .models import MonitorTarget, MonitorLog, Group
 from .services import PortParserService
@@ -193,13 +195,66 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         page_number = self.request.GET.get('page')
         context['page_obj'] = paginator.get_page(page_number)
 
-        # Build datasets for Chart.js (Last 50 logs chronologically)
-        chart_logs = list(target.logs.all()[:50])
-        chart_logs.reverse()
+        # Build datasets for Chart.js
+        now = timezone.now()
+        start_date_str = self.request.GET.get('start_date', '').strip()
+        end_date_str = self.request.GET.get('end_date', '').strip()
+        period = self.request.GET.get('period', '').strip()
+        
+        import datetime
+        from django.utils.dateparse import parse_date
+        
+        start_date_val = None
+        end_date_val = None
+        
+        if start_date_str and end_date_str:
+            start_date_val = parse_date(start_date_str)
+            end_date_val = parse_date(end_date_str)
+            
+        if start_date_val and end_date_val:
+            start_dt = timezone.make_aware(datetime.datetime.combine(start_date_val, datetime.time.min))
+            end_dt = timezone.make_aware(datetime.datetime.combine(end_date_val, datetime.time.max))
+            period = 'custom'
+        else:
+            if not period:
+                period = '24h'
+            if period == '7d':
+                start_dt = now - timedelta(days=7)
+                start_date_str = (now - timedelta(days=7)).strftime('%Y-%m-%d')
+            elif period == '30d':
+                start_dt = now - timedelta(days=30)
+                start_date_str = (now - timedelta(days=30)).strftime('%Y-%m-%d')
+            else: # '24h'
+                start_dt = now - timedelta(days=1)
+                period = '24h'
+                start_date_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+            end_dt = now
+            end_date_str = now.strftime('%Y-%m-%d')
 
-        context['chart_timestamps'] = [log.timestamp.strftime('%H:%M:%S') for log in chart_logs]
+        # Filter logs in range
+        chart_logs_query = target.logs.filter(timestamp__gte=start_dt, timestamp__lte=end_dt).order_by('timestamp')
+        
+        # Downsample if log count exceeds 300 to optimize performance
+        log_count = chart_logs_query.count()
+        if log_count > 300:
+            step = log_count // 300
+            chart_logs = list(chart_logs_query)[::step]
+        else:
+            chart_logs = list(chart_logs_query)
+
+        # Dynamic format for X-axis labels based on duration
+        if (end_dt - start_dt).days > 1:
+            timestamp_format = '%d/%m %H:%M'
+        else:
+            timestamp_format = '%H:%M'
+
+        context['chart_timestamps'] = [log.timestamp.strftime(timestamp_format) for log in chart_logs]
         context['chart_latencies'] = [log.latency if log.status else 0 for log in chart_logs]
         context['chart_statuses'] = [1 if log.status else 0 for log in chart_logs]
+        
+        context['period'] = period
+        context['start_date'] = start_date_str
+        context['end_date'] = end_date_str
         
         context['uptime_24h'] = target.uptime_percentage_24h
         context['avg_latency'] = target.average_latency_24h

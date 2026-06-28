@@ -93,3 +93,40 @@ class MonitorViewTests(TestCase):
         # Verify target is not deleted but group is SET NULL
         target.refresh_from_db()
         self.assertIsNone(target.group)
+
+    def test_target_detail_view_default_period_and_filtering(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        User = get_user_model()
+        user = User.objects.create_user(username="testuser_detail", password="testpassword", email="detail@test.com")
+        self.client.login(username="testuser_detail", password="testpassword")
+        
+        target = MonitorTarget.objects.create(host="192.168.30.1", port=80, last_status=True)
+        now = timezone.now()
+        
+        log1 = MonitorLog.objects.create(target=target, status=True, latency=10.0)
+        # Manually adjust timestamp since auto_now_add=True prevents direct assignment on creation
+        MonitorLog.objects.filter(id=log1.id).update(timestamp=now - timedelta(hours=5))
+        
+        log2 = MonitorLog.objects.create(target=target, status=True, latency=15.0)
+        MonitorLog.objects.filter(id=log2.id).update(timestamp=now - timedelta(days=5))
+        
+        url = reverse('target_detail', kwargs={'pk': target.id})
+        
+        # Test default (24h)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['chart_timestamps']), 1)  # only log1 in 24h
+        
+        # Test period 7d
+        response = self.client.get(url + "?period=7d")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['chart_timestamps']), 2)  # both logs in 7d
+        
+        # Test custom range
+        start_date = (now - timedelta(days=2)).strftime('%Y-%m-%d')
+        end_date = now.strftime('%Y-%m-%d')
+        response = self.client.get(url + f"?start_date={start_date}&end_date={end_date}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['chart_timestamps']), 1)  # only log1 in range
