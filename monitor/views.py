@@ -11,11 +11,26 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import MonitorTarget, MonitorLog, Group
+from .models import MonitorTarget, MonitorLog, Group, AuditLog
 from .services import PortParserService
 from .tasks import check_single_target, check_all_targets
 
 logger = logging.getLogger(__name__)
+
+
+def log_audit(user: Any, action: str, model_name: str, object_repr: str, changes: Optional[str] = None) -> None:
+    """Helper to log administrative actions to the AuditLog table."""
+    try:
+        user_val = user if (user and user.is_authenticated) else None
+        AuditLog.objects.create(
+            user=user_val,
+            action=action,
+            model_name=model_name,
+            object_repr=object_repr,
+            changes=changes
+        )
+    except Exception as e:
+        logger.error("Falha ao salvar log de auditoria: %s", str(e))
 
 
 class DashboardView(LoginRequiredMixin, generic.ListView):
@@ -81,6 +96,13 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
         
         # Optimize query: select_related for related target model to avoid N+1
         context['recent_logs'] = MonitorLog.objects.select_related('target', 'target__group').order_by('-timestamp')[:15]
+        
+        # Fetch recent audit logs if user is superuser
+        if self.request.user.is_superuser:
+            context['recent_audit_logs'] = AuditLog.objects.select_related('user').order_by('-timestamp')[:100]
+        else:
+            context['recent_audit_logs'] = AuditLog.objects.none()
+            
         return context
 
 
@@ -104,6 +126,13 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
             
             group, created = Group.objects.get_or_create(name=group_name)
             if created:
+                log_audit(
+                    user=request.user,
+                    action='Criar',
+                    model_name='Grupo',
+                    object_repr=group_name,
+                    changes=f"Novo grupo '{group_name}' cadastrado"
+                )
                 messages.success(request, f"Grupo '{group_name}' cadastrado com sucesso!")
             else:
                 messages.info(request, f"O grupo '{group_name}' já existe.")
@@ -160,10 +189,18 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                 telegram_alert_threshold=telegram_alert_threshold
             )
             if created_targets:
-                check_single_target.delay(created_targets[0].id)
+                t = created_targets[0]
+                log_audit(
+                    user=request.user,
+                    action='Criar',
+                    model_name='Dispositivo',
+                    object_repr=f"{t.label or t.host}:{t.port}",
+                    changes=f"IP: {t.host}, Porta: {t.port}, Frequência: {t.check_interval}m, Regra de Alerta: {t.telegram_alert_threshold} falha(s), Grupo: {t.group.name if t.group else 'Nenhum'}"
+                )
+                check_single_target.delay(t.id)
                 messages.success(
                     request, 
-                    f"Alvo {created_targets[0].host}:{created_targets[0].port} cadastrado com sucesso!"
+                    f"Alvo {t.host}:{t.port} cadastrado com sucesso!"
                 )
             if errors:
                 messages.error(request, errors[0])
@@ -183,6 +220,13 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
 
             if created_targets:
                 for target in created_targets:
+                    log_audit(
+                        user=request.user,
+                        action='Criar',
+                        model_name='Dispositivo',
+                        object_repr=f"{target.label or target.host}:{target.port}",
+                        changes=f"IP: {target.host}, Porta: {target.port}, Frequência: {target.check_interval}m, Regra de Alerta: {target.telegram_alert_threshold} falha(s), Grupo: {target.group.name if target.group else 'Nenhum'} (lote)"
+                    )
                     check_single_target.delay(target.id)
                 messages.success(
                     request, 
@@ -288,6 +332,14 @@ class ToggleTargetView(LoginRequiredMixin, View):
         logger.info("Estado do monitoramento alterado para %s:%d (Ativo: %s)", target.host, target.port, target.is_active)
 
         status_label = "ativado" if target.is_active else "desativado"
+        log_audit(
+            user=request.user,
+            action='Ativar' if target.is_active else 'Desativar',
+            model_name='Dispositivo',
+            object_repr=f"{target.label or target.host}:{target.port}",
+            changes=f"Alterado estado de atividade para: {status_label.capitalize()}"
+        )
+
         return JsonResponse({
             'status': 'success',
             'is_active': target.is_active,
@@ -301,8 +353,18 @@ class DeleteTargetView(LoginRequiredMixin, View):
     def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> Union[JsonResponse, HttpResponseRedirect]:
         target = get_object_or_404(MonitorTarget, pk=pk)
         host_port = f"{target.host}:{target.port}"
+        label_repr = f"{target.label or target.host}:{target.port}"
+        group_name = target.group.name if target.group else 'Nenhum'
         target.delete()
         logger.info("Alvo de monitoramento excluido com sucesso: %s", host_port)
+
+        log_audit(
+            user=request.user,
+            action='Excluir',
+            model_name='Dispositivo',
+            object_repr=label_repr,
+            changes=f"Excluído monitoramento de {host_port}. Grupo: {group_name}"
+        )
 
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({
@@ -354,8 +416,50 @@ class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
             form.add_error('port', 'Este par de Host e Porta já está cadastrado.')
             return self.form_invalid(form)
 
+        # Get old values
+        target = self.get_object()
+        old_host = target.host
+        old_port = target.port
+        old_label = target.label
+        old_interval = target.check_interval
+        old_threshold = target.telegram_alert_threshold
+        old_group = target.group.name if target.group else "Nenhum"
+
         response = super().form_valid(form)
-        messages.success(self.request, f"Alvo {self.object.host}:{self.object.port} atualizado com sucesso!")
+        
+        # Get new values
+        target.refresh_from_db()
+        new_host = target.host
+        new_port = target.port
+        new_label = target.label
+        new_interval = target.check_interval
+        new_threshold = target.telegram_alert_threshold
+        new_group = target.group.name if target.group else "Nenhum"
+
+        changes = []
+        if old_host != new_host:
+            changes.append(f"IP: {old_host} -> {new_host}")
+        if old_port != new_port:
+            changes.append(f"Porta: {old_port} -> {new_port}")
+        if old_label != new_label:
+            changes.append(f"Nome/Rótulo: {old_label or 'Vazio'} -> {new_label or 'Vazio'}")
+        if old_interval != new_interval:
+            changes.append(f"Frequência: {old_interval}m -> {new_interval}m")
+        if old_threshold != new_threshold:
+            changes.append(f"Regra de Alerta: {old_threshold} falha(s) -> {new_threshold} falha(s)")
+        if old_group != new_group:
+            changes.append(f"Grupo: {old_group} -> {new_group}")
+
+        if changes:
+            log_audit(
+                user=self.request.user,
+                action='Editar',
+                model_name='Dispositivo',
+                object_repr=f"{target.label or target.host}:{target.port}",
+                changes="Alterações: " + ", ".join(changes)
+            )
+
+        messages.success(self.request, f"Alvo {self.object.host}:{self.object.port} updated successfully!")
         return response
 
 
@@ -494,17 +598,28 @@ class UpdateGroupView(LoginRequiredMixin, View):
             return redirect('edit_group', pk=group.id)
             
         old_name = group.name
-        group.name = new_name
-        group.save()
-        
+        if old_name != new_name:
+            group.name = new_name
+            group.save()
+            log_audit(
+                user=request.user,
+                action='Editar',
+                model_name='Grupo',
+                object_repr=old_name,
+                changes=f"Grupo renomeado de '{old_name}' para '{new_name}'"
+            )
+        else:
+            group.save()
+            
         # Batch update check intervals and telegram alert thresholds
         check_interval = request.POST.get('check_interval', '').strip()
         telegram_alert_threshold = request.POST.get('telegram_alert_threshold', '').strip()
         selected_targets = request.POST.getlist('selected_targets')
         
-        success_msg = f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso."
+        success_msg = f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso." if old_name != new_name else f"Grupo '{new_name}' atualizado."
         
         if selected_targets:
+            changes_desc = []
             if check_interval:
                 try:
                     interval_val = int(check_interval)
@@ -513,6 +628,7 @@ class UpdateGroupView(LoginRequiredMixin, View):
                         group=group
                     ).update(check_interval=interval_val)
                     success_msg += f" Frequência de verificação atualizada em {updated_count} dispositivo(s)."
+                    changes_desc.append(f"Frequência definida para {interval_val}m")
                 except ValueError:
                     messages.error(request, "Intervalo de verificação inválido.")
             
@@ -524,8 +640,18 @@ class UpdateGroupView(LoginRequiredMixin, View):
                         group=group
                     ).update(telegram_alert_threshold=threshold_val)
                     success_msg += f" Regra de alerta do Telegram atualizada em {updated_count} dispositivo(s)."
+                    changes_desc.append(f"Alerta de Telegram definido para {threshold_val} falha(s)")
                 except ValueError:
                     messages.error(request, "Regra de alerta do Telegram inválida.")
+                    
+            if changes_desc:
+                log_audit(
+                    user=request.user,
+                    action='Lote',
+                    model_name='Dispositivo',
+                    object_repr=f"Grupo: {new_name}",
+                    changes=f"Atualização em lote para {len(selected_targets)} dispositivos: {', '.join(changes_desc)}"
+                )
                 
         messages.success(request, success_msg)
         return redirect('dashboard')
@@ -538,6 +664,13 @@ class DeleteGroupView(LoginRequiredMixin, View):
         group = get_object_or_404(Group, pk=pk)
         group_name = group.name
         group.delete()
+        log_audit(
+            user=request.user,
+            action='Excluir',
+            model_name='Grupo',
+            object_repr=group_name,
+            changes=f"Grupo '{group_name}' excluído (dispositivos foram desassociados)"
+        )
         messages.success(request, f"Grupo '{group_name}' excluído com sucesso.")
         return redirect('dashboard')
 
@@ -562,7 +695,7 @@ class SendTestTelegramView(LoginRequiredMixin, View):
         group_name = target.group.name if target.group else "Sem grupo"
         local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
         message = (
-            f"🔔 <b>Teste de Notificação Manual</b>\n\n"
+            f"<b>Teste de Notificação Manual</b>\n\n"
             f"<b>Dispositivo:</b> {label}\n"
             f"<b>IP:</b> <code>{target.host}</code>\n"
             f"<b>Porta:</b> <code>{target.port}</code>\n"

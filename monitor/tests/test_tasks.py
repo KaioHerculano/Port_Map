@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.utils import timezone
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from ..models import MonitorTarget
 
@@ -26,3 +26,24 @@ class MonitorTaskTests(TestCase):
         self.assertIn(t2, targets_to_check)
         self.assertNotIn(t3, targets_to_check)
         self.assertNotIn(t4, targets_to_check)
+
+    def test_aggregate_daily_logs(self):
+        from ..models import MonitorLog, DailySummary
+        from ..tasks import aggregate_daily_logs
+        
+        t = MonitorTarget.objects.create(host="192.168.1.100", port=80, check_interval=5, is_active=True)
+        yesterday = timezone.localdate() - timedelta(days=1)
+        yesterday_dt = timezone.make_aware(datetime.combine(yesterday, datetime.min.time()) + timedelta(hours=12))
+        
+        l1 = MonitorLog.objects.create(target=t, status=True, latency=10.0)
+        l2 = MonitorLog.objects.create(target=t, status=False, latency=0.0)
+        
+        MonitorLog.objects.filter(id=l1.id).update(timestamp=yesterday_dt)
+        MonitorLog.objects.filter(id=l2.id).update(timestamp=yesterday_dt + timedelta(minutes=5))
+        
+        result = aggregate_daily_logs()
+        
+        summary = DailySummary.objects.filter(target=t, date=yesterday).first()
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary.availability, 50.0)
+        self.assertEqual(summary.avg_latency, 5.0)

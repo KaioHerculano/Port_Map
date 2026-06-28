@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
+from django.conf import settings
 
 class Group(models.Model):
     name = models.CharField(
@@ -153,3 +154,59 @@ class MonitorLog(models.Model):
     def __str__(self):
         status_str = "ABERTA" if self.status else "FECHADA"
         return f"{self.target} - {status_str} em {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+class DailySummary(models.Model):
+    target = models.ForeignKey(
+        MonitorTarget, 
+        on_delete=models.CASCADE, 
+        related_name='daily_summaries'
+    )
+    date = models.DateField(db_index=True)
+    availability = models.FloatField(
+        help_text="Porcentagem de disponibilidade diária (0 a 100)"
+    )
+    avg_latency = models.FloatField(
+        help_text="Latência média em milissegundos"
+    )
+
+    class Meta:
+        unique_together = ('target', 'date')
+        ordering = ['-date', 'target']
+
+    def __str__(self):
+        return f"{self.target} - {self.date}: {self.availability}%"
+
+
+class AuditLog(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
+    action = models.CharField(
+        max_length=50, 
+        help_text="Ação executada (ex: Criar, Editar, Excluir, Ativar, Desativar, Lote)"
+    )
+    model_name = models.CharField(
+        max_length=100, 
+        help_text="Modelo modificado (ex: Dispositivo, Grupo)"
+    )
+    object_repr = models.CharField(
+        max_length=255, 
+        help_text="Representação do objeto (ex: Câmera Portão - 45.174.193.10:40001)"
+    )
+    changes = models.TextField(
+        blank=True, 
+        null=True, 
+        help_text="Descrição amigável das alterações efetuadas"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        user_str = self.user.username if self.user else "Sistema"
+        return f"{user_str} - {self.action} {self.model_name} em {self.timestamp.strftime('%d/%m/%Y %H:%M:%S')}"

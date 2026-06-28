@@ -191,3 +191,28 @@ class MonitorViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {'status': 'success', 'task_id': 'mock_task_id'})
         mock_delay.assert_called_once()
+
+    def test_audit_log_creation_on_toggle_and_delete(self):
+        from ..models import AuditLog
+        
+        User = get_user_model()
+        user = User.objects.create_user(username="testuser_audit", password="testpassword", email="audit@test.com")
+        self.client.login(username="testuser_audit", password="testpassword")
+        
+        target = MonitorTarget.objects.create(host="192.168.1.15", port=80, is_active=True)
+        
+        toggle_url = reverse('toggle_target', kwargs={'pk': target.id})
+        response = self.client.post(toggle_url)
+        self.assertEqual(response.status_code, 200)
+        
+        audit1 = AuditLog.objects.filter(user=user, action='Desativar', model_name='Dispositivo').first()
+        self.assertIsNotNone(audit1)
+        self.assertIn("192.168.1.15:80", audit1.object_repr)
+        
+        delete_url = reverse('delete_target', kwargs={'pk': target.id})
+        response = self.client.post(delete_url)
+        self.assertEqual(response.status_code, 302)
+        
+        audit2 = AuditLog.objects.filter(user=user, action='Excluir', model_name='Dispositivo').first()
+        self.assertIsNotNone(audit2)
+        self.assertIn("192.168.1.15:80", audit2.object_repr)

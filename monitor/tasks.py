@@ -135,14 +135,14 @@ def send_monthly_telegram_report() -> str:
             
     avg_availability = round(total_avail_sum / total_sensors, 1)
     if avg_availability >= 80.0:
-        status_geral = "Excelente 🟢"
+        status_geral = "Excelente"
     elif avg_availability >= 70.0:
-        status_geral = "Bom 🟡"
+        status_geral = "Bom"
     else:
-        status_geral = "Crítico 🔴"
+        status_geral = "Crítico"
         
     message = (
-        f"📊 <b>Relatório Mensal - {month_year_str}</b>\n\n"
+        f"<b>Relatório Mensal - {month_year_str}</b>\n\n"
         f"Estatísticas gerais de disponibilidade dos dispositivos no mês de {month_name}.\n\n"
         f"<b>Resumo de SLA:</b>\n"
         f"• Geral: <code>{avg_availability}%</code> ({status_geral})\n"
@@ -154,15 +154,64 @@ def send_monthly_telegram_report() -> str:
     )
     
     if low_targets:
-        message += "⚠️ <b>Dispositivos Críticos (&lt;50%):</b>\n"
+        message += "<b>Dispositivos Críticos (&lt;50%):</b>\n"
         for t in low_targets:
             label_str = t.label or f"{t.host}:{t.port}"
             message += f"• {label_str} (<code>{t.host}:{t.port}</code>): <b>{t.availability:.1f}%</b>\n"
     else:
-        message += "✅ <b>Nenhum dispositivo ficou abaixo de 50% de disponibilidade!</b>"
+        message += "<b>Nenhum dispositivo ficou abaixo de 50% de disponibilidade!</b>"
         
     success = send_telegram_message(message)
     if success:
         return f"Monthly report sent successfully. Avg availability: {avg_availability}%"
     else:
         return "Failed to send monthly report message."
+
+
+@shared_task
+def aggregate_daily_logs() -> str:
+    """
+    Consolidates raw MonitorLog entries from the previous day into DailySummary.
+    Runs daily.
+    Then deletes raw logs older than 60 days.
+    """
+    from django.db.models import Avg, Count, Q
+    from django.utils import timezone
+    from datetime import datetime, date, timedelta
+    from .models import MonitorTarget, MonitorLog, DailySummary
+    
+    yesterday = timezone.localdate() - timedelta(days=1)
+    start_time = timezone.make_aware(datetime.combine(yesterday, datetime.min.time()))
+    end_time = timezone.make_aware(datetime.combine(yesterday, datetime.max.time()))
+    
+    targets = MonitorTarget.objects.all()
+    created_count = 0
+    
+    for target in targets:
+        logs = MonitorLog.objects.filter(target=target, timestamp__range=(start_time, end_time))
+        total_logs = logs.count()
+        
+        if total_logs == 0:
+            avail = 100.0 if target.last_status else 0.0
+            avg_lat = 0.0
+        else:
+            success_logs = logs.filter(status=True).count()
+            avail = round(success_logs * 100.0 / total_logs, 1)
+            avg_lat = logs.aggregate(Avg('latency'))['latency__avg'] or 0.0
+            avg_lat = round(avg_lat, 2)
+            
+        DailySummary.objects.update_or_create(
+            target=target,
+            date=yesterday,
+            defaults={
+                'availability': avail,
+                'avg_latency': avg_lat
+            }
+        )
+        created_count += 1
+        
+    # Now, purge raw logs older than 60 days
+    cutoff = timezone.now() - timedelta(days=60)
+    purged_count, _ = MonitorLog.objects.filter(timestamp__lt=cutoff).delete()
+    
+    return f"Consolidated {created_count} daily summaries for {yesterday}. Purged {purged_count} raw logs older than 60 days."

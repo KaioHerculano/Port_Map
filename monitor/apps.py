@@ -23,6 +23,25 @@ def setup_periodic_tasks(sender, **kwargs) -> None:
                 'kwargs': '{}'
             }
         )
+        
+        # Cron: Run at 00:05 AM every day
+        daily_schedule, _ = CrontabSchedule.objects.get_or_create(
+            minute='5',
+            hour='0',
+            day_of_month='*',
+            month_of_year='*',
+            day_of_week='*'
+        )
+        
+        PeriodicTask.objects.get_or_create(
+            name='Consolidar Logs Diários',
+            defaults={
+                'crontab': daily_schedule,
+                'task': 'monitor.tasks.aggregate_daily_logs',
+                'args': '[]',
+                'kwargs': '{}'
+            }
+        )
     except Exception:
         pass
 

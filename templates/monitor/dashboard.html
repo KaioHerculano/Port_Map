@@ -150,6 +150,11 @@
   <button class="view-tab-btn" id="tab-btn-groups" onclick="switchViewTab('groups')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
     Grupos
   </button>
+  {% if user.is_superuser %}
+  <button class="view-tab-btn" id="tab-btn-audit" onclick="switchViewTab('audit')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
+    Auditoria
+  </button>
+  {% endif %}
 </div>
 
 <div id="view-targets" class="view-content">
@@ -505,6 +510,73 @@
   </div>
 </div>
 
+{% if user.is_superuser %}
+<!-- View Audit Content -->
+<div id="view-audit" class="view-content" style="display: none; margin-bottom: 2rem;">
+  <div class="glass-panel" style="padding: 1.5rem; border: 1px solid rgba(255,255,255,0.03); border-radius: 12px;">
+    <h2 style="font-size: 1.25rem; color: white; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px; color: var(--primary);">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.03 0 1.9.693 2.166 1.638m-7.377 2.24a4.5 4.5 0 1115.002 0c0 2.74-1.364 6.57-3.75 8.25m-11.25-8.25a4.5 4.5 0 10-9 0c0 2.74 1.364 6.57 3.75 8.25m-3.75-8.25h12.75" />
+      </svg>
+      Registro de Auditoria do Sistema
+    </h2>
+    
+    <div class="table-responsive" style="overflow-x: auto;">
+      <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 800px;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+            <th style="padding: 0.75rem 0.5rem;">Data/Hora</th>
+            <th style="padding: 0.75rem 0.5rem;">Usuário</th>
+            <th style="padding: 0.75rem 0.5rem;">Ação</th>
+            <th style="padding: 0.75rem 0.5rem;">Tipo</th>
+            <th style="padding: 0.75rem 0.5rem;">Objeto</th>
+            <th style="padding: 0.75rem 0.5rem;">Alterações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in recent_audit_logs %}
+          <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.02); font-size: 0.85rem; color: #e2e8f0;">
+            <td style="padding: 0.75rem 0.5rem; white-space: nowrap; color: var(--text-muted);">
+              {{ log.timestamp|date:"d/m/Y H:i:s" }}
+            </td>
+            <td style="padding: 0.75rem 0.5rem; font-weight: 600;">
+              {{ log.user.username|default:"Sistema" }}
+            </td>
+            <td style="padding: 0.75rem 0.5rem;">
+              <span class="status-badge" style="
+                padding: 0.15rem 0.5rem; 
+                font-size: 0.7rem; 
+                background: {% if log.action == 'Criar' or log.action == 'Ativar' %}rgba(16, 185, 129, 0.1){% elif log.action == 'Editar' or log.action == 'Lote' %}rgba(245, 158, 11, 0.1){% elif log.action == 'Excluir' or log.action == 'Desativar' %}rgba(239, 68, 68, 0.1){% else %}rgba(59, 130, 246, 0.1){% endif %};
+                color: {% if log.action == 'Criar' or log.action == 'Ativar' %}#10b981{% elif log.action == 'Editar' or log.action == 'Lote' %}#f59e0b{% elif log.action == 'Excluir' or log.action == 'Desativar' %}#ef4444{% else %}#3b82f6{% endif %};
+                border: 1px solid {% if log.action == 'Criar' or log.action == 'Ativar' %}rgba(16, 185, 129, 0.2){% elif log.action == 'Editar' or log.action == 'Lote' %}rgba(245, 158, 11, 0.2){% elif log.action == 'Excluir' or log.action == 'Desativar' %}rgba(239, 68, 68, 0.2){% else %}rgba(59, 130, 246, 0.2){% endif %};
+              ">
+                {{ log.action }}
+              </span>
+            </td>
+            <td style="padding: 0.75rem 0.5rem; color: var(--text-muted);">
+              {{ log.model_name }}
+            </td>
+            <td style="padding: 0.75rem 0.5rem; font-weight: 500;">
+              {{ log.object_repr }}
+            </td>
+            <td style="padding: 0.75rem 0.5rem; color: var(--text-muted); max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.changes }}">
+              {{ log.changes|default:"-" }}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" style="padding: 3rem; text-align: center; color: var(--text-muted);">
+              Nenhuma ação registrada ainda.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Recent Scans / System Logs -->
 <div class="glass-panel" style="padding: 1.5rem;">
   <h2 style="font-size: 1.2rem; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -773,36 +845,56 @@
     }, 4000);
   }
 
-  // Switch between Alvos (Targets) and Grupos (Groups) Views
+  // Switch between Alvos (Targets), Grupos (Groups) and Auditoria (Audit Logs) Views
   function switchViewTab(mode) {
     const targetsView = document.getElementById('view-targets');
     const groupsView = document.getElementById('view-groups');
+    const auditView = document.getElementById('view-audit');
     const targetsBtn = document.getElementById('tab-btn-targets');
     const groupsBtn = document.getElementById('tab-btn-groups');
+    const auditBtn = document.getElementById('tab-btn-audit');
     
     if (!targetsView || !groupsView) return;
 
-    if (mode === 'groups') {
-      targetsView.style.display = 'none';
-      groupsView.style.display = 'block';
-      
-      groupsBtn.style.color = 'white';
-      groupsBtn.style.borderBottomColor = 'var(--primary)';
-      
+    // Reset all views
+    targetsView.style.display = 'none';
+    groupsView.style.display = 'none';
+    if (auditView) auditView.style.display = 'none';
+
+    // Reset all buttons styling
+    if (targetsBtn) {
       targetsBtn.style.color = 'var(--text-muted)';
       targetsBtn.style.borderBottomColor = 'transparent';
-      
-      sessionStorage.setItem('active_dashboard_tab', 'groups');
-    } else {
-      targetsView.style.display = 'block';
-      groupsView.style.display = 'none';
-      
-      targetsBtn.style.color = 'white';
-      targetsBtn.style.borderBottomColor = 'var(--primary)';
-      
+    }
+    if (groupsBtn) {
       groupsBtn.style.color = 'var(--text-muted)';
       groupsBtn.style.borderBottomColor = 'transparent';
-      
+    }
+    if (auditBtn) {
+      auditBtn.style.color = 'var(--text-muted)';
+      auditBtn.style.borderBottomColor = 'transparent';
+    }
+
+    if (mode === 'groups') {
+      groupsView.style.display = 'block';
+      if (groupsBtn) {
+        groupsBtn.style.color = 'white';
+        groupsBtn.style.borderBottomColor = 'var(--primary)';
+      }
+      sessionStorage.setItem('active_dashboard_tab', 'groups');
+    } else if (mode === 'audit') {
+      if (auditView) auditView.style.display = 'block';
+      if (auditBtn) {
+        auditBtn.style.color = 'white';
+        auditBtn.style.borderBottomColor = 'var(--primary)';
+      }
+      sessionStorage.setItem('active_dashboard_tab', 'audit');
+    } else {
+      targetsView.style.display = 'block';
+      if (targetsBtn) {
+        targetsBtn.style.color = 'white';
+        targetsBtn.style.borderBottomColor = 'var(--primary)';
+      }
       sessionStorage.setItem('active_dashboard_tab', 'targets');
     }
   }
@@ -816,6 +908,8 @@
       const savedTab = sessionStorage.getItem('active_dashboard_tab');
       if (savedTab === 'groups') {
         switchViewTab('groups');
+      } else if (savedTab === 'audit') {
+        switchViewTab('audit');
       } else {
         switchViewTab('targets');
       }
