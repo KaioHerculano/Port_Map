@@ -38,6 +38,23 @@
         </div>
 
         <div class="form-group">
+          <label for="id_check_interval">Frequência de Verificação</label>
+          <select id="id_check_interval" name="check_interval" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+            <option value="1">A cada 1 minuto</option>
+            <option value="5">A cada 5 minutos</option>
+            <option value="15">A cada 15 minutos</option>
+            <option value="30">A cada 30 minutos</option>
+            <option value="48">A cada 48 minutos (30 vezes por dia)</option>
+            <option value="60" selected>A cada 1 hora</option>
+            <option value="120">A cada 2 horas</option>
+            <option value="360">A cada 6 horas</option>
+            <option value="720">A cada 12 horas</option>
+            <option value="1440">A cada 24 horas (1 vez por dia)</option>
+          </select>
+          <span class="form-help">Selecione o intervalo de tempo entre as checagens automáticas deste sensor.</span>
+        </div>
+
+        <div class="form-group">
           <label for="id_label">Rótulo / Identificação (Opcional)</label>
           <input type="text" id="id_label" name="label" class="form-input" placeholder="Ex: Servidor de Câmeras, Banco de Dados, etc.">
           <span class="form-help">Um nome amigável para identificar esse alvo nas listas e gráficos.</span>
@@ -77,6 +94,23 @@
             {% endfor %}
           </select>
           <span class="form-help">Todos os alvos importados nesta lista serão associados a este grupo (a menos que tenham etiqueta na própria linha).</span>
+        </div>
+
+        <div class="form-group">
+          <label for="id_bulk_check_interval">Frequência de Verificação</label>
+          <select id="id_bulk_check_interval" name="check_interval" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+            <option value="1">A cada 1 minuto</option>
+            <option value="5">A cada 5 minutos</option>
+            <option value="15">A cada 15 minutos</option>
+            <option value="30">A cada 30 minutos</option>
+            <option value="48">A cada 48 minutos (30 vezes por dia)</option>
+            <option value="60" selected>A cada 1 hora</option>
+            <option value="120">A cada 2 horas</option>
+            <option value="360">A cada 6 horas</option>
+            <option value="720">A cada 12 horas</option>
+            <option value="1440">A cada 24 horas (1 vez por dia)</option>
+          </select>
+          <span class="form-help">Frequência aplicada para todos os alvos cadastrados nesta importação em lote.</span>
         </div>
 
         <div class="form-group">

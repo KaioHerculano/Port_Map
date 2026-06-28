@@ -37,10 +37,20 @@
       <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Insira o endereço IP ou domínio DNS correspondente.</span>
     </div>
     
-    <div class="form-group" style="margin-bottom: 2rem;">
+    <div class="form-group" style="margin-bottom: 1.5rem;">
       <label for="id_port" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Porta TCP</label>
       <input type="number" id="id_port" name="port" value="{{ target.port }}" class="form-input" placeholder="Ex: 40001" min="1" max="65535" required style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
       <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Insira o número da porta TCP que será testada.</span>
+    </div>
+    
+    <div class="form-group" style="margin-bottom: 2rem;">
+      <label for="id_check_interval" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Frequência de Verificação</label>
+      <select id="id_check_interval" name="check_interval" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+        {% for val, name in form.fields.check_interval.choices %}
+          <option value="{{ val }}" {% if target.check_interval == val %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione o intervalo de tempo entre as checagens automáticas deste sensor.</span>
     </div>
     
     {% if form.errors %}
