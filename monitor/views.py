@@ -107,6 +107,13 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                 messages.info(request, f"O grupo '{group_name}' já existe.")
             return redirect('add_targets')
 
+        # Retrieve check_interval
+        check_interval_str = request.POST.get('check_interval', '60').strip()
+        try:
+            check_interval = int(check_interval_str)
+        except ValueError:
+            check_interval = 60
+
         # Retrieve optional group selected in the dropdown
         group_id = request.POST.get('group_id', '').strip()
         group = None
@@ -137,7 +144,7 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
             if label:
                 import_str += f" [{label}]"
 
-            created_targets, errors = PortParserService.parse_and_create_targets(import_str, group=group)
+            created_targets, errors = PortParserService.parse_and_create_targets(import_str, group=group, check_interval=check_interval)
             if created_targets:
                 check_single_target.delay(created_targets[0].id)
                 messages.success(
@@ -153,7 +160,7 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                 messages.error(request, "Cole a lista de IPs e portas antes de enviar.")
                 return redirect('add_targets')
 
-            created_targets, errors = PortParserService.parse_and_create_targets(bulk_text, group=group)
+            created_targets, errors = PortParserService.parse_and_create_targets(bulk_text, group=group, check_interval=check_interval)
 
             if created_targets:
                 for target in created_targets:
@@ -263,7 +270,7 @@ class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
     model = MonitorTarget
     context_object_name = 'target'
     template_name = 'monitor/edit_target.html'
-    fields = ['group', 'label', 'host', 'port']
+    fields = ['group', 'label', 'host', 'port', 'check_interval']
     success_url = reverse_lazy('dashboard')
 
     def form_valid(self, form):
@@ -277,4 +284,107 @@ class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
 
         response = super().form_valid(form)
         messages.success(self.request, f"Alvo {self.object.host}:{self.object.port} atualizado com sucesso!")
+        return response
+
+
+class GroupReportPDFView(LoginRequiredMixin, View):
+    """Class-Based View to generate a PDF report of target availability over the last 30 days."""
+    
+    def get(self, request: HttpRequest, group_id: int, *args: Any, **kwargs: Any) -> HttpResponse:
+        group = get_object_or_404(Group, pk=group_id)
+        
+        # Retrieve custom start and end dates (defaulting to last 30 days)
+        start_date_str = request.GET.get('start_date', '').strip()
+        end_date_str = request.GET.get('end_date', '').strip()
+        
+        from django.utils import timezone
+        from django.utils.dateparse import parse_date
+        from datetime import timedelta
+        import datetime
+        from django.db.models import Count, Q, Case, When, Value, FloatField, F
+        from django.db.models.functions import Cast
+        
+        # Fallbacks
+        end_date = timezone.now()
+        start_date = end_date - timedelta(days=30)
+        
+        if start_date_str:
+            parsed_start = parse_date(start_date_str)
+            if parsed_start:
+                start_date = timezone.make_aware(datetime.datetime.combine(parsed_start, datetime.time.min))
+                
+        if end_date_str:
+            parsed_end = parse_date(end_date_str)
+            if parsed_end:
+                end_date = timezone.make_aware(datetime.datetime.combine(parsed_end, datetime.time.max))
+        
+        # Calculate availability over the specified range for each active target in this group
+        targets = group.targets.filter(is_active=True).annotate(
+            total_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date)),
+            success_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date, logs__status=True))
+        ).annotate(
+            availability=Case(
+                When(total_logs=0, then=Case(
+                    When(last_status=True, then=Value(100.0)),
+                    default=Value(0.0)
+                )),
+                default=Cast(F('success_logs') * 100.0 / F('total_logs'), output_field=FloatField())
+            )
+        ).order_by('host', 'port')
+        
+        # Round availability to 1 decimal place, calculate average, and pair targets for 2-column layout
+        total_availability = 0.0
+        target_count = len(targets)
+        
+        for target in targets:
+            target.availability_rounded = round(target.availability, 1)
+            total_availability += target.availability_rounded
+            
+        # Pair targets side-by-side (cols = 2)
+        paired_targets = []
+        cols = 2
+        for i in range(0, len(targets), cols):
+            chunk = list(targets[i:i + cols])
+            while len(chunk) < cols:
+                chunk.append(None)
+            paired_targets.append(chunk)
+            
+        group_availability = round(total_availability / target_count, 1) if target_count > 0 else 100.0
+        
+        # Calculate how many days are in the period
+        delta_days = (end_date - start_date).days
+        if delta_days <= 0:
+            delta_days = 1
+        
+        # Render HTML template for the PDF report
+        from django.template.loader import render_to_string
+        from xhtml2pdf import pisa
+        import io
+        
+        context = {
+            'group': group,
+            'paired_targets': paired_targets,
+            'group_availability': group_availability,
+            'target_count': target_count,
+            'start_date': start_date,
+            'end_date': end_date,
+            'period_days': delta_days,
+            'generated_at': timezone.now(),
+        }
+        
+        html_string = render_to_string('monitor/group_report_pdf.html', context)
+        
+        # Create PDF
+        pdf_buffer = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html_string, dest=pdf_buffer)
+        
+        if pisa_status.err:
+            return HttpResponse("Erro ao gerar PDF", status=500)
+            
+        pdf_buffer.seek(0)
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        
+        # Format filename to be safe
+        safe_name = "".join([c if c.isalnum() else "_" for c in group.name.lower()])
+        response['Content-Disposition'] = f'filename="relatorio_sla_{safe_name}.pdf"'
         return response

@@ -10,4 +10,5 @@ urlpatterns = [
     path('target/<int:pk>/edit/', views.UpdateTargetView.as_view(), name='edit_target'),
     path('target/<int:pk>/check/', views.TriggerCheckView.as_view(), name='trigger_check_single'),
     path('check-all/', views.TriggerCheckView.as_view(), name='trigger_check_all'),
+    path('group/<int:group_id>/pdf/', views.GroupReportPDFView.as_view(), name='group_report_pdf'),
 ]
