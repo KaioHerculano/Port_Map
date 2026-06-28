@@ -175,3 +175,19 @@ class MonitorViewTests(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json(), {'success': True})
             mock_send_telegram_message.assert_called_once()
+
+    def test_trigger_monthly_report_view(self):
+        from unittest.mock import patch, MagicMock
+        
+        User = get_user_model()
+        user = User.objects.create_user(username="testuser_monthly", password="testpassword", email="monthly@test.com")
+        self.client.login(username="testuser_monthly", password="testpassword")
+        
+        url = reverse('trigger_monthly_report')
+        with patch('monitor.tasks.send_monthly_telegram_report.delay') as mock_delay:
+            mock_delay.return_value = MagicMock(id='mock_task_id')
+            response = self.client.post(url)
+            
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'status': 'success', 'task_id': 'mock_task_id'})
+        mock_delay.assert_called_once()

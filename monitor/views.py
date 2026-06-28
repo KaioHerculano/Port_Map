@@ -577,3 +577,13 @@ class SendTestTelegramView(LoginRequiredMixin, View):
             return JsonResponse({'success': True})
         else:
             return JsonResponse({'success': False, 'error': 'Falha ao entregar a mensagem no Telegram. Verifique o Token e o Chat ID.'})
+
+
+class TriggerMonthlyReportView(LoginRequiredMixin, View):
+    """View to manually trigger the monthly SLA report Celery task."""
+    
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
+        from .tasks import send_monthly_telegram_report
+        # Trigger task asynchronously in Celery
+        result = send_monthly_telegram_report.delay()
+        return JsonResponse({'status': 'success', 'task_id': result.id})
