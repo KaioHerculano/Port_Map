@@ -896,6 +896,8 @@
         const startDate = startEl ? startEl.value : '';
         const endDate = endEl ? endEl.value : '';
         window.open('/group/' + groupId + '/pdf/?start_date=' + startDate + '&end_date=' + endDate, '_blank');
+      };
+      
       window.sendMonthlyReport = function() {
         if (!confirm('Disparar o envio do relatório mensal de SLA para o Telegram agora?')) return;
         
