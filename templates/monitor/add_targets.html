@@ -55,6 +55,17 @@
         </div>
 
         <div class="form-group">
+          <label for="id_telegram_alert_threshold">Alerta de Falha do Telegram</label>
+          <select id="id_telegram_alert_threshold" name="telegram_alert_threshold" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+            <option value="1" selected>Imediatamente (1ª falha)</option>
+            <option value="2">Após 2 falhas consecutivas</option>
+            <option value="3">Após 3 falhas consecutivas</option>
+            <option value="0">Não notificar</option>
+          </select>
+          <span class="form-help">Escolha após quantas falhas consecutivas o Telegram deve notificar neste sensor.</span>
+        </div>
+
+        <div class="form-group">
           <label for="id_label">Rótulo / Identificação (Opcional)</label>
           <input type="text" id="id_label" name="label" class="form-input" placeholder="Ex: Servidor de Câmeras, Banco de Dados, etc.">
           <span class="form-help">Um nome amigável para identificar esse alvo nas listas e gráficos.</span>
@@ -111,6 +122,17 @@
             <option value="1440">A cada 24 horas (1 vez por dia)</option>
           </select>
           <span class="form-help">Frequência aplicada para todos os alvos cadastrados nesta importação em lote.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="id_bulk_telegram_alert_threshold">Alerta de Falha do Telegram</label>
+          <select id="id_bulk_telegram_alert_threshold" name="telegram_alert_threshold" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+            <option value="1" selected>Imediatamente (1ª falha)</option>
+            <option value="2">Após 2 falhas consecutivas</option>
+            <option value="3">Após 3 falhas consecutivas</option>
+            <option value="0">Não notificar</option>
+          </select>
+          <span class="form-help">Filtro de notificação do Telegram aplicado para todos os alvos cadastrados nesta importação.</span>
         </div>
 
         <div class="form-group">

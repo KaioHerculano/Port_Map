@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Grupo - Port Monitor{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="header-title">
+    <h1>Editar Grupo de Monitoramento</h1>
+    <p>Altere o nome do grupo e gerencie a frequência de verificação de seus dispositivos em lote.</p>
+  </div>
+</div>
+
+<div class="glass-panel form-panel" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
+  <form method="post" action="{% url 'edit_group' group.pk %}">
+    {% csrf_token %}
+    
+    <div class="form-group" style="margin-bottom: 1.5rem;">
+      <label for="id_name" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Nome do Grupo</label>
+      <input type="text" id="id_name" name="name" value="{{ group.name }}" class="form-input" placeholder="Ex: Câmeras Vigia, Servidores BD, etc." required style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Insira o nome amigável para identificar este grupo.</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1.5rem;">
+      <label for="id_check_interval" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Alterar Frequência de Verificação em Lote (Opcional)</label>
+      <select id="id_check_interval" name="check_interval" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+        <option value="">-- Manter frequências atuais de cada dispositivo --</option>
+        {% for val, name in check_interval_choices %}
+          <option value="{{ val }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1.5rem;">
+      <label for="id_telegram_alert_threshold" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Alterar Regra de Alerta do Telegram em Lote (Opcional)</label>
+      <select id="id_telegram_alert_threshold" name="telegram_alert_threshold" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
+        <option value="">-- Manter regras de alerta atuais de cada dispositivo --</option>
+        {% for val, name in telegram_alert_threshold_choices %}
+          <option value="{{ val }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione uma regra caso queira sobrescrever a regra de alertas do Telegram dos dispositivos selecionados abaixo.</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 2rem;">
+      <label style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Dispositivos do Grupo (Selecione para aplicar a frequência acima)</label>
+      
+      <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" onclick="selectAllTargets(true);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Marcar Todos</button>
+        <button type="button" onclick="selectAllTargets(false);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Desmarcar Todos</button>
+      </div>
+      
+      <div style="max-height: 250px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem;">
+        {% for target in targets %}
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
+          <input type="checkbox" name="selected_targets" value="{{ target.id }}" checked id="target_cb_{{ target.id }}" style="width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;">
+          <label for="target_cb_{{ target.id }}" style="color: white; font-size: 0.9rem; cursor: pointer; display: flex; flex-direction: column;">
+            <span>{% if target.label %}<strong>{{ target.label }}</strong> ({{ target.host }}:{{ target.port }}){% else %}<strong>{{ target.host }}:{{ target.port }}</strong>{% endif %}</span>
+            <span style="color: var(--text-muted); font-size: 0.75rem;">Frequência atual: {{ target.get_check_interval_display }} | Alerta: {{ target.get_telegram_alert_threshold_display }}</span>
+          </label>
+        </div>
+        {% empty %}
+        <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem;">
+          Nenhum dispositivo associado a este grupo ainda.
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-actions" style="display: flex; gap: 1rem; justify-content: flex-end;">
+      <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+      <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function selectAllTargets(status) {
+    document.querySelectorAll("input[name='selected_targets']").forEach(cb => {
+      cb.checked = status;
+    });
+  }
+</script>
+{% endblock %}

@@ -15,7 +15,7 @@ class PortParserService:
 
     @staticmethod
     @transaction.atomic
-    def parse_and_create_targets(text: str, group: Optional[Group] = None, check_interval: int = 60) -> Tuple[List[MonitorTarget], List[str]]:
+    def parse_and_create_targets(text: str, group: Optional[Group] = None, check_interval: int = 60, telegram_alert_threshold: int = 1) -> Tuple[List[MonitorTarget], List[str]]:
         lines = text.strip().split('\n')
         created_targets: List[MonitorTarget] = []
         errors: List[str] = []
@@ -121,7 +121,8 @@ class PortParserService:
                             'group': line_group, 
                             'label': label, 
                             'is_active': True,
-                            'check_interval': check_interval
+                            'check_interval': check_interval,
+                            'telegram_alert_threshold': telegram_alert_threshold
                         }
                     )
                     created_targets.append(target)
@@ -168,6 +169,17 @@ class PortCheckerService:
         end_time = time.perf_counter()
         latency_ms = round((end_time - start_time) * 1000, 2)
 
+        old_status = target.last_status
+        preceding_failures = 0
+        if status and old_status == False:
+            # Count consecutive failures before writing the new log
+            last_logs = target.logs.all().order_by('-timestamp')[:5]
+            for log in last_logs:
+                if not log.status:
+                    preceding_failures += 1
+                else:
+                    break
+
         try:
             with transaction.atomic():
                 MonitorLog.objects.create(
@@ -181,6 +193,35 @@ class PortCheckerService:
                 target.save(update_fields=['last_checked', 'last_status', 'last_latency'])
         except Exception as e:
             logger.error("Erro ao salvar log de varredura para %s:%d: %s", host, port, str(e))
+            return f"Error saving log: {str(e)}"
+
+        # Trigger Telegram alert outside the transaction to prevent database locking
+        if target.telegram_alert_threshold > 0:
+            should_alert = False
+            
+            if not status:
+                # Count consecutive failures including the one we just wrote
+                consecutive_failures = 0
+                last_logs = target.logs.all().order_by('-timestamp')[:5]
+                for log in last_logs:
+                    if not log.status:
+                        consecutive_failures += 1
+                    else:
+                        break
+                
+                if consecutive_failures == target.telegram_alert_threshold:
+                    should_alert = True
+            else:
+                # Recovery alert: previous was False and preceding failure count reached threshold
+                if old_status == False and preceding_failures >= target.telegram_alert_threshold:
+                    should_alert = True
+                    
+            if should_alert:
+                try:
+                    from .utils import send_telegram_alert
+                    send_telegram_alert(target, old_status, status)
+                except Exception as tel_err:
+                    logger.error("Falha ao invocar alerta do Telegram: %s", str(tel_err))
 
         status_str = "ABERTA" if status else "FECHADA"
         return f"Checked {host}:{port} -> {status_str} ({latency_ms}ms)"

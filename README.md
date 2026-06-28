@@ -138,11 +138,42 @@ docker compose down
 
 ---
 
+## 🔔 Integração e Notificações do Telegram
+
+O sistema está totalmente integrado com a API do Telegram para enviar alertas de status em tempo real (como câmeras offline ou serviços reestabelecidos).
+
+### 1. Configurando o Telegram no arquivo `.env`
+Para ativar o envio das notificações, declare as seguintes variáveis no arquivo `.env` (ou nos parâmetros de ambiente do Docker Compose):
+
+```env
+TELEGRAM_BOT_TOKEN=seu_token_obtido_no_botfather
+TELEGRAM_CHAT_ID=-5424296618
+```
+*Caso essas variáveis fiquem vazias, o sistema desativará o envio de mensagens de forma silenciosa e continuará funcionando normalmente.*
+
+### 2. Regras de Disparo de Alerta (Prevenção de Spam)
+Você pode configurar a regra de disparo de notificação **individualmente por sensor** (no formulário de cadastro/edição do dispositivo) ou aplicar uma regra **em lote para todos os dispositivos de um grupo** (na tela de edição do grupo). As opções são:
+*   **Imediatamente (1ª falha)**: Envia o alerta assim que a primeira varredura falhar.
+*   **Após 2 falhas consecutivas**: Aguarda a segunda varredura consecutiva falhar antes de disparar o alerta.
+*   **Após 3 falhas consecutivas**: Aguarda três varreduras consecutivas falharem.
+*   **Não notificar**: Desativa completamente os alertas de Telegram para o sensor correspondente.
+
+> [!NOTE]
+> **Envio Único**: O sistema armazena o histórico e garante que, uma vez disparado o alerta de queda (ao atingir a quantidade configurada de falhas), **nenhuma outra mensagem de erro repetida seja enviada** enquanto o dispositivo permanecer offline. Um novo alerta de recuperação (`Dispositivo Restabelecido! 🟢`) só será enviado no momento em que a varredura detectar o restabelecimento do serviço (status online), reiniciando o fluxo.
+
+### 3. Teste Manual de Notificação
+Para confirmar se o Bot e o Chat ID foram configurados de forma correta e estão entregando mensagens no seu grupo:
+1. Abra a tela de **Detalhes** de qualquer dispositivo monitorado.
+2. Clique no botão **`Testar Telegram`** localizado no cabeçalho superior.
+3. O bot enviará uma mensagem de teste formatada em HTML contendo a identificação do dispositivo, IP, porta e grupo correspondente.
+
+---
+
 ## 🧪 Execução de Testes Automatizados
 
-O sistema conta com 16 testes automatizados que cobrem fluxos cruciais como criação de usuários com restrições de e-mail único, login por e-mail insensível a maiúsculas, cálculo matemático correto da latência de logs em 24h e parser robusto de faixas sequenciais de portas.
+O sistema conta com 35 testes automatizados que cobrem fluxos cruciais como criação de usuários com restrições de e-mail único, login por e-mail insensível a maiúsculas, cálculo matemático correto da disponibilidade de SLA, parser robusto de faixas sequenciais de portas, batch updates de configurações e o ciclo de transição de alertas do Telegram com mocks HTTP.
 
 Para rodar a suite de testes completa, execute:
 ```bash
-poetry run python manage.py test
+$env:DB_ENGINE="django.db.backends.sqlite3"; poetry run python manage.py test
 ```

@@ -63,18 +63,43 @@ class MonitorViewTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(len(response.content) > 0)
 
-    def test_update_group_view_successful(self):
+    def test_update_group_view_get_and_post_batch(self):
         User = get_user_model()
         user = User.objects.create_user(username="testuser_edit", password="testpassword", email="edit@test.com")
         self.client.login(username="testuser_edit", password="testpassword")
         
         group = Group.objects.create(name="Grupo Original")
-        url = reverse('edit_group', kwargs={'pk': group.id})
-        response = self.client.post(url, {'name': 'Grupo Modificado'})
+        target1 = MonitorTarget.objects.create(host="192.168.1.1", port=80, group=group, check_interval=1)
+        target2 = MonitorTarget.objects.create(host="192.168.1.2", port=80, group=group, check_interval=1)
         
+        url = reverse('edit_group', kwargs={'pk': group.id})
+        
+        # Test GET request
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'monitor/edit_group.html')
+        self.assertEqual(response.context['group'], group)
+        self.assertEqual(len(response.context['targets']), 2)
+        
+        # Test POST request with batch update (only target1 selected)
+        post_data = {
+            'name': 'Grupo Modificado',
+            'check_interval': '5',  # 5 minutes
+            'selected_targets': [target1.id]  # Only target1 selected
+        }
+        response = self.client.post(url, post_data)
         self.assertEqual(response.status_code, 302)
+        
         group.refresh_from_db()
         self.assertEqual(group.name, "Grupo Modificado")
+        
+        target1.refresh_from_db()
+        target2.refresh_from_db()
+        
+        # target1 check_interval should be updated to 5
+        self.assertEqual(target1.check_interval, 5)
+        # target2 check_interval should remain 1 (since it wasn't selected)
+        self.assertEqual(target2.check_interval, 1)
 
     def test_delete_group_view_successful(self):
         User = get_user_model()
@@ -130,3 +155,23 @@ class MonitorViewTests(TestCase):
         response = self.client.get(url + f"?start_date={start_date}&end_date={end_date}")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context['chart_timestamps']), 1)  # only log1 in range
+
+    def test_send_test_telegram_successful(self):
+        from unittest.mock import patch
+        
+        User = get_user_model()
+        user = User.objects.create_user(username="testuser_telegram", password="testpassword", email="telegram@test.com")
+        self.client.login(username="testuser_telegram", password="testpassword")
+        
+        target = MonitorTarget.objects.create(host="192.168.50.1", port=80, last_status=True)
+        url = reverse('send_test_telegram', kwargs={'pk': target.id})
+        
+        with patch('monitor.utils.send_telegram_message') as mock_send_telegram_message:
+            mock_send_telegram_message.return_value = True
+            
+            with self.settings(TELEGRAM_BOT_TOKEN='token', TELEGRAM_CHAT_ID='chat_id'):
+                response = self.client.post(url)
+                
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {'success': True})
+            mock_send_telegram_message.assert_called_once()

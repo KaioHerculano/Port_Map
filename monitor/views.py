@@ -116,6 +116,13 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
         except ValueError:
             check_interval = 60
 
+        # Retrieve telegram_alert_threshold
+        telegram_alert_threshold_str = request.POST.get('telegram_alert_threshold', '1').strip()
+        try:
+            telegram_alert_threshold = int(telegram_alert_threshold_str)
+        except ValueError:
+            telegram_alert_threshold = 1
+
         # Retrieve optional group selected in the dropdown
         group_id = request.POST.get('group_id', '').strip()
         group = None
@@ -146,7 +153,12 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
             if label:
                 import_str += f" [{label}]"
 
-            created_targets, errors = PortParserService.parse_and_create_targets(import_str, group=group, check_interval=check_interval)
+            created_targets, errors = PortParserService.parse_and_create_targets(
+                import_str, 
+                group=group, 
+                check_interval=check_interval,
+                telegram_alert_threshold=telegram_alert_threshold
+            )
             if created_targets:
                 check_single_target.delay(created_targets[0].id)
                 messages.success(
@@ -162,7 +174,12 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                 messages.error(request, "Cole a lista de IPs e portas antes de enviar.")
                 return redirect('add_targets')
 
-            created_targets, errors = PortParserService.parse_and_create_targets(bulk_text, group=group, check_interval=check_interval)
+            created_targets, errors = PortParserService.parse_and_create_targets(
+                bulk_text, 
+                group=group, 
+                check_interval=check_interval,
+                telegram_alert_threshold=telegram_alert_threshold
+            )
 
             if created_targets:
                 for target in created_targets:
@@ -325,7 +342,7 @@ class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
     model = MonitorTarget
     context_object_name = 'target'
     template_name = 'monitor/edit_target.html'
-    fields = ['group', 'label', 'host', 'port', 'check_interval']
+    fields = ['group', 'label', 'host', 'port', 'check_interval', 'telegram_alert_threshold']
     success_url = reverse_lazy('dashboard')
 
     def form_valid(self, form):
@@ -446,22 +463,71 @@ class GroupReportPDFView(LoginRequiredMixin, View):
 
 
 class UpdateGroupView(LoginRequiredMixin, View):
-    """Class-Based View to update the group name."""
+    """Class-Based View to update the group name and batch-edit check intervals of its targets."""
     
+    def get(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> HttpResponse:
+        group = get_object_or_404(Group, pk=pk)
+        targets = group.targets.all().order_by('label', 'host')
+        
+        # Get choices from MonitorTarget model field
+        check_interval_choices = MonitorTarget._meta.get_field('check_interval').choices
+        telegram_alert_threshold_choices = MonitorTarget._meta.get_field('telegram_alert_threshold').choices
+        
+        context = {
+            'group': group,
+            'targets': targets,
+            'check_interval_choices': check_interval_choices,
+            'telegram_alert_threshold_choices': telegram_alert_threshold_choices,
+        }
+        return render(request, 'monitor/edit_group.html', context)
+        
     def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
         group = get_object_or_404(Group, pk=pk)
         new_name = request.POST.get('name', '').strip()
-        if new_name:
-            if Group.objects.filter(name__iexact=new_name).exclude(pk=pk).exists():
-                messages.error(request, f"Já existe um grupo com o nome '{new_name}'.")
-            else:
-                old_name = group.name
-                group.name = new_name
-                group.save()
-                messages.success(request, f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso.")
-        else:
+        
+        if not new_name:
             messages.error(request, "O nome do grupo não pode ser vazio.")
+            return redirect('edit_group', pk=group.id)
             
+        if Group.objects.filter(name__iexact=new_name).exclude(pk=pk).exists():
+            messages.error(request, f"Já existe um grupo com o nome '{new_name}'.")
+            return redirect('edit_group', pk=group.id)
+            
+        old_name = group.name
+        group.name = new_name
+        group.save()
+        
+        # Batch update check intervals and telegram alert thresholds
+        check_interval = request.POST.get('check_interval', '').strip()
+        telegram_alert_threshold = request.POST.get('telegram_alert_threshold', '').strip()
+        selected_targets = request.POST.getlist('selected_targets')
+        
+        success_msg = f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso."
+        
+        if selected_targets:
+            if check_interval:
+                try:
+                    interval_val = int(check_interval)
+                    updated_count = MonitorTarget.objects.filter(
+                        id__in=selected_targets, 
+                        group=group
+                    ).update(check_interval=interval_val)
+                    success_msg += f" Frequência de verificação atualizada em {updated_count} dispositivo(s)."
+                except ValueError:
+                    messages.error(request, "Intervalo de verificação inválido.")
+            
+            if telegram_alert_threshold:
+                try:
+                    threshold_val = int(telegram_alert_threshold)
+                    updated_count = MonitorTarget.objects.filter(
+                        id__in=selected_targets, 
+                        group=group
+                    ).update(telegram_alert_threshold=threshold_val)
+                    success_msg += f" Regra de alerta do Telegram atualizada em {updated_count} dispositivo(s)."
+                except ValueError:
+                    messages.error(request, "Regra de alerta do Telegram inválida.")
+                
+        messages.success(request, success_msg)
         return redirect('dashboard')
 
 
@@ -474,3 +540,42 @@ class DeleteGroupView(LoginRequiredMixin, View):
         group.delete()
         messages.success(request, f"Grupo '{group_name}' excluído com sucesso.")
         return redirect('dashboard')
+
+
+class SendTestTelegramView(LoginRequiredMixin, View):
+    """View to send a manual test Telegram message for a specific target."""
+    
+    def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> JsonResponse:
+        from django.conf import settings
+        from django.utils import timezone
+        
+        target = get_object_or_404(MonitorTarget, pk=pk)
+        
+        # Check if Telegram is configured
+        token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+        chat_id = getattr(settings, 'TELEGRAM_CHAT_ID', '')
+        
+        if not token or not chat_id:
+            return JsonResponse({'success': False, 'error': 'Telegram não está configurado no arquivo .env.'})
+            
+        label = target.label or "Sem identificação"
+        group_name = target.group.name if target.group else "Sem grupo"
+        host_port = f"{target.host}:{target.port}"
+        local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+        
+        message = (
+            f"🔔 <b>Teste de Notificação Manual</b>\n\n"
+            f"Este é um envio manual de teste realizado a partir da interface do painel.\n\n"
+            f"<b>Dispositivo:</b> {label}\n"
+            f"<b>IP/Porta:</b> <code>{host_port}</code>\n"
+            f"<b>Grupo:</b> {group_name}\n"
+            f"<b>Horário de Envio:</b> {local_time}"
+        )
+        
+        from .utils import send_telegram_message
+        success = send_telegram_message(message)
+        
+        if success:
+            return JsonResponse({'success': True})
+        else:
+            return JsonResponse({'success': False, 'error': 'Falha ao entregar a mensagem no Telegram. Verifique o Token e o Chat ID.'})

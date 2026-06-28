@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.db import IntegrityError
 
-from ..models import MonitorTarget, Group
+from ..models import MonitorTarget, MonitorLog, Group
 from ..services import PortParserService
 
 class BulkImportParserTests(TestCase):
@@ -133,3 +133,70 @@ class BulkImportParserTests(TestCase):
         self.assertEqual(targets[0].label, "Camera Frontal")
         # Ensure we didn't create a group named "Camera Frontal"
         self.assertFalse(Group.objects.filter(name="Camera Frontal").exists())
+
+
+from unittest.mock import patch, MagicMock
+from ..services import PortCheckerService
+
+class PortCheckerServiceTests(TestCase):
+    @patch('monitor.utils.send_telegram_alert')
+    @patch('socket.socket')
+    def test_telegram_alert_on_status_change(self, mock_socket, mock_send_telegram_alert):
+        # Setup socket mock to connect successfully (open port)
+        mock_socket_inst = MagicMock()
+        mock_socket.return_value.__enter__.return_value = mock_socket_inst
+        
+        target = MonitorTarget.objects.create(host="127.0.0.1", port=80, last_status=False, telegram_alert_threshold=1)
+        # Create preceding failure log
+        MonitorLog.objects.create(target=target, status=False, latency=10.0)
+        
+        # Test transition: False -> True
+        PortCheckerService.check_target(target.id)
+        
+        # Assert recovery alert was triggered
+        mock_send_telegram_alert.assert_called_once_with(target, False, True)
+
+    @patch('monitor.utils.send_telegram_alert')
+    @patch('socket.socket')
+    def test_telegram_no_alert_when_status_unchanged(self, mock_socket, mock_send_telegram_alert):
+        mock_socket_inst = MagicMock()
+        mock_socket.return_value.__enter__.return_value = mock_socket_inst
+        
+        target = MonitorTarget.objects.create(host="127.0.0.1", port=80, last_status=True, telegram_alert_threshold=1)
+        MonitorLog.objects.create(target=target, status=True, latency=10.0)
+        
+        # Test transition: True -> True (no change)
+        PortCheckerService.check_target(target.id)
+        
+        # Assert alert was NOT triggered
+        mock_send_telegram_alert.assert_not_called()
+
+    @patch('monitor.utils.send_telegram_alert')
+    @patch('socket.socket')
+    def test_telegram_alert_on_first_failure(self, mock_socket, mock_send_telegram_alert):
+        # Setup socket mock to fail connection
+        mock_socket.return_value.__enter__.return_value.connect.side_effect = Exception("Connection refused")
+        
+        target = MonitorTarget.objects.create(host="127.0.0.1", port=80, last_status=None, telegram_alert_threshold=1)
+        
+        # Test transition: None -> False (first check failed)
+        PortCheckerService.check_target(target.id)
+        
+        # Assert alert was triggered
+        mock_send_telegram_alert.assert_called_once_with(target, None, False)
+
+    @patch('monitor.utils.send_telegram_alert')
+    @patch('socket.socket')
+    def test_telegram_alert_on_consecutive_failures_threshold(self, mock_socket, mock_send_telegram_alert):
+        # Setup socket mock to fail connection
+        mock_socket.return_value.__enter__.return_value.connect.side_effect = Exception("Connection refused")
+        
+        target = MonitorTarget.objects.create(host="127.0.0.1", port=80, last_status=False, telegram_alert_threshold=2)
+        
+        # 1st failure check: consecutive count becomes 1 (threshold is 2), should NOT alert
+        PortCheckerService.check_target(target.id)
+        mock_send_telegram_alert.assert_not_called()
+        
+        # 2nd failure check: consecutive count becomes 2 (threshold is 2), should ALERT!
+        PortCheckerService.check_target(target.id)
+        mock_send_telegram_alert.assert_called_once_with(target, False, False)

@@ -74,6 +74,16 @@ class MonitorTarget(models.Model):
         null=True, 
         help_text="Último tempo de resposta em milissegundos"
     )
+    telegram_alert_threshold = models.IntegerField(
+        choices=[
+            (1, 'Imediatamente (1ª falha)'),
+            (2, 'Após 2 falhas consecutivas'),
+            (3, 'Após 3 falhas consecutivas'),
+            (0, 'Não notificar'),
+        ],
+        default=1,
+        help_text="Regra para disparo de alertas de falha no Telegram"
+    )
     created_at = models.DateTimeField(
         auto_now_add=True
     )
