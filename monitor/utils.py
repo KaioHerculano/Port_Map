@@ -50,18 +50,15 @@ def send_telegram_alert(target, old_status, new_status, downtime_duration: Optio
     label = target.label or "Sem identificação"
     group_name = target.group.name if target.group else "Sem grupo"
     
-    # Get current time in local timezone (Cuiaba)
     local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
     
     if new_status:
-        emoji = "🟢"
         title = "Dispositivo Restabelecido!"
     else:
-        emoji = "🔴"
         title = "Dispositivo Offline!"
         
     message = (
-        f"{emoji} <b>{title}</b>\n\n"
+        f"<b>{title}</b>\n\n"
         f"<b>Identificação:</b> {label}\n"
         f"<b>IP:</b> <code>{target.host}</code>\n"
         f"<b>Porta:</b> <code>{target.port}</code>\n"
