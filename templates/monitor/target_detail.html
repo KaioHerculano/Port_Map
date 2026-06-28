@@ -192,17 +192,17 @@
   
   <!-- Pagination -->
   {% if page_obj.has_other_pages %}
-  <div class="pagination">
+  <div class="pagination" style="display: flex; gap: 0.25rem; justify-content: center; margin-top: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
     {% if page_obj.has_previous %}
-      <a href="?page=1" class="page-link">&laquo; Primeira</a>
-      <a href="?page={{ page_obj.previous_page_number }}" class="page-link">Anterior</a>
+      <a href="?page=1&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">&laquo; Primeira</a>
+      <a href="?page={{ page_obj.previous_page_number }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Anterior</a>
     {% endif %}
     
-    <span class="page-link active">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    <span class="page-link active" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--primary); color: white; font-size: 0.85rem; background: var(--primary); font-weight: bold;">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
     
     {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}" class="page-link">Próxima</a>
-      <a href="?page={{ page_obj.paginator.num_pages }}" class="page-link">Última &raquo;</a>
+      <a href="?page={{ page_obj.next_page_number }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Próxima</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Última &raquo;</a>
     {% endif %}
   </div>
   {% endif %}
