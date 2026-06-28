@@ -43,7 +43,9 @@ def send_telegram_message(text: str) -> bool:
         return False
 
 
-def send_telegram_alert(target, old_status, new_status) -> bool:
+from typing import Optional
+
+def send_telegram_alert(target, old_status, new_status, downtime_duration: Optional[str] = None) -> bool:
     """Format and send a structured HTML status alert to the Telegram Chat."""
     label = target.label or "Sem identificação"
     group_name = target.group.name if target.group else "Sem grupo"
@@ -64,7 +66,11 @@ def send_telegram_alert(target, old_status, new_status) -> bool:
         f"<b>IP:</b> <code>{target.host}</code>\n"
         f"<b>Porta:</b> <code>{target.port}</code>\n"
         f"<b>Grupo:</b> {group_name}\n"
-        f"<b>Horário:</b> {local_time}"
     )
+    
+    if new_status and downtime_duration:
+        message += f"<b>Tempo Offline:</b> <code>{downtime_duration}</code>\n"
+        
+    message += f"<b>Horário:</b> {local_time}"
     
     return send_telegram_message(message)
