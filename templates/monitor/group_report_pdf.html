@@ -216,7 +216,7 @@
                 {% if left %}
                     <td><strong>{{ left.host }}</strong>:{{ left.port }}</td>
                     <td>{{ left.label|default:"-" }}</td>
-                    <td style="text-align: right; font-weight: bold; {% if left.availability_rounded >= 99.0 %}color: #047857;{% elif left.availability_rounded >= 95.0 %}color: #b45309;{% else %}color: #b91c1c;{% endif %}">
+                    <td style="text-align: right; font-weight: bold; {% if left.availability_rounded >= 80.0 %}color: #047857;{% elif left.availability_rounded >= 70.0 %}color: #b45309;{% else %}color: #b91c1c;{% endif %}">
                         {{ left.availability_rounded }}%
                     </td>
                 {% else %}
@@ -232,7 +232,7 @@
                 {% if right %}
                     <td><strong>{{ right.host }}</strong>:{{ right.port }}</td>
                     <td>{{ right.label|default:"-" }}</td>
-                    <td style="text-align: right; font-weight: bold; {% if right.availability_rounded >= 99.0 %}color: #047857;{% elif right.availability_rounded >= 95.0 %}color: #b45309;{% else %}color: #b91c1c;{% endif %}">
+                    <td style="text-align: right; font-weight: bold; {% if right.availability_rounded >= 80.0 %}color: #047857;{% elif right.availability_rounded >= 70.0 %}color: #b45309;{% else %}color: #b91c1c;{% endif %}">
                         {{ right.availability_rounded }}%
                     </td>
                 {% else %}

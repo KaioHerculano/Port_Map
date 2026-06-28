@@ -200,3 +200,38 @@ class PortCheckerServiceTests(TestCase):
         # 2nd failure check: consecutive count becomes 2 (threshold is 2), should ALERT!
         PortCheckerService.check_target(target.id)
         mock_send_telegram_alert.assert_called_once_with(target, False, False, downtime_duration=None)
+
+    @patch('monitor.utils.send_telegram_message')
+    def test_send_monthly_telegram_report(self, mock_send_telegram_message):
+        mock_send_telegram_message.return_value = True
+        
+        # Create targets
+        target_ok = MonitorTarget.objects.create(host="192.168.1.10", port=80, last_status=True, is_active=True)
+        target_fail = MonitorTarget.objects.create(host="192.168.1.20", port=80, last_status=False, is_active=True)
+        
+        # Determine previous month
+        from django.utils import timezone
+        from datetime import timedelta
+        now = timezone.now()
+        first_day_current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_month_time = first_day_current_month - timedelta(days=5)
+        
+        # target_ok availability: 100%
+        log_ok = MonitorLog.objects.create(target=target_ok, status=True, latency=15.0)
+        MonitorLog.objects.filter(id=log_ok.id).update(timestamp=prev_month_time)
+        
+        # target_fail availability: 0%
+        log_fail = MonitorLog.objects.create(target=target_fail, status=False, latency=10.0)
+        MonitorLog.objects.filter(id=log_fail.id).update(timestamp=prev_month_time)
+        
+        from ..tasks import send_monthly_telegram_report
+        with self.settings(TELEGRAM_BOT_TOKEN='token', TELEGRAM_CHAT_ID='chat_id'):
+            res = send_monthly_telegram_report()
+            
+        self.assertIn("Monthly report sent successfully", res)
+        mock_send_telegram_message.assert_called_once()
+        
+        # Verify message text format contains Critical classification and details of target_fail (SLA < 50%)
+        call_args = mock_send_telegram_message.call_args[0][0]
+        self.assertIn("Relatório Mensal", call_args)
+        self.assertIn("192.168.1.20:80", call_args)  # Critical target listed
