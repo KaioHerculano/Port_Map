@@ -243,10 +243,10 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
             chart_logs = list(chart_logs_query)
 
         # Dynamic format for X-axis labels based on duration
-        if (end_dt - start_dt).days > 1:
+        if (end_dt - start_dt) > timedelta(days=1):
             timestamp_format = '%d/%m %H:%M'
         else:
-            timestamp_format = '%H:%M'
+            timestamp_format = '%H:%M:%S'
 
         context['chart_timestamps'] = [log.timestamp.strftime(timestamp_format) for log in chart_logs]
         context['chart_latencies'] = [log.latency if log.status else 0 for log in chart_logs]
