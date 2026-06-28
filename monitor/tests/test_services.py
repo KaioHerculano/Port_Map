@@ -135,7 +135,7 @@ class BulkImportParserTests(TestCase):
         self.assertFalse(Group.objects.filter(name="Camera Frontal").exists())
 
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 from ..services import PortCheckerService
 
 class PortCheckerServiceTests(TestCase):
@@ -154,7 +154,7 @@ class PortCheckerServiceTests(TestCase):
         PortCheckerService.check_target(target.id)
         
         # Assert recovery alert was triggered
-        mock_send_telegram_alert.assert_called_once_with(target, False, True)
+        mock_send_telegram_alert.assert_called_once_with(target, False, True, downtime_duration=ANY)
 
     @patch('monitor.utils.send_telegram_alert')
     @patch('socket.socket')
@@ -183,7 +183,7 @@ class PortCheckerServiceTests(TestCase):
         PortCheckerService.check_target(target.id)
         
         # Assert alert was triggered
-        mock_send_telegram_alert.assert_called_once_with(target, None, False)
+        mock_send_telegram_alert.assert_called_once_with(target, None, False, downtime_duration=None)
 
     @patch('monitor.utils.send_telegram_alert')
     @patch('socket.socket')
@@ -199,4 +199,4 @@ class PortCheckerServiceTests(TestCase):
         
         # 2nd failure check: consecutive count becomes 2 (threshold is 2), should ALERT!
         PortCheckerService.check_target(target.id)
-        mock_send_telegram_alert.assert_called_once_with(target, False, False)
+        mock_send_telegram_alert.assert_called_once_with(target, False, False, downtime_duration=None)

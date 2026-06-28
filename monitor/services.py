@@ -171,14 +171,32 @@ class PortCheckerService:
 
         old_status = target.last_status
         preceding_failures = 0
+        downtime_duration_str = None
         if status and old_status == False:
-            # Count consecutive failures before writing the new log
-            last_logs = target.logs.all().order_by('-timestamp')[:5]
+            # Count consecutive failures before writing the new log and locate downtime start
+            last_logs = target.logs.all().order_by('-timestamp')[:100]
+            downtime_start = None
             for log in last_logs:
                 if not log.status:
                     preceding_failures += 1
+                    downtime_start = log.timestamp
                 else:
                     break
+            
+            if downtime_start:
+                now = timezone.now()
+                duration = now - downtime_start
+                total_seconds = int(duration.total_seconds())
+                if total_seconds < 60:
+                    downtime_duration_str = f"{total_seconds}s"
+                elif total_seconds < 3600:
+                    minutes = total_seconds // 60
+                    seconds = total_seconds % 60
+                    downtime_duration_str = f"{minutes}m {seconds}s"
+                else:
+                    hours = total_seconds // 3600
+                    minutes = (total_seconds % 3600) // 60
+                    downtime_duration_str = f"{hours}h {minutes}m"
 
         try:
             with transaction.atomic():
@@ -219,7 +237,7 @@ class PortCheckerService:
             if should_alert:
                 try:
                     from .utils import send_telegram_alert
-                    send_telegram_alert(target, old_status, status)
+                    send_telegram_alert(target, old_status, status, downtime_duration=downtime_duration_str)
                 except Exception as tel_err:
                     logger.error("Falha ao invocar alerta do Telegram: %s", str(tel_err))
 
