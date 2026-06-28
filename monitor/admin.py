@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Group, MonitorTarget, MonitorLog
+from .models import Group, MonitorTarget, MonitorLog, DailySummary, AuditLog
 
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
@@ -33,3 +33,18 @@ class MonitorLogAdmin(admin.ModelAdmin):
     search_fields = ('target__host', 'target__label')
     ordering = ('-timestamp',)
     readonly_fields = ('target', 'status', 'latency', 'timestamp')
+
+@admin.register(DailySummary)
+class DailySummaryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'target', 'date', 'availability', 'avg_latency')
+    list_filter = ('date', 'target__group')
+    search_fields = ('target__host', 'target__label')
+    ordering = ('-date', 'target')
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'action', 'model_name', 'object_repr', 'timestamp')
+    list_filter = ('action', 'model_name', 'timestamp', 'user')
+    search_fields = ('object_repr', 'changes', 'user__username')
+    ordering = ('-timestamp',)
+    readonly_fields = ('user', 'action', 'model_name', 'object_repr', 'changes', 'timestamp')
