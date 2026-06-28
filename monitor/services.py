@@ -15,7 +15,7 @@ class PortParserService:
 
     @staticmethod
     @transaction.atomic
-    def parse_and_create_targets(text: str, group: Optional[Group] = None) -> Tuple[List[MonitorTarget], List[str]]:
+    def parse_and_create_targets(text: str, group: Optional[Group] = None, check_interval: int = 60) -> Tuple[List[MonitorTarget], List[str]]:
         lines = text.strip().split('\n')
         created_targets: List[MonitorTarget] = []
         errors: List[str] = []
@@ -106,9 +106,9 @@ class PortParserService:
                 errors.append(f"Limite máximo de {max_total_targets} alvos por importação atingido. Importação interrompida.")
                 break
 
-            # Create/get group if label was specified
+            # Create/get group if label was specified and no explicit group was provided
             line_group = group
-            if label:
+            if not line_group and label:
                 line_group, _ = Group.objects.get_or_create(name=label)
 
             # Create targets in DB
@@ -117,7 +117,12 @@ class PortParserService:
                     target, created = MonitorTarget.objects.update_or_create(
                         host=host,
                         port=port,
-                        defaults={'group': line_group, 'label': label, 'is_active': True}
+                        defaults={
+                            'group': line_group, 
+                            'label': label, 
+                            'is_active': True,
+                            'check_interval': check_interval
+                        }
                     )
                     created_targets.append(target)
                 except Exception as e:
