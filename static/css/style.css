@@ -1083,10 +1083,12 @@ textarea {
   .header-actions {
     width: 100%;
     display: flex;
+    flex-direction: column;
     gap: 0.5rem;
   }
   .header-actions .btn, .header-actions a {
-    flex: 1;
+    width: 100%;
+    flex: none;
     justify-content: center;
   }
   .form-actions {
@@ -1249,5 +1251,65 @@ textarea {
   .card-actions {
     display: flex;
     gap: 0.35rem;
+  }
+}
+
+/* Extra Mobile Optimizations for Small Samsung / Mobile Viewports */
+@media (max-width: 576px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+  .stat-card {
+    padding: 1rem !important;
+  }
+  .stat-value {
+    font-size: 1.6rem !important;
+  }
+  .stat-header {
+    font-size: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .view-tabs {
+    gap: 0.25rem !important;
+  }
+  .view-tab-btn {
+    font-size: 0.95rem !important;
+    padding: 0.5rem 0.6rem !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .card-row-main {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .card-status-toggle {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    border-top: 1px solid rgba(255,255,255,0.03);
+    padding-top: 0.5rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .card-row-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .card-metrics {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .card-actions {
+    justify-content: flex-end;
+    width: 100%;
   }
 }
