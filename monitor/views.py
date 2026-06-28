@@ -560,16 +560,14 @@ class SendTestTelegramView(LoginRequiredMixin, View):
             
         label = target.label or "Sem identificação"
         group_name = target.group.name if target.group else "Sem grupo"
-        host_port = f"{target.host}:{target.port}"
         local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
-        
         message = (
             f"🔔 <b>Teste de Notificação Manual</b>\n\n"
-            f"Este é um envio manual de teste realizado a partir da interface do painel.\n\n"
             f"<b>Dispositivo:</b> {label}\n"
-            f"<b>IP/Porta:</b> <code>{host_port}</code>\n"
+            f"<b>IP:</b> <code>{target.host}</code>\n"
+            f"<b>Porta:</b> <code>{target.port}</code>\n"
             f"<b>Grupo:</b> {group_name}\n"
-            f"<b>Horário de Envio:</b> {local_time}"
+            f"<b>Horário:</b> {local_time}"
         )
         
         from .utils import send_telegram_message

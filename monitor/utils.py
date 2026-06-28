@@ -47,34 +47,23 @@ def send_telegram_alert(target, old_status, new_status) -> bool:
     """Format and send a structured HTML status alert to the Telegram Chat."""
     label = target.label or "Sem identificação"
     group_name = target.group.name if target.group else "Sem grupo"
-    host_port = f"{target.host}:{target.port}"
     
     # Get current time in local timezone (Cuiaba)
     local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
     
     if new_status:
         emoji = "🟢"
-        title = "Notificação: Dispositivo Restabelecido!"
-        status_text = "ABERTA (Online)"
+        title = "Dispositivo Restabelecido!"
     else:
         emoji = "🔴"
-        title = "ALERTA: Dispositivo Offline!"
-        status_text = "FECHADA (Offline)"
-        
-    if old_status is None:
-        old_status_text = "Desconhecido (Primeira Verificação)"
-    elif old_status:
-        old_status_text = "ABERTA (Online)"
-    else:
-        old_status_text = "FECHADA (Offline)"
+        title = "Dispositivo Offline!"
         
     message = (
         f"{emoji} <b>{title}</b>\n\n"
         f"<b>Identificação:</b> {label}\n"
-        f"<b>IP/Porta:</b> <code>{host_port}</code>\n"
+        f"<b>IP:</b> <code>{target.host}</code>\n"
+        f"<b>Porta:</b> <code>{target.port}</code>\n"
         f"<b>Grupo:</b> {group_name}\n"
-        f"<b>Estado Anterior:</b> {old_status_text}\n"
-        f"<b>Estado Atual:</b> <b>{status_text}</b>\n"
         f"<b>Horário:</b> {local_time}"
     )
     
