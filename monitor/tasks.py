@@ -45,7 +45,8 @@ def dispatch_scheduled_checks() -> str:
     active_intervals = MonitorTarget.objects.filter(is_active=True).values_list('check_interval', flat=True).distinct()
     
     for interval in active_intervals:
-        cutoff = now - timedelta(minutes=interval)
+        # Add a 10-second buffer to handle scheduling jitter and execution delay
+        cutoff = now - timedelta(minutes=interval) + timedelta(seconds=10)
         query |= Q(check_interval=interval, last_checked__lte=cutoff)
         
     targets_to_check = MonitorTarget.objects.filter(is_active=True).filter(query)
