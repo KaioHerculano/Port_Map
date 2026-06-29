@@ -362,13 +362,11 @@ class PortCheckerService:
                     ObjectType(ObjectIdentity(oid))
                 )
 
+            loop = asyncio.new_event_loop()
             try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            errorIndication, errorStatus, errorIndex, varBinds = loop.run_until_complete(do_get())
+                errorIndication, errorStatus, errorIndex, varBinds = loop.run_until_complete(do_get())
+            finally:
+                loop.close()
             
             if errorIndication or errorStatus:
                 return False, None
@@ -413,13 +411,11 @@ class PortCheckerService:
                     current_oid = val_oid
                 return walk_results
 
+            loop = asyncio.new_event_loop()
             try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            results = loop.run_until_complete(do_walk())
+                results = loop.run_until_complete(do_walk())
+            finally:
+                loop.close()
         except Exception as e:
             logger.error("SNMP walk failed for %s (%s): %s", host, oid, str(e))
         return results
@@ -454,6 +450,8 @@ class PortCheckerService:
         status = False
         latency_ms = 0.0
         sensor_value = ""
+        val = None
+        bps = 0.0
 
         start_time = time.perf_counter()
 
@@ -650,15 +648,15 @@ class PortCheckerService:
                     downtime_duration_str = f"{total_seconds // 3600}h {(total_seconds % 3600) // 60}m"
 
         raw_bps = None
-        if sensor_type == 'snmp_traffic' and 'bps' in locals() and status:
+        if sensor_type == 'snmp_traffic' and status and bps > 0:
             raw_bps = bps
-        elif sensor_type == 'mikrotik_api' and target.sensor_identifier and target.sensor_identifier.startswith('traffic:') and 'bps' in locals() and status:
+        elif sensor_type == 'mikrotik_api' and target.sensor_identifier and target.sensor_identifier.startswith('traffic:') and status and bps > 0:
             raw_bps = bps
             
         metric_val = PortCheckerService._parse_metric_value(
             sensor_type, 
             target.label, 
-            val if 'val' in locals() else None, 
+            val, 
             raw_bps
         )
 
@@ -781,19 +779,29 @@ class TargetDetailService:
         # Determine if we should plot metric_value instead of latency
         is_metric = target.sensor_type not in ('ping', 'tcp')
         chart_latencies = []
+        chart_timestamps_final = []
+        chart_statuses_final = []
         for log in chart_logs:
             if not log.status:
+                chart_timestamps_final.append(timezone.localtime(log.timestamp).strftime(timestamp_format))
                 chart_latencies.append(0)
+                chart_statuses_final.append(0)
             else:
                 if is_metric:
-                    chart_latencies.append(log.metric_value if log.metric_value is not None else log.latency)
+                    if log.metric_value is not None:
+                        chart_timestamps_final.append(timezone.localtime(log.timestamp).strftime(timestamp_format))
+                        chart_latencies.append(log.metric_value)
+                        chart_statuses_final.append(1)
+                    # Skip points with no metric_value (old logs before field was added)
                 else:
+                    chart_timestamps_final.append(timezone.localtime(log.timestamp).strftime(timestamp_format))
                     chart_latencies.append(log.latency)
+                    chart_statuses_final.append(1)
 
         return {
-            'chart_timestamps': [timezone.localtime(log.timestamp).strftime(timestamp_format) for log in chart_logs],
+            'chart_timestamps': chart_timestamps_final,
             'chart_latencies': chart_latencies,
-            'chart_statuses': [1 if log.status else 0 for log in chart_logs],
+            'chart_statuses': chart_statuses_final,
             'period': period,
             'start_date': start_date_str,
             'end_date': end_date_str,

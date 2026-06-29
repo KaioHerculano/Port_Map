@@ -73,6 +73,17 @@
       </div>
     </div>
 
+    <!-- Sensor Selection -->
+    <div id="sensor-section" style="margin-bottom: 1.5rem; display: none;">
+      <div style="border: 1px solid rgba(99,102,241,0.3); border-radius: 10px; padding: 1.25rem; background: rgba(99,102,241,0.05);">
+        <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 0.25rem; font-weight: 600;">🔌 Sensores a Criar</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 1rem 0;">Marque os sensores que deseja ativar. Você pode alterar depois.</p>
+        <div id="sensor-options" style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
     <div class="form-group" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
       {{ form.is_active }}
       <label for="{{ form.is_active.id_for_label }}" style="color: white; font-weight: 500; cursor: pointer; user-select: none;">Ativar monitoramento deste equipamento</label>
@@ -92,24 +103,65 @@
     const deviceTypeSelect = document.getElementById("{{ form.device_type.id_for_label }}");
     const snmpSection = document.getElementById("snmp-section");
     const mikrotikSection = document.getElementById("mikrotik-section");
+    const sensorSection = document.getElementById("sensor-section");
+    const sensorOptions = document.getElementById("sensor-options");
+
+    // Sensor definitions per device type
+    const SENSORS = {
+      generic_ping:  [{ key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',       desc: 'Latência ICMP' }],
+      parks_olt:     [{ key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',       desc: 'Latência ICMP' }],
+      generic_snmp:  [{ key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',       desc: 'Latência ICMP' }],
+      mikrotik: [
+        { key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',        desc: 'Latência ICMP' },
+        { key: 'cpu',    icon: 'bi-cpu',              label: 'Uso de CPU',  desc: 'Via API RouterOS' },
+        { key: 'temp',   icon: 'bi-thermometer-half', label: 'Temperatura', desc: 'CPU/Board (°C)' },
+        { key: 'uptime', icon: 'bi-clock-history',   label: 'Uptime',      desc: 'Tempo de atividade' },
+      ],
+      mikrotik_snmp: [
+        { key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',        desc: 'Latência ICMP' },
+        { key: 'cpu',    icon: 'bi-cpu',              label: 'Uso de CPU',  desc: 'OID hrProcessorLoad' },
+        { key: 'temp',   icon: 'bi-thermometer-half', label: 'Temperatura', desc: 'OID mtxrHlCpuTemperature' },
+        { key: 'uptime', icon: 'bi-clock-history',   label: 'Uptime',      desc: 'OID sysUpTime' },
+      ],
+    };
+
+    function buildSensorCheckboxes(type) {
+      sensorOptions.innerHTML = '';
+      const list = SENSORS[type] || [];
+      if (list.length === 0) { sensorSection.style.display = 'none'; return; }
+      sensorSection.style.display = 'block';
+
+      list.forEach(function(s) {
+        const cbId = 'sensor_' + s.key;
+        const wrapper = document.createElement('label');
+        wrapper.htmlFor = cbId;
+        wrapper.style.cssText = 'display:flex;align-items:center;gap:0.6rem;cursor:pointer;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.5rem 0.85rem;user-select:none;transition:background 0.2s;';
+        wrapper.innerHTML =
+          '<input type="checkbox" name="sensors" id="' + cbId + '" value="' + s.key + '" checked ' +
+          'style="accent-color:#6366f1;width:16px;height:16px;cursor:pointer;">' +
+          '<i class="bi ' + s.icon + '" style="font-size:1rem;color:#a5b4fc;flex-shrink:0;"></i>' +
+          '<span>' +
+          '<strong style="color:white;font-size:0.9rem;">' + s.label + '</strong>' +
+          '<span style="display:block;color:var(--text-muted);font-size:0.75rem;">' + s.desc + '</span>' +
+          '</span>';
+        wrapper.addEventListener('mouseenter', function() { wrapper.style.background = 'rgba(99,102,241,0.12)'; });
+        wrapper.addEventListener('mouseleave', function() {
+          const cb = wrapper.querySelector('input');
+          wrapper.style.background = cb.checked ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.04)';
+        });
+        sensorOptions.appendChild(wrapper);
+      });
+    }
 
     function toggleSections() {
       const type = deviceTypeSelect.value;
-      
-      if (type === 'generic_ping') {
-        snmpSection.style.display = "none";
-        mikrotikSection.style.display = "none";
-      } else if (type === 'mikrotik') {
-        snmpSection.style.display = "none";
-        mikrotikSection.style.display = "block";
-      } else if (type === 'parks_olt' || type === 'generic_snmp' || type === 'mikrotik_snmp') {
-        snmpSection.style.display = "block";
-        mikrotikSection.style.display = "none";
-      }
+      snmpSection.style.display    = (type === 'parks_olt' || type === 'generic_snmp' || type === 'mikrotik_snmp') ? 'block' : 'none';
+      mikrotikSection.style.display = (type === 'mikrotik') ? 'block' : 'none';
+      buildSensorCheckboxes(type);
     }
 
     deviceTypeSelect.addEventListener("change", toggleSections);
-    toggleSections(); // run on load
+    toggleSections();
   });
 </script>
 {% endblock %}

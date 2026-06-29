@@ -577,135 +577,71 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
     def form_valid(self, form):
         response = super().form_valid(form)
         device = self.object
-        # Auto-create default sensors
-        if device.device_type == 'generic_ping':
-            target, created = MonitorTarget.objects.get_or_create(
+        selected = self.request.POST.getlist('sensors')
+
+        # Define available sensors per device type
+        SENSOR_DEFS = {
+            'generic_ping': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+            'mikrotik': {
+                'ping':   {'type': 'ping',         'identifier': '',       'label': 'Ping',   'interval': 1},
+                'cpu':    {'type': 'mikrotik_api', 'identifier': 'cpu',    'label': 'CPU',    'interval': 1},
+                'temp':   {'type': 'mikrotik_api', 'identifier': 'temp',   'label': 'Temp',   'interval': 5},
+                'uptime': {'type': 'mikrotik_api', 'identifier': 'uptime', 'label': 'Uptime', 'interval': 15},
+            },
+            'mikrotik_snmp': {
+                'ping':   {'type': 'ping',         'identifier': '',                          'label': 'Ping',     'interval': 1},
+                'cpu':    {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.25.3.3.1.2.1', 'label': 'CPU',      'interval': 1},
+                'temp':   {'type': 'snmp_numeric',  'identifier': '1.3.6.1.4.1.14988.1.1.3.10.0', 'label': 'Temp CPU', 'interval': 5},
+                'uptime': {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.1.3.0',        'label': 'Uptime',   'interval': 15},
+            },
+            'parks_olt': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+            'generic_snmp': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+        }
+
+        defs = SENSOR_DEFS.get(device.device_type, {})
+
+        # If no sensors were selected (e.g. JS disabled), default to all
+        if not selected:
+            selected = list(defs.keys())
+
+        for key in selected:
+            if key not in defs:
+                continue
+            s = defs[key]
+            kwargs = dict(
                 device=device,
-                sensor_type='ping',
+                sensor_type=s['type'],
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
             )
-            if not created and not target.is_active:
-                target.is_active = True
-                target.save(update_fields=['is_active'])
-        elif device.device_type == 'mikrotik':
-            # Ping
+            if s['identifier']:
+                kwargs['sensor_identifier'] = s['identifier']
             t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='ping',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
+                **kwargs,
+                defaults={
+                    'label': f"{device.name} - {s['label']}",
+                    'check_interval': s['interval'],
+                    'is_active': True,
+                }
             )
             if not created and not t.is_active:
                 t.is_active = True
                 t.save(update_fields=['is_active'])
-            # CPU
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='mikrotik_api',
-                sensor_identifier='cpu',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - CPU', 'check_interval': 1, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-            # Temp
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='mikrotik_api',
-                sensor_identifier='temp',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - Temp', 'check_interval': 5, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-            # Uptime
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='mikrotik_api',
-                sensor_identifier='uptime',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-        elif device.device_type == 'mikrotik_snmp':
-            # Ping
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='ping',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-            # CPU
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='snmp_numeric',
-                sensor_identifier='1.3.6.1.2.1.25.3.3.1.2.1',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - CPU', 'check_interval': 1, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-            # Temp
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='snmp_numeric',
-                sensor_identifier='1.3.6.1.4.1.14988.1.1.3.10.0',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - Temp CPU', 'check_interval': 5, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-            # Uptime
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='snmp_numeric',
-                sensor_identifier='1.3.6.1.2.1.1.3.0',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-        elif device.device_type == 'parks_olt':
-            # Ping
-            t, created = MonitorTarget.objects.get_or_create(
-                device=device,
-                sensor_type='ping',
-                host=device.host,
-                group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-            
+
         log_audit(
             user=self.request.user,
             action='Criar',
             model_name='Equipamento',
             object_repr=device.name,
-            changes=f"Novo equipamento cadastrado. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}"
+            changes=f"Novo equipamento cadastrado. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
         )
-        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! Sensores padrão criados.")
+        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {len(selected)} sensor(es) criado(s).")
         
         # Trigger checks for all new sensors immediately and synchronously
         from .services import PortCheckerService
