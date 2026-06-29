@@ -305,6 +305,49 @@ class PortCheckerService:
             return False, 0.0
 
     @staticmethod
+    def _parse_routeros_uptime(uptime_str: str) -> Optional[float]:
+        import re
+        try:
+            weeks = int(re.search(r'(\d+)w', uptime_str).group(1)) if 'w' in uptime_str else 0
+            days = int(re.search(r'(\d+)d', uptime_str).group(1)) if 'd' in uptime_str else 0
+            hours = int(re.search(r'(\d+)h', uptime_str).group(1)) if 'h' in uptime_str else 0
+            minutes = int(re.search(r'(\d+)m', uptime_str).group(1)) if 'm' in uptime_str else 0
+            seconds = int(re.search(r'(\d+)s', uptime_str).group(1)) if 's' in uptime_str else 0
+            
+            total_seconds = weeks * 7 * 86400 + days * 86400 + hours * 3600 + minutes * 60 + seconds
+            return round(total_seconds / 86400, 2) # in days
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _parse_metric_value(sensor_type: str, label: str, val: str, raw_bps: Optional[float] = None) -> Optional[float]:
+        try:
+            if sensor_type in ('ping', 'tcp'):
+                return None
+            if sensor_type == 'snmp_traffic' or (sensor_type == 'mikrotik_api' and raw_bps is not None):
+                if raw_bps is not None:
+                    return round(raw_bps / 1_000_000, 2) # Mbps
+                return None
+            
+            if val is not None:
+                val_str = str(val)
+                # If it's a RouterOS uptime string (contains letters w, d, h, m, s)
+                if "uptime" in (label or "").lower() and any(c in val_str for c in 'wdhms'):
+                    return PortCheckerService._parse_routeros_uptime(val_str)
+                
+                cleaned = "".join(c for c in val_str if c.isdigit() or c in '.-')
+                if cleaned:
+                    float_val = float(cleaned)
+                    # If it's SNMP uptime (ticks/hundredths of seconds), convert to days
+                    if "uptime" in (label or "").lower():
+                        return round(float_val / (100 * 86400), 2)
+                    return float_val
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
     def _snmp_get(host: str, community: str, port: int, oid: str, timeout: float = 2.0) -> Tuple[bool, Optional[str]]:
         try:
             import asyncio
@@ -536,6 +579,7 @@ class PortCheckerService:
                                     if word.startswith("=cpu-load="):
                                         cpu_load = word[10:]
                             sensor_value = f"{cpu_load}%"
+                            val = cpu_load
                             
                         elif metric == 'temp':
                             # Try print health, fallback if temperature is not present
@@ -546,6 +590,7 @@ class PortCheckerService:
                                     if word.startswith("=temperature=") or word.startswith("=cpu-temperature="):
                                         temp = word.split("=")[-1]
                             sensor_value = f"{temp}º C" if temp != "N/A" else "N/A"
+                            val = temp if temp != "N/A" else None
 
                         elif metric == 'uptime':
                             res = api.talk(["/system/resource/print"])
@@ -555,6 +600,7 @@ class PortCheckerService:
                                     if word.startswith("=uptime="):
                                         uptime = word[8:]
                             sensor_value = uptime
+                            val = uptime if uptime != "N/A" else None
 
                         elif metric.startswith('traffic:'):
                             interface_name = metric.split(':', 1)[1]
@@ -603,12 +649,26 @@ class PortCheckerService:
                 else:
                     downtime_duration_str = f"{total_seconds // 3600}h {(total_seconds % 3600) // 60}m"
 
+        raw_bps = None
+        if sensor_type == 'snmp_traffic' and 'bps' in locals() and status:
+            raw_bps = bps
+        elif sensor_type == 'mikrotik_api' and target.sensor_identifier and target.sensor_identifier.startswith('traffic:') and 'bps' in locals() and status:
+            raw_bps = bps
+            
+        metric_val = PortCheckerService._parse_metric_value(
+            sensor_type, 
+            target.label, 
+            val if 'val' in locals() else None, 
+            raw_bps
+        )
+
         try:
             with transaction.atomic():
                 MonitorLog.objects.create(
                     target=target,
                     status=status,
-                    latency=latency_ms
+                    latency=latency_ms,
+                    metric_value=metric_val
                 )
                 target.last_checked = timezone.now()
                 target.last_status = status
@@ -718,9 +778,21 @@ class TargetDetailService:
         else:
             timestamp_format = '%H:%M:%S'
 
+        # Determine if we should plot metric_value instead of latency
+        is_metric = target.sensor_type not in ('ping', 'tcp')
+        chart_latencies = []
+        for log in chart_logs:
+            if not log.status:
+                chart_latencies.append(0)
+            else:
+                if is_metric:
+                    chart_latencies.append(log.metric_value if log.metric_value is not None else log.latency)
+                else:
+                    chart_latencies.append(log.latency)
+
         return {
             'chart_timestamps': [timezone.localtime(log.timestamp).strftime(timestamp_format) for log in chart_logs],
-            'chart_latencies': [log.latency if log.status else 0 for log in chart_logs],
+            'chart_latencies': chart_latencies,
             'chart_statuses': [1 if log.status else 0 for log in chart_logs],
             'period': period,
             'start_date': start_date_str,
