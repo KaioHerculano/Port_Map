@@ -15,4 +15,8 @@ urlpatterns = [
     path('group/<int:group_id>/pdf/', views.GroupReportPDFView.as_view(), name='group_report_pdf'),
     path('group/<int:pk>/edit/', views.UpdateGroupView.as_view(), name='edit_group'),
     path('group/<int:pk>/delete/', views.DeleteGroupView.as_view(), name='delete_group'),
+    path('device/add/', views.AddDeviceView.as_view(), name='add_device'),
+    path('device/<int:pk>/edit/', views.UpdateDeviceView.as_view(), name='edit_device'),
+    path('device/<int:pk>/delete/', views.DeleteDeviceView.as_view(), name='delete_device'),
+    path('device/<int:pk>/discover/', views.DiscoverDeviceSensorsView.as_view(), name='discover_sensors'),
 ]

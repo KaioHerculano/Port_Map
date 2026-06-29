@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Cadastrar Equipamento - Port Monitor{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="header-title">
+    <h1>Cadastrar Novo Equipamento</h1>
+    <p>Adicione roteadores MikroTik, OLTs Parks ou outros dispositivos de rede para monitorar ping, tráfego e recursos.</p>
+  </div>
+</div>
+
+<div class="glass-panel form-panel" style="max-width: 650px; margin: 0 auto; padding: 2rem;">
+  <form method="post">
+    {% csrf_token %}
+    
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+      <label for="{{ form.name.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Nome do Equipamento</label>
+      {{ form.name }}
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Nome de identificação do equipamento (ex: OLT Parks Central).</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+      <label for="{{ form.host.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">IP ou Hostname</label>
+      {{ form.host }}
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Endereço de rede do equipamento (ex: 172.31.255.2).</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+      <label for="{{ form.device_type.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Tipo de Equipamento</label>
+      {{ form.device_type }}
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione o tipo para carregar o protocolo correto de monitoramento.</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+      <label for="{{ form.group.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Grupo (Opcional)</label>
+      {{ form.group }}
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione um grupo para organizar seus sensores.</span>
+    </div>
+
+    <!-- SNMP Configuration Section -->
+    <div id="snmp-section" class="glass-panel" style="padding: 1.25rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1.25rem; background: rgba(0,0,0,0.15); display: none;">
+      <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 1rem; font-weight: 600;">Configurações do SNMP</h3>
+      
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label for="{{ form.snmp_community.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Comunidade SNMP</label>
+        {{ form.snmp_community }}
+      </div>
+      
+      <div class="form-group" style="margin-bottom: 0;">
+        <label for="{{ form.snmp_port.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Porta SNMP</label>
+        {{ form.snmp_port }}
+      </div>
+    </div>
+
+    <!-- MikroTik API Configuration Section -->
+    <div id="mikrotik-section" class="glass-panel" style="padding: 1.25rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1.25rem; background: rgba(0,0,0,0.15); display: none;">
+      <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 1rem; font-weight: 600;">Credenciais da API RouterOS</h3>
+      
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label for="{{ form.api_username.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Usuário API</label>
+        {{ form.api_username }}
+      </div>
+      
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label for="{{ form.api_password.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Senha API</label>
+        {{ form.api_password }}
+      </div>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label for="{{ form.api_port.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Porta API (TCP)</label>
+        {{ form.api_port }}
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+      {{ form.is_active }}
+      <label for="{{ form.is_active.id_for_label }}" style="color: white; font-weight: 500; cursor: pointer; user-select: none;">Ativar monitoramento deste equipamento</label>
+    </div>
+
+    <div class="form-actions" style="display: flex; gap: 1rem; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.25rem;">
+      <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Salvar Equipamento</button>
+      <a href="{% url 'dashboard' %}" class="btn btn-secondary" style="padding: 0.6rem 1.5rem;">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const deviceTypeSelect = document.getElementById("{{ form.device_type.id_for_label }}");
+    const snmpSection = document.getElementById("snmp-section");
+    const mikrotikSection = document.getElementById("mikrotik-section");
+
+    function toggleSections() {
+      const type = deviceTypeSelect.value;
+      
+      if (type === 'generic_ping') {
+        snmpSection.style.display = "none";
+        mikrotikSection.style.display = "none";
+      } else if (type === 'mikrotik') {
+        snmpSection.style.display = "none";
+        mikrotikSection.style.display = "block";
+      } else if (type === 'parks_olt' || type === 'generic_snmp') {
+        snmpSection.style.display = "block";
+        mikrotikSection.style.display = "none";
+      }
+    }
+
+    deviceTypeSelect.addEventListener("change", toggleSections);
+    toggleSections(); // run on load
+  });
+</script>
+{% endblock %}

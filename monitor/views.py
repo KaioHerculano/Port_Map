@@ -11,7 +11,8 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import MonitorTarget, MonitorLog, Group, AuditLog
+from .models import MonitorTarget, MonitorLog, Group, AuditLog, Device
+from .forms import DeviceForm
 from .services import PortParserService
 from .tasks import check_single_target, check_all_targets
 
@@ -41,7 +42,7 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('group')
+        queryset = super().get_queryset().select_related('group').filter(device__isnull=True)
         search_query = self.request.GET.get('q', '').strip()
         status_filter = self.request.GET.get('status', '').strip()
         group_id = self.request.GET.get('group', '').strip()
@@ -68,7 +69,7 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        all_targets = MonitorTarget.objects.all()
+        all_targets = MonitorTarget.objects.filter(device__isnull=True)
         
         group_id = self.request.GET.get('group', '').strip()
         if group_id:
@@ -86,13 +87,19 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
         context['status_filter'] = self.request.GET.get('status', '')
         context['group_id'] = group_id
 
-        # Fetch groups annotated with counts
+        # Fetch groups annotated with counts of standalone targets
         context['groups'] = Group.objects.annotate(
-            total_count=Count('targets'),
-            online_count=Count('targets', filter=Q(targets__last_status=True, targets__is_active=True)),
-            offline_count=Count('targets', filter=Q(targets__last_status=False, targets__is_active=True)),
-            inactive_count=Count('targets', filter=Q(targets__is_active=False))
+            total_count=Count('targets', filter=Q(targets__device__isnull=True)),
+            online_count=Count('targets', filter=Q(targets__last_status=True, targets__is_active=True, targets__device__isnull=True)),
+            offline_count=Count('targets', filter=Q(targets__last_status=False, targets__is_active=True, targets__device__isnull=True)),
+            inactive_count=Count('targets', filter=Q(targets__is_active=False, targets__device__isnull=True))
         )
+        
+        # Fetch devices (annotated or with their prefetch sensors)
+        devices_qs = Device.objects.all().prefetch_related('sensors')
+        if group_id:
+            devices_qs = devices_qs.filter(group_id=group_id)
+        context['devices'] = devices_qs
         
         # Optimize query: select_related for related target model to avoid N+1
         context['recent_logs'] = MonitorLog.objects.select_related('target', 'target__group').order_by('-timestamp')[:15]
@@ -720,3 +727,247 @@ class TriggerMonthlyReportView(LoginRequiredMixin, View):
         # Trigger task asynchronously in Celery
         result = send_monthly_telegram_report.delay()
         return JsonResponse({'status': 'success', 'task_id': result.id})
+
+
+class AddDeviceView(LoginRequiredMixin, generic.CreateView):
+    model = Device
+    form_class = DeviceForm
+    template_name = 'monitor/add_device.html'
+    success_url = reverse_lazy('dashboard')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        device = self.object
+        # Auto-create default sensors
+        if device.device_type == 'generic_ping':
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='ping',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+            )
+        elif device.device_type == 'mikrotik':
+            # Ping
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='ping',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+            )
+            # CPU
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='mikrotik_api',
+                sensor_identifier='cpu',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - CPU', 'check_interval': 1}
+            )
+            # Temp
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='mikrotik_api',
+                sensor_identifier='temp',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Temp', 'check_interval': 5}
+            )
+            # Uptime
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='mikrotik_api',
+                sensor_identifier='uptime',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15}
+            )
+        elif device.device_type == 'parks_olt':
+            # Ping
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='ping',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+            )
+            
+        log_audit(
+            user=self.request.user,
+            action='Criar',
+            model_name='Equipamento',
+            object_repr=device.name,
+            changes=f"Novo equipamento cadastrado. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}"
+        )
+        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! Sensores padrão criados.")
+        
+        # Trigger checks for all new sensors immediately
+        for sensor in device.sensors.all():
+            from .tasks import check_single_target
+            check_single_target.delay(sensor.id)
+            
+        return response
+
+
+class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
+    model = Device
+    form_class = DeviceForm
+    template_name = 'monitor/edit_device.html'
+    success_url = reverse_lazy('dashboard')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        device = self.object
+        log_audit(
+            user=self.request.user,
+            action='Editar',
+            model_name='Equipamento',
+            object_repr=device.name,
+            changes=f"Alterado configurações do equipamento ID {device.id}"
+        )
+        messages.success(self.request, f"Equipamento '{device.name}' atualizado com sucesso!")
+        return response
+
+
+class DeleteDeviceView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        device = get_object_or_404(Device, pk=pk)
+        device_name = device.name
+        device.delete()
+        log_audit(
+            user=request.user,
+            action='Excluir',
+            model_name='Equipamento',
+            object_repr=device_name,
+            changes=f"Equipamento '{device_name}' e seus sensores foram excluídos"
+        )
+        messages.success(request, f"Equipamento '{device_name}' e todos os seus sensores associados foram excluídos com sucesso.")
+        return redirect('dashboard')
+
+
+class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        device = get_object_or_404(Device, pk=pk)
+        interfaces = []
+        error = None
+
+        if device.device_type == 'parks_olt':
+            from .services import PortCheckerService
+            # SNMP Walk on ifDescr (1.3.6.1.2.1.2.2.1.2)
+            walk_results = PortCheckerService.snmp_walk(
+                device.host, 
+                device.snmp_community, 
+                device.snmp_port, 
+                "1.3.6.1.2.1.2.2.1.2"
+            )
+            if not walk_results:
+                error = "Não foi possível obter dados via SNMP. Verifique o IP, Comunidade SNMP e a conectividade."
+            else:
+                for oid_str, val in walk_results:
+                    idx = oid_str.split('.')[-1]
+                    name = val
+                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon']):
+                        # Check if already monitored
+                        is_monitored = device.sensors.filter(
+                            sensor_type='snmp_traffic', 
+                            sensor_identifier=idx
+                        ).exists()
+                        interfaces.append({
+                            'identifier': idx,
+                            'name': name,
+                            'is_monitored': is_monitored
+                        })
+        elif device.device_type == 'mikrotik':
+            from .services import MikrotikAPI
+            api = MikrotikAPI(device.host, device.api_username, device.api_password, device.api_port)
+            if api.connect():
+                try:
+                    res = api.talk(["/interface/print"])
+                    for line in res:
+                        name = ""
+                        for word in line:
+                            if word.startswith("=name="):
+                                name = word[6:]
+                        if name:
+                            is_monitored = device.sensors.filter(
+                                sensor_type='mikrotik_api',
+                                sensor_identifier=f"traffic:{name}"
+                            ).exists()
+                            interfaces.append({
+                                'identifier': f"traffic:{name}",
+                                'name': name,
+                                'is_monitored': is_monitored
+                            })
+                except Exception as e:
+                    error = f"Erro ao ler interfaces via API: {str(e)}"
+                finally:
+                    api.close()
+            else:
+                error = "Não foi possível conectar na API MikroTik. Verifique as credenciais, porta e IP."
+        else:
+            error = "Auto-descoberta não suportada para este tipo de equipamento."
+
+        context = {
+            'device': device,
+            'interfaces': interfaces,
+            'error': error
+        }
+        return render(request, 'monitor/discover_sensors.html', context)
+
+    def post(self, request, pk):
+        device = get_object_or_404(Device, pk=pk)
+        selected_identifiers = request.POST.getlist('selected_interfaces')
+        created_count = 0
+
+        for identifier in selected_identifiers:
+            if device.device_type == 'parks_olt':
+                # Get interface name
+                from .services import PortCheckerService
+                status, name = PortCheckerService._snmp_get(
+                    device.host, 
+                    device.snmp_community, 
+                    device.snmp_port, 
+                    f"1.3.6.1.2.1.2.2.1.2.{identifier}"
+                )
+                name = name or f"Interface {identifier}"
+                
+                sensor, created = MonitorTarget.objects.get_or_create(
+                    device=device,
+                    sensor_type='snmp_traffic',
+                    sensor_identifier=identifier,
+                    host=device.host,
+                    group=device.group,
+                    defaults={
+                        'label': f"{device.name} - {name}",
+                        'check_interval': 1,
+                        'telegram_alert_threshold': 1
+                    }
+                )
+                if created:
+                    created_count += 1
+                    from .tasks import check_single_target
+                    check_single_target.delay(sensor.id)
+                    
+            elif device.device_type == 'mikrotik':
+                if identifier.startswith("traffic:"):
+                    name = identifier.split(":", 1)[1]
+                    sensor, created = MonitorTarget.objects.get_or_create(
+                        device=device,
+                        sensor_type='mikrotik_api',
+                        sensor_identifier=identifier,
+                        host=device.host,
+                        group=device.group,
+                        defaults={
+                            'label': f"{device.name} - {name} Tráfego",
+                            'check_interval': 1,
+                            'telegram_alert_threshold': 1
+                        }
+                    )
+                    if created:
+                        created_count += 1
+                        from .tasks import check_single_target
+                        check_single_target.delay(sensor.id)
+
+        messages.success(request, f"Sucesso! {created_count} novos sensores de tráfego foram adicionados ao equipamento '{device.name}'.")
+        return redirect('dashboard')
