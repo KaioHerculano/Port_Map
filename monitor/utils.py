@@ -53,17 +53,28 @@ def send_telegram_alert(target, old_status, new_status, downtime_duration: Optio
     local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
     
     if new_status:
-        title = "Dispositivo Restabelecido!"
+        title = "Sensor Restabelecido!"
     else:
-        title = "Dispositivo Offline!"
+        title = "Sensor Offline / Falha!"
+        
+    if target.sensor_type == 'tcp':
+        detail_label = "Porta"
+        detail_value = str(target.port)
+    else:
+        detail_label = "Tipo de Sensor"
+        detail_value = target.get_sensor_type_display()
         
     message = (
         f"<b>{title}</b>\n\n"
         f"<b>Identificação:</b> {label}\n"
-        f"<b>IP:</b> <code>{target.host}</code>\n"
-        f"<b>Porta:</b> <code>{target.port}</code>\n"
-        f"<b>Grupo:</b> {group_name}\n"
+        f"<b>IP/Host:</b> <code>{target.host}</code>\n"
+        f"<b>{detail_label}:</b> <code>{detail_value}</code>\n"
     )
+    
+    if target.sensor_value:
+        message += f"<b>Valor:</b> <code>{target.sensor_value}</code>\n"
+        
+    message += f"<b>Grupo:</b> {group_name}\n"
     
     if new_status and downtime_duration:
         message += f"<b>Tempo Offline:</b> <code>{downtime_duration}</code>\n"

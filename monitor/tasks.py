@@ -18,8 +18,11 @@ def check_single_target(target_id: int) -> str:
 
 @shared_task
 def check_all_targets() -> str:
-    """Celery task to trigger TCP checks for all active targets in parallel."""
-    active_targets = MonitorTarget.objects.filter(is_active=True)
+    """Celery task to trigger checks for all active sensors/targets in parallel."""
+    from django.db.models import Q
+    active_targets = MonitorTarget.objects.filter(is_active=True).filter(
+        Q(device__isnull=True) | Q(device__is_active=True)
+    )
     count = active_targets.count()
     logger.info("Despachando verificacoes paralela para %d alvos ativos.", count)
 
@@ -41,15 +44,19 @@ def dispatch_scheduled_checks() -> str:
     now = timezone.now()
     query = Q(last_checked__isnull=True)
     
+    active_targets_query = MonitorTarget.objects.filter(is_active=True).filter(
+        Q(device__isnull=True) | Q(device__is_active=True)
+    )
+    
     # Fetch unique check intervals currently used by active targets
-    active_intervals = MonitorTarget.objects.filter(is_active=True).values_list('check_interval', flat=True).distinct()
+    active_intervals = active_targets_query.values_list('check_interval', flat=True).distinct()
     
     for interval in active_intervals:
         # Add a 10-second buffer to handle scheduling jitter and execution delay
         cutoff = now - timedelta(minutes=interval) + timedelta(seconds=10)
         query |= Q(check_interval=interval, last_checked__lte=cutoff)
         
-    targets_to_check = MonitorTarget.objects.filter(is_active=True).filter(query)
+    targets_to_check = active_targets_query.filter(query)
     count = targets_to_check.count()
     
     if count > 0:
@@ -156,8 +163,12 @@ def send_monthly_telegram_report() -> str:
     if low_targets:
         message += "<b>Dispositivos Críticos (&lt;50%):</b>\n"
         for t in low_targets:
-            label_str = t.label or f"{t.host}:{t.port}"
-            message += f"• {label_str} (<code>{t.host}:{t.port}</code>): <b>{t.availability:.1f}%</b>\n"
+            if t.sensor_type == 'tcp':
+                port_suffix = f":{t.port}"
+            else:
+                port_suffix = f" ({t.get_sensor_type_display()})"
+            label_str = t.label or f"{t.host}{port_suffix}"
+            message += f"• {label_str} (<code>{t.host}{port_suffix}</code>): <b>{t.availability:.1f}%</b>\n"
     else:
         message += "<b>Nenhum dispositivo ficou abaixo de 50% de disponibilidade!</b>"
         
