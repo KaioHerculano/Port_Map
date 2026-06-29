@@ -19,7 +19,89 @@ class Group(models.Model):
         return self.name
 
 
+class Device(models.Model):
+    DEVICE_TYPES = [
+        ('mikrotik', 'MikroTik RouterOS'),
+        ('parks_olt', 'OLT Parks GPON'),
+        ('generic_snmp', 'Genérico (SNMP)'),
+        ('generic_ping', 'Genérico (Apenas Ping)'),
+    ]
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Nome amigável do equipamento (ex: OLT Parks, MikroTik BGP)"
+    )
+    host = models.CharField(
+        max_length=255,
+        help_text="Endereço IP ou Hostname (ex: 172.31.255.2)"
+    )
+    device_type = models.CharField(
+        max_length=50,
+        choices=DEVICE_TYPES,
+        default='generic_ping',
+        help_text="Tipo de equipamento para comunicação e coleta de dados"
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='devices',
+        help_text="Grupo ao qual este equipamento pertence"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Habilitar/Desabilitar monitoramento de todos os sensores deste dispositivo"
+    )
+    
+    # SNMP configurations
+    snmp_community = models.CharField(
+        max_length=255,
+        default='public',
+        help_text="Comunidade SNMP v2c (ex: public)"
+    )
+    snmp_port = models.IntegerField(
+        default=161,
+        help_text="Porta SNMP (padrão: 161)"
+    )
+
+    # MikroTik RouterOS API configurations
+    api_username = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Usuário da API MikroTik (opcional)"
+    )
+    api_password = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Senha da API MikroTik (opcional)"
+    )
+    api_port = models.IntegerField(
+        default=8728,
+        help_text="Porta da API MikroTik (padrão: 8728)"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.host})"
+
+
 class MonitorTarget(models.Model):
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='sensors',
+        help_text="Dispositivo ao qual este sensor pertence"
+    )
     group = models.ForeignKey(
         Group,
         on_delete=models.SET_NULL,
@@ -39,7 +121,43 @@ class MonitorTarget(models.Model):
         help_text="Endereço IP ou Hostname (ex: 45.174.193.10 ou google.com)"
     )
     port = models.IntegerField(
-        help_text="Porta TCP (ex: 40001)"
+        null=True,
+        blank=True,
+        help_text="Porta TCP (ex: 40001) - Opcional para sensores não-TCP"
+    )
+    sensor_type = models.CharField(
+        max_length=50,
+        default='tcp',
+        choices=[
+            ('tcp', 'Porta TCP'),
+            ('ping', 'Ping (ICMP)'),
+            ('snmp_traffic', 'Tráfego SNMP'),
+            ('snmp_numeric', 'Valor Numérico SNMP'),
+            ('mikrotik_api', 'MikroTik API'),
+        ],
+        help_text="Tipo de monitoramento/coleta"
+    )
+    sensor_identifier = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        help_text="Identificador único do sensor (ex: OID ou nome da interface)"
+    )
+    sensor_value = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Valor formatado da última coleta"
+    )
+    last_counter_val = models.BigIntegerField(
+        blank=True,
+        null=True,
+        help_text="Último valor bruto de bytes (para tráfego)"
+    )
+    last_counter_time = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp do último valor bruto (para tráfego)"
     )
     is_active = models.BooleanField(
         default=True, 
@@ -93,12 +211,15 @@ class MonitorTarget(models.Model):
     )
 
     class Meta:
-        unique_together = ('host', 'port')
         ordering = ['host', 'port']
 
     def __str__(self):
         label_str = f" ({self.label})" if self.label else ""
-        return f"{self.host}:{self.port}{label_str}"
+        if self.sensor_type == 'tcp':
+            return f"{self.host}:{self.port}{label_str}"
+        else:
+            sensor_name = self.sensor_identifier or self.get_sensor_type_display()
+            return f"{self.host} - {sensor_name}{label_str}"
 
     @property
     def uptime_percentage_24h(self):
