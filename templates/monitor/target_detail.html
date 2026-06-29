@@ -51,10 +51,10 @@
     <div class="chart-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
       <div>
         <h3 style="color: white; font-size: 1.1rem; margin: 0;">
-          {% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}Histórico de Tráfego{% else %}Histórico de Latência{% endif %}
+          Histórico de {{ chart_label }}
         </h3>
         <span style="color: var(--text-muted); font-size: 0.8rem;">
-          {% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}velocidade de tráfego (Mbps){% else %}tempo em milissegundos (ms){% endif %}
+          {{ chart_label|lower }} ({{ chart_unit }})
         </span>
       </div>
       
@@ -257,7 +257,8 @@
     const rawTimestamps = {{ chart_timestamps|safe }};
     const rawLatencies = {{ chart_latencies|safe }};
     const rawStatuses = {{ chart_statuses|safe }};
-    const isTraffic = {% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}true{% else %}false{% endif %};
+    const chartLabel = "{{ chart_label|escapejs }}";
+    const chartUnit = "{{ chart_unit|escapejs }}";
     
     // Gradient fill for line
     const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -269,7 +270,7 @@
       data: {
         labels: rawTimestamps,
         datasets: [{
-          label: isTraffic ? 'Tráfego (Mbps)' : 'Latência (ms)',
+          label: `${chartLabel} (${chartUnit})`,
           data: rawLatencies,
           borderColor: '#6e44ff',
           borderWidth: 3,
@@ -302,9 +303,9 @@
               label: function(context) {
                 const index = context.dataIndex;
                 if (rawStatuses[index] === 0) {
-                  return isTraffic ? 'Estado: OFFLINE (Falha na Coleta)' : 'Estado: FECHADA (Falha de Conectividade)';
+                  return `Estado: OFFLINE (Falha na Coleta)`;
                 }
-                return isTraffic ? `Tráfego: ${context.parsed.y} Mbps` : `Latência: ${context.parsed.y} ms`;
+                return `${chartLabel}: ${context.parsed.y} ${chartUnit}`;
               }
             }
           }

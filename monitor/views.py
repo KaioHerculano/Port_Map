@@ -258,6 +258,29 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         
         context['uptime_24h'] = target.uptime_percentage_24h
         context['avg_latency'] = target.average_latency_24h
+
+        # Determine chart label and unit
+        sensor_type = target.sensor_type
+        label_lower = (target.label or "").lower()
+        
+        if sensor_type == 'snmp_traffic' or (target.sensor_identifier or '').startswith('traffic:'):
+            chart_label = "Tráfego"
+            chart_unit = "Mbps"
+        elif "temp" in label_lower or "temperatura" in label_lower or target.sensor_identifier == 'temp':
+            chart_label = "Temperatura"
+            chart_unit = "ºC"
+        elif "cpu" in label_lower or target.sensor_identifier == 'cpu':
+            chart_label = "Uso de CPU"
+            chart_unit = "%"
+        elif "uptime" in label_lower or target.sensor_identifier == 'uptime':
+            chart_label = "Tempo de Atividade"
+            chart_unit = "Dias"
+        else:
+            chart_label = "Latência"
+            chart_unit = "ms"
+            
+        context['chart_label'] = chart_label
+        context['chart_unit'] = chart_unit
         return context
 
 
