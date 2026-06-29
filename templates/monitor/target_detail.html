@@ -50,8 +50,12 @@
   <div class="glass-panel chart-card">
     <div class="chart-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
       <div>
-        <h3 style="color: white; font-size: 1.1rem; margin: 0;">Histórico de Latência</h3>
-        <span style="color: var(--text-muted); font-size: 0.8rem;">tempo em milissegundos (ms)</span>
+        <h3 style="color: white; font-size: 1.1rem; margin: 0;">
+          {% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}Histórico de Tráfego{% else %}Histórico de Latência{% endif %}
+        </h3>
+        <span style="color: var(--text-muted); font-size: 0.8rem;">
+          {% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}velocidade de tráfego (Mbps){% else %}tempo em milissegundos (ms){% endif %}
+        </span>
       </div>
       
       <form method="get" id="chartFilterForm" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
@@ -104,34 +108,57 @@
         <span class="text-muted">Endereço IP/Host:</span>
         <span style="font-family: monospace; font-weight: 600; color: white;">{{ target.host }}</span>
       </div>
+      {% if target.sensor_type == 'tcp' %}
       <div style="display: flex; justify-content: space-between;">
         <span class="text-muted">Porta TCP:</span>
         <span style="font-weight: 600; color: var(--primary);">{{ target.port }}</span>
       </div>
+      {% else %}
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Tipo de Sensor:</span>
+        <span style="font-weight: 600; color: var(--primary);">{{ target.get_sensor_type_display }}</span>
+      </div>
+      {% if target.sensor_identifier %}
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Identificador:</span>
+        <span style="font-weight: 600; color: white; font-family: monospace;">{{ target.sensor_identifier }}</span>
+      </div>
+      {% endif %}
+      {% if target.sensor_value %}
+      <div style="display: flex; justify-content: space-between;">
+        <span class="text-muted">Último Valor:</span>
+        <span style="font-weight: 600; color: #10b981;">{{ target.sensor_value }}</span>
+      </div>
+      {% endif %}
+      {% endif %}
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <span class="text-muted">Estado Atual:</span>
         <div>
           {% if not target.is_active %}
             <span class="status-badge inactive"><span class="dot"></span>Inativo</span>
           {% elif target.last_status == True %}
-            <span class="status-badge online"><span class="dot"></span>Aberta</span>
+            <span class="status-badge online"><span class="dot"></span>{% if target.sensor_type == 'tcp' %}Aberta{% else %}Online{% endif %}</span>
           {% elif target.last_status == False %}
-            <span class="status-badge offline"><span class="dot"></span>Fechada</span>
+            <span class="status-badge offline"><span class="dot"></span>{% if target.sensor_type == 'tcp' %}Fechada{% else %}Falha{% endif %}</span>
           {% else %}
             <span class="status-badge inactive"><span class="dot"></span>Sem Dados</span>
           {% endif %}
         </div>
       </div>
       <div style="display: flex; justify-content: space-between;">
-        <span class="text-muted">Uptime (Últimas 24h):</span>
+        <span class="text-muted">Disponibilidade (Últimas 24h):</span>
         <span style="font-weight: 700; color: {% if uptime_24h > 95 %}var(--success){% else %}var(--warning){% endif %};">
           {{ uptime_24h }}%
         </span>
       </div>
       <div style="display: flex; justify-content: space-between;">
-        <span class="text-muted">Latência Média (24h):</span>
+        <span class="text-muted">{% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}Tráfego Médio (24h):{% else %}Latência Média (24h):{% endif %}</span>
         <span style="font-weight: 600; color: white;">
-          {% if avg_latency > 0 %}{{ avg_latency }} ms{% else %}-{% endif %}
+          {% if avg_latency > 0 %}
+            {% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}{{ avg_latency }} Mbps{% else %}{{ avg_latency }} ms{% endif %}
+          {% else %}
+            -
+          {% endif %}
         </span>
       </div>
       <div style="display: flex; justify-content: space-between;">
@@ -230,6 +257,7 @@
     const rawTimestamps = {{ chart_timestamps|safe }};
     const rawLatencies = {{ chart_latencies|safe }};
     const rawStatuses = {{ chart_statuses|safe }};
+    const isTraffic = {% if target.sensor_type == 'snmp_traffic' or 'traffic:' in target.sensor_identifier %}true{% else %}false{% endif %};
     
     // Gradient fill for line
     const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -241,7 +269,7 @@
       data: {
         labels: rawTimestamps,
         datasets: [{
-          label: 'Latência (ms)',
+          label: isTraffic ? 'Tráfego (Mbps)' : 'Latência (ms)',
           data: rawLatencies,
           borderColor: '#6e44ff',
           borderWidth: 3,
@@ -274,9 +302,9 @@
               label: function(context) {
                 const index = context.dataIndex;
                 if (rawStatuses[index] === 0) {
-                  return 'Estado: FECHADA (Falha de Conectividade)';
+                  return isTraffic ? 'Estado: OFFLINE (Falha na Coleta)' : 'Estado: FECHADA (Falha de Conectividade)';
                 }
-                return `Latência: ${context.parsed.y} ms`;
+                return isTraffic ? `Tráfego: ${context.parsed.y} Mbps` : `Latência: ${context.parsed.y} ms`;
               }
             }
           }
