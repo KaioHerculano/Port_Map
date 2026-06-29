@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-openbsd \
     media-types \
     curl \
+    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala o Poetry
