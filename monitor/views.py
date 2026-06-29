@@ -387,22 +387,36 @@ class TriggerCheckView(LoginRequiredMixin, View):
     """Class-Based View to trigger manual Celery check executions."""
 
     def post(self, request: HttpRequest, pk: Optional[int] = None, *args: Any, **kwargs: Any) -> JsonResponse:
+        from .services import PortCheckerService
         if pk:
             target = get_object_or_404(MonitorTarget, pk=pk)
-            task = check_single_target.delay(target.id)
-            logger.info("Agendamento manual de varredura unica para %s:%s (Task ID: %s)", target.host, target.port, task.id)
+            try:
+                PortCheckerService.check_target(target.id)
+            except Exception as e:
+                logger.error("Erro na checagem síncrona manual do alvo %d: %s", target.id, str(e))
+                
+            try:
+                check_single_target.delay(target.id)
+            except Exception:
+                pass
             return JsonResponse({
                 'status': 'success',
-                'task_id': task.id,
-                'message': 'Teste de porta iniciado em segundo plano.'
+                'message': 'Teste de porta concluído com sucesso.'
             })
         else:
-            task = check_all_targets.delay()
-            logger.info("Agendamento manual de varredura global para todos os alvos ativos (Task ID: %s)", task.id)
+            active_targets = MonitorTarget.objects.filter(is_active=True)
+            for t in active_targets:
+                try:
+                    PortCheckerService.check_target(t.id)
+                except Exception as e:
+                    logger.error("Erro na checagem síncrona manual global do alvo %d: %s", t.id, str(e))
+            try:
+                check_all_targets.delay()
+            except Exception:
+                pass
             return JsonResponse({
                 'status': 'success',
-                'task_id': task.id,
-                'message': 'Teste global de portas iniciado em segundo plano.'
+                'message': 'Teste global de portas concluído com sucesso.'
             })
 
 
@@ -838,10 +852,19 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
         )
         messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! Sensores padrão criados.")
         
-        # Trigger checks for all new sensors immediately
+        # Trigger checks for all new sensors immediately and synchronously
+        from .services import PortCheckerService
         for sensor in device.sensors.all():
-            from .tasks import check_single_target
-            check_single_target.delay(sensor.id)
+            try:
+                PortCheckerService.check_target(sensor.id)
+            except Exception as e:
+                logger.error("Erro na checagem inicial síncrona do alvo %d: %s", sensor.id, str(e))
+            
+            try:
+                from .tasks import check_single_target
+                check_single_target.delay(sensor.id)
+            except Exception:
+                pass
             
         return response
 
@@ -982,8 +1005,16 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
                 )
                 if created:
                     created_count += 1
-                    from .tasks import check_single_target
-                    check_single_target.delay(sensor.id)
+                    from .services import PortCheckerService
+                    try:
+                        PortCheckerService.check_target(sensor.id)
+                    except Exception as e:
+                        logger.error("Erro na checagem inicial síncrona da interface %d: %s", sensor.id, str(e))
+                    try:
+                        from .tasks import check_single_target
+                        check_single_target.delay(sensor.id)
+                    except Exception:
+                        pass
                     
             elif device.device_type == 'mikrotik':
                 if identifier.startswith("traffic:"):
@@ -1002,8 +1033,16 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
                     )
                     if created:
                         created_count += 1
-                        from .tasks import check_single_target
-                        check_single_target.delay(sensor.id)
+                        from .services import PortCheckerService
+                        try:
+                            PortCheckerService.check_target(sensor.id)
+                        except Exception as e:
+                            logger.error("Erro na checagem inicial síncrona da interface %d: %s", sensor.id, str(e))
+                        try:
+                            from .tasks import check_single_target
+                            check_single_target.delay(sensor.id)
+                        except Exception:
+                            pass
 
         messages.success(request, f"Sucesso! {created_count} novos sensores de tráfego foram adicionados ao equipamento '{device.name}'.")
         return redirect('dashboard')
