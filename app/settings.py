@@ -155,6 +155,10 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Celery Configurations
+import sys
+IS_WINDOWS = sys.platform.lower().startswith('win')
+CELERY_TASK_ALWAYS_EAGER = os.getenv('CELERY_TASK_ALWAYS_EAGER', 'True' if IS_WINDOWS else 'False') == 'True'
+
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
 if not CELERY_BROKER_URL or 'default:6379' in CELERY_BROKER_URL or '://default/' in CELERY_BROKER_URL:
     redis_url = os.getenv('REDIS_URL')
