@@ -390,7 +390,7 @@ class TriggerCheckView(LoginRequiredMixin, View):
         if pk:
             target = get_object_or_404(MonitorTarget, pk=pk)
             task = check_single_target.delay(target.id)
-            logger.info("Agendamento manual de varredura unica para %s:%d (Task ID: %s)", target.host, target.port, task.id)
+            logger.info("Agendamento manual de varredura unica para %s:%s (Task ID: %s)", target.host, target.port, task.id)
             return JsonResponse({
                 'status': 'success',
                 'task_id': task.id,
@@ -888,7 +888,7 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
         interfaces = []
         error = None
 
-        if device.device_type in ('parks_olt', 'mikrotik_snmp'):
+        if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
             from .services import PortCheckerService
             # SNMP Walk on ifDescr (1.3.6.1.2.1.2.2.1.2)
             walk_results = PortCheckerService.snmp_walk(
@@ -903,7 +903,7 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
                 for oid_str, val in walk_results:
                     idx = oid_str.split('.')[-1]
                     name = val
-                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon', 'bridge', 'vlan', 'wlan', 'combo']):
+                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon', 'bridge', 'vlan', 'wlan', 'combo', 'ath', 'eth', 'br', 'lan', 'wan']):
                         # Check if already monitored
                         is_monitored = device.sensors.filter(
                             sensor_type='snmp_traffic', 
@@ -957,7 +957,7 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
         created_count = 0
 
         for identifier in selected_identifiers:
-            if device.device_type in ('parks_olt', 'mikrotik_snmp'):
+            if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
                 # Get interface name
                 from .services import PortCheckerService
                 status, name = PortCheckerService._snmp_get(
