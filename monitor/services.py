@@ -2,10 +2,10 @@ import re
 import socket
 import time
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Any
 from django.db import transaction
 from django.utils import timezone
-from .models import MonitorTarget, MonitorLog, Group
+from .models import MonitorTarget, MonitorLog, Group, AuditLog, Device
 
 logger = logging.getLogger(__name__)
 
@@ -306,16 +306,15 @@ class PortCheckerService:
 
     @staticmethod
     def _snmp_get(host: str, community: str, port: int, oid: str, timeout: float = 2.0) -> Tuple[bool, Optional[str]]:
-        from pysnmp.hlapi import getCmd, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity
         try:
-            iterator = getCmd(
-                next(iter([])),
+            from pysnmp.hlapi.v3arch.sync import get_cmd, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity, SnmpEngine
+            errorIndication, errorStatus, errorIndex, varBinds = get_cmd(
+                SnmpEngine(),
                 CommunityData(community, mpModel=1),
                 UdpTransportTarget((host, port), timeout=timeout, retries=1),
                 ContextData(),
                 ObjectType(ObjectIdentity(oid))
             )
-            errorIndication, errorStatus, errorIndex, varBinds = next(iterator)
             
             if errorIndication or errorStatus:
                 return False, None
@@ -325,6 +324,28 @@ class PortCheckerService:
         except Exception as e:
             logger.error("SNMP get failed for %s (%s): %s", host, oid, str(e))
         return False, None
+
+    @staticmethod
+    def snmp_walk(host: str, community: str, port: int, oid: str, timeout: float = 2.0) -> List[Tuple[str, str]]:
+        results: List[Tuple[str, str]] = []
+        try:
+            from pysnmp.hlapi.v3arch.sync import next_cmd, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity, SnmpEngine
+            iterator = next_cmd(
+                SnmpEngine(),
+                CommunityData(community, mpModel=1),
+                UdpTransportTarget((host, port), timeout=timeout, retries=1),
+                ContextData(),
+                ObjectType(ObjectIdentity(oid)),
+                lexicographicMode=False
+            )
+            for errorIndication, errorStatus, errorIndex, varBinds in iterator:
+                if errorIndication or errorStatus:
+                    break
+                for varBind in varBinds:
+                    results.append((str(varBind[0]), str(varBind[1])))
+        except Exception as e:
+            logger.error("SNMP walk failed for %s (%s): %s", host, oid, str(e))
+        return results
 
     @staticmethod
     def _format_bandwidth(bps: float) -> str:
@@ -592,3 +613,358 @@ class PortCheckerService:
 
         status_str = "ONLINE" if status else "OFFLINE"
         return f"Sensor {target} -> {status_str} (Val: {sensor_value}, {latency_ms}ms)"
+
+
+def log_audit(user: Any, action: str, model_name: str, object_repr: str, changes: Optional[str] = None) -> None:
+    """Helper to log administrative actions to the AuditLog table."""
+    try:
+        user_val = user if (user and user.is_authenticated) else None
+        AuditLog.objects.create(
+            user=user_val,
+            action=action,
+            model_name=model_name,
+            object_repr=object_repr,
+            changes=changes
+        )
+    except Exception as e:
+        logger.error("Falha ao salvar log de auditoria: %s", str(e))
+
+
+class TargetDetailService:
+    """Service to calculate SLA metrics, downsample logs, and generate Chart.js contexts."""
+    @staticmethod
+    def get_chart_context(target: MonitorTarget, start_date_str: str, end_date_str: str, period: str) -> dict:
+        import datetime
+        from django.utils.dateparse import parse_date
+        from django.utils import timezone
+        from datetime import timedelta
+
+        now = timezone.now()
+        start_date_val = None
+        end_date_val = None
+
+        if start_date_str and end_date_str:
+            start_date_val = parse_date(start_date_str)
+            end_date_val = parse_date(end_date_str)
+
+        if start_date_val and end_date_val:
+            start_dt = timezone.make_aware(datetime.datetime.combine(start_date_val, datetime.time.min))
+            end_dt = timezone.make_aware(datetime.datetime.combine(end_date_val, datetime.time.max))
+            period = 'custom'
+        else:
+            if not period:
+                period = '24h'
+            if period == '7d':
+                start_dt = now - timedelta(days=7)
+                start_date_str = (now - timedelta(days=7)).strftime('%Y-%m-%d')
+            elif period == '30d':
+                start_dt = now - timedelta(days=30)
+                start_date_str = (now - timedelta(days=30)).strftime('%Y-%m-%d')
+            else: # '24h'
+                start_dt = now - timedelta(days=1)
+                period = '24h'
+                start_date_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+            end_dt = now
+            end_date_str = now.strftime('%Y-%m-%d')
+
+        # Filter logs in range
+        chart_logs_query = target.logs.filter(timestamp__gte=start_dt, timestamp__lte=end_dt).order_by('timestamp')
+
+        # Downsample if log count exceeds 300 to optimize performance
+        log_count = chart_logs_query.count()
+        if log_count > 300:
+            step = log_count // 300
+            chart_logs = list(chart_logs_query)[::step]
+        else:
+            chart_logs = list(chart_logs_query)
+
+        # Dynamic format for X-axis labels based on duration
+        if (end_dt - start_dt) > timedelta(days=1):
+            timestamp_format = '%d/%m %H:%M'
+        else:
+            timestamp_format = '%H:%M:%S'
+
+        return {
+            'chart_timestamps': [timezone.localtime(log.timestamp).strftime(timestamp_format) for log in chart_logs],
+            'chart_latencies': [log.latency if log.status else 0 for log in chart_logs],
+            'chart_statuses': [1 if log.status else 0 for log in chart_logs],
+            'period': period,
+            'start_date': start_date_str,
+            'end_date': end_date_str,
+        }
+
+
+class SLAReportService:
+    """Service to compile SLA details, pairing targets, and generate PDF report data."""
+    @staticmethod
+    def generate_pdf_report(group: Group, start_date_str: str, end_date_str: str) -> Tuple[Optional[bytes], Optional[str]]:
+        from django.utils import timezone
+        from django.utils.dateparse import parse_date
+        from datetime import timedelta
+        import datetime
+        from django.db.models import Count, Q, Case, When, Value, FloatField, F
+        from django.db.models.functions import Cast
+        from django.template.loader import render_to_string
+        from xhtml2pdf import pisa
+        import io
+
+        # Fallbacks
+        end_date = timezone.now()
+        start_date = end_date - timedelta(days=30)
+
+        if start_date_str:
+            parsed_start = parse_date(start_date_str)
+            if parsed_start:
+                start_date = timezone.make_aware(datetime.datetime.combine(parsed_start, datetime.time.min))
+
+        if end_date_str:
+            parsed_end = parse_date(end_date_str)
+            if parsed_end:
+                end_date = timezone.make_aware(datetime.datetime.combine(parsed_end, datetime.time.max))
+
+        # Calculate availability
+        targets = group.targets.filter(is_active=True).annotate(
+            total_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date)),
+            success_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date, logs__status=True))
+        ).annotate(
+            availability=Case(
+                When(total_logs=0, then=Case(
+                    When(last_status=True, then=Value(100.0)),
+                    default=Value(0.0)
+                )),
+                default=Cast(F('success_logs') * 100.0 / F('total_logs'), output_field=FloatField())
+              )
+        ).order_by('host', 'port')
+
+        total_availability = 0.0
+        target_count = len(targets)
+
+        for target in targets:
+            target.availability_rounded = round(target.availability, 1)
+            total_availability += target.availability_rounded
+
+        paired_targets = []
+        cols = 2
+        for i in range(0, len(targets), cols):
+            chunk = list(targets[i:i + cols])
+            while len(chunk) < cols:
+                chunk.append(None)
+            paired_targets.append(chunk)
+
+        group_availability = round(total_availability / target_count, 1) if target_count > 0 else 100.0
+        delta_days = (end_date - start_date).days
+        if delta_days <= 0:
+            delta_days = 1
+
+        context = {
+            'group': group,
+            'paired_targets': paired_targets,
+            'group_availability': group_availability,
+            'target_count': target_count,
+            'start_date': start_date,
+            'end_date': end_date,
+            'period_days': delta_days,
+            'generated_at': timezone.now(),
+        }
+
+        html_string = render_to_string('monitor/group_report_pdf.html', context)
+        pdf_buffer = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html_string, dest=pdf_buffer)
+
+        if pisa_status.err:
+            return None, None
+
+        pdf_buffer.seek(0)
+        return pdf_buffer.getvalue(), f"relatorio_sla_{''.join([c if c.isalnum() else '_' for c in group.name.lower()])}.pdf"
+
+
+class GroupManagerService:
+    """Service to encapsulate group settings update and targets bulk edits."""
+    @staticmethod
+    @transaction.atomic
+    def update_group_settings(group: Group, new_name: str, check_interval_str: str, telegram_alert_threshold_str: str, selected_targets: List[str], user: Any) -> Tuple[bool, str]:
+        old_name = group.name
+        if old_name != new_name:
+            group.name = new_name
+            group.save()
+            log_audit(
+                user=user,
+                action='Editar',
+                model_name='Grupo',
+                object_repr=old_name,
+                changes=f"Grupo renomeado de '{old_name}' para '{new_name}'"
+            )
+        else:
+            group.save()
+
+        success_msg = f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso." if old_name != new_name else f"Grupo '{new_name}' atualizado."
+
+        if selected_targets:
+            changes_desc = []
+            if check_interval_str:
+                try:
+                    interval_val = int(check_interval_str)
+                    updated_count = MonitorTarget.objects.filter(
+                        id__in=selected_targets, 
+                        group=group
+                    ).update(check_interval=interval_val)
+                    success_msg += f" Frequência de verificação atualizada em {updated_count} dispositivo(s)."
+                    changes_desc.append(f"Frequência definida para {interval_val}m")
+                except ValueError:
+                    pass
+
+            if telegram_alert_threshold_str:
+                try:
+                    threshold_val = int(telegram_alert_threshold_str)
+                    updated_count = MonitorTarget.objects.filter(
+                        id__in=selected_targets, 
+                        group=group
+                    ).update(telegram_alert_threshold=threshold_val)
+                    success_msg += f" Regra de alerta do Telegram atualizada em {updated_count} dispositivo(s)."
+                    changes_desc.append(f"Alerta de Telegram definido para {threshold_val} falha(s)")
+                except ValueError:
+                    pass
+
+            if changes_desc:
+                log_audit(
+                    user=user,
+                    action='Lote',
+                    model_name='Dispositivo',
+                    object_repr=f"Grupo: {new_name}",
+                    changes=f"Atualização em lote para {len(selected_targets)} dispositivos: {', '.join(changes_desc)}"
+                )
+
+        return True, success_msg
+
+
+class DeviceDiscoveryService:
+    """Service to handle device sensor auto-discovery via SNMP or MikroTik RouterOS API."""
+    @staticmethod
+    def discover_interfaces(device: Device) -> Tuple[List[dict], Optional[str]]:
+        interfaces = []
+        error = None
+
+        if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
+            # SNMP Walk on ifDescr (1.3.6.1.2.1.2.2.1.2)
+            walk_results = PortCheckerService.snmp_walk(
+                device.host, 
+                device.snmp_community, 
+                device.snmp_port, 
+                "1.3.6.1.2.1.2.2.1.2"
+            )
+            if not walk_results:
+                error = "Não foi possível obter dados via SNMP. Verifique o IP, Comunidade SNMP e a conectividade."
+            else:
+                for oid_str, val in walk_results:
+                    idx = oid_str.split('.')[-1]
+                    name = val
+                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon', 'bridge', 'vlan', 'wlan', 'combo', 'ath', 'eth', 'br', 'lan', 'wan']):
+                        is_monitored = device.sensors.filter(
+                            sensor_type='snmp_traffic', 
+                            sensor_identifier=idx
+                        ).exists()
+                        interfaces.append({
+                            'identifier': idx,
+                            'name': name,
+                            'is_monitored': is_monitored
+                        })
+        elif device.device_type == 'mikrotik':
+            from .services import MikrotikAPI
+            api = MikrotikAPI(device.host, device.api_username, device.api_password, device.api_port)
+            if api.connect():
+                try:
+                    res = api.talk(["/interface/print"])
+                    for line in res:
+                        name = ""
+                        for word in line:
+                            if word.startswith("=name="):
+                                name = word[6:]
+                        if name:
+                            is_monitored = device.sensors.filter(
+                                sensor_type='mikrotik_api',
+                                sensor_identifier=f"traffic:{name}"
+                            ).exists()
+                            interfaces.append({
+                                'identifier': f"traffic:{name}",
+                                'name': name,
+                                'is_monitored': is_monitored
+                            })
+                except Exception as e:
+                    error = f"Erro ao ler interfaces via API: {str(e)}"
+                finally:
+                    api.close()
+            else:
+                error = "Não foi possível conectar na API MikroTik. Verifique as credenciais, porta e IP."
+        else:
+            error = "Auto-descoberta não suportada para este tipo de equipamento."
+
+        return interfaces, error
+
+    @staticmethod
+    def provision_sensors(device: Device, selected_identifiers: List[str]) -> int:
+        created_count = 0
+
+        for identifier in selected_identifiers:
+            if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
+                # Get interface name
+                status, name = PortCheckerService._snmp_get(
+                    device.host, 
+                    device.snmp_community, 
+                    device.snmp_port, 
+                    f"1.3.6.1.2.1.2.2.1.2.{identifier}"
+                )
+                name = name or f"Interface {identifier}"
+                
+                sensor, created = MonitorTarget.objects.get_or_create(
+                    device=device,
+                    sensor_type='snmp_traffic',
+                    sensor_identifier=identifier,
+                    host=device.host,
+                    group=device.group,
+                    defaults={
+                        'label': f"{device.name} - {name}",
+                        'check_interval': 1,
+                        'telegram_alert_threshold': 1
+                    }
+                )
+                if created:
+                    created_count += 1
+                    try:
+                        PortCheckerService.check_target(sensor.id)
+                    except Exception as e:
+                        logger.error("Erro na checagem inicial síncrona da interface %d: %s", sensor.id, str(e))
+                    try:
+                        from .tasks import check_single_target
+                        check_single_target.delay(sensor.id)
+                    except Exception:
+                        pass
+                    
+            elif device.device_type == 'mikrotik':
+                if identifier.startswith("traffic:"):
+                    name = identifier.split(":", 1)[1]
+                    sensor, created = MonitorTarget.objects.get_or_create(
+                        device=device,
+                        sensor_type='mikrotik_api',
+                        sensor_identifier=identifier,
+                        host=device.host,
+                        group=device.group,
+                        defaults={
+                            'label': f"{device.name} - {name} Tráfego",
+                            'check_interval': 1,
+                            'telegram_alert_threshold': 1
+                        }
+                    )
+                    if created:
+                        created_count += 1
+                        try:
+                            PortCheckerService.check_target(sensor.id)
+                        except Exception as e:
+                            logger.error("Erro na checagem inicial síncrona da interface %d: %s", sensor.id, str(e))
+                        try:
+                            from .tasks import check_single_target
+                            check_single_target.delay(sensor.id)
+                        except Exception:
+                            pass
+
+        return created_count
+
