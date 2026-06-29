@@ -783,6 +783,42 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
                 group=device.group,
                 defaults={'label': f'{device.name} - Uptime', 'check_interval': 15}
             )
+        elif device.device_type == 'mikrotik_snmp':
+            # Ping
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='ping',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+            )
+            # CPU
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='snmp_numeric',
+                sensor_identifier='1.3.6.1.2.1.25.3.3.1.2.1',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - CPU', 'check_interval': 1}
+            )
+            # Temp
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='snmp_numeric',
+                sensor_identifier='1.3.6.1.4.1.14988.1.1.3.10.0',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Temp CPU', 'check_interval': 5}
+            )
+            # Uptime
+            MonitorTarget.objects.get_or_create(
+                device=device,
+                sensor_type='snmp_numeric',
+                sensor_identifier='1.3.6.1.2.1.1.3.0',
+                host=device.host,
+                group=device.group,
+                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15}
+            )
         elif device.device_type == 'parks_olt':
             # Ping
             MonitorTarget.objects.get_or_create(
@@ -852,7 +888,7 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
         interfaces = []
         error = None
 
-        if device.device_type == 'parks_olt':
+        if device.device_type in ('parks_olt', 'mikrotik_snmp'):
             from .services import PortCheckerService
             # SNMP Walk on ifDescr (1.3.6.1.2.1.2.2.1.2)
             walk_results = PortCheckerService.snmp_walk(
@@ -867,7 +903,7 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
                 for oid_str, val in walk_results:
                     idx = oid_str.split('.')[-1]
                     name = val
-                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon']):
+                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon', 'bridge', 'vlan', 'wlan', 'combo']):
                         # Check if already monitored
                         is_monitored = device.sensors.filter(
                             sensor_type='snmp_traffic', 
@@ -921,7 +957,7 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
         created_count = 0
 
         for identifier in selected_identifiers:
-            if device.device_type == 'parks_olt':
+            if device.device_type in ('parks_olt', 'mikrotik_snmp'):
                 # Get interface name
                 from .services import PortCheckerService
                 status, name = PortCheckerService._snmp_get(

@@ -390,6 +390,19 @@ class PortCheckerService:
                         sensor_value = f"{val}º C"
                     elif "cpu" in (target.label or "").lower():
                         sensor_value = f"{val}%"
+                    elif "uptime" in (target.label or "").lower():
+                        try:
+                            ticks = int(val)
+                            total_seconds = ticks // 100
+                            days = total_seconds // 86400
+                            hours = (total_seconds % 86400) // 3600
+                            minutes = (total_seconds % 3600) // 60
+                            if days > 0:
+                                sensor_value = f"{days}d {hours}h {minutes}m"
+                            else:
+                                sensor_value = f"{hours}h {minutes}m"
+                        except ValueError:
+                            sensor_value = val
                     else:
                         sensor_value = val
                 else:

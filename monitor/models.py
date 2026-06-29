@@ -21,7 +21,8 @@ class Group(models.Model):
 
 class Device(models.Model):
     DEVICE_TYPES = [
-        ('mikrotik', 'MikroTik RouterOS'),
+        ('mikrotik', 'MikroTik RouterOS (API)'),
+        ('mikrotik_snmp', 'MikroTik (SNMP)'),
         ('parks_olt', 'OLT Parks GPON'),
         ('generic_snmp', 'Genérico (SNMP)'),
         ('generic_ping', 'Genérico (Apenas Ping)'),
