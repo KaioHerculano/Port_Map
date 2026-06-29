@@ -754,94 +754,124 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
         device = self.object
         # Auto-create default sensors
         if device.device_type == 'generic_ping':
-            MonitorTarget.objects.get_or_create(
+            target, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='ping',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
             )
+            if not created and not target.is_active:
+                target.is_active = True
+                target.save(update_fields=['is_active'])
         elif device.device_type == 'mikrotik':
             # Ping
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='ping',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
             # CPU
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='mikrotik_api',
                 sensor_identifier='cpu',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - CPU', 'check_interval': 1}
+                defaults={'label': f'{device.name} - CPU', 'check_interval': 1, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
             # Temp
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='mikrotik_api',
                 sensor_identifier='temp',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Temp', 'check_interval': 5}
+                defaults={'label': f'{device.name} - Temp', 'check_interval': 5, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
             # Uptime
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='mikrotik_api',
                 sensor_identifier='uptime',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15}
+                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
         elif device.device_type == 'mikrotik_snmp':
             # Ping
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='ping',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
             # CPU
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='snmp_numeric',
                 sensor_identifier='1.3.6.1.2.1.25.3.3.1.2.1',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - CPU', 'check_interval': 1}
+                defaults={'label': f'{device.name} - CPU', 'check_interval': 1, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
             # Temp
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='snmp_numeric',
                 sensor_identifier='1.3.6.1.4.1.14988.1.1.3.10.0',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Temp CPU', 'check_interval': 5}
+                defaults={'label': f'{device.name} - Temp CPU', 'check_interval': 5, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
             # Uptime
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='snmp_numeric',
                 sensor_identifier='1.3.6.1.2.1.1.3.0',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15}
+                defaults={'label': f'{device.name} - Uptime', 'check_interval': 15, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
         elif device.device_type == 'parks_olt':
             # Ping
-            MonitorTarget.objects.get_or_create(
+            t, created = MonitorTarget.objects.get_or_create(
                 device=device,
                 sensor_type='ping',
                 host=device.host,
                 group=device.group,
-                defaults={'label': f'{device.name} - Ping', 'check_interval': 1}
+                defaults={'label': f'{device.name} - Ping', 'check_interval': 1, 'is_active': True}
             )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
             
         log_audit(
             user=self.request.user,
