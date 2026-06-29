@@ -13,25 +13,10 @@ from datetime import timedelta
 
 from .models import MonitorTarget, MonitorLog, Group, AuditLog, Device
 from .forms import DeviceForm
-from .services import PortParserService
+from .services import PortParserService, log_audit
 from .tasks import check_single_target, check_all_targets
 
 logger = logging.getLogger(__name__)
-
-
-def log_audit(user: Any, action: str, model_name: str, object_repr: str, changes: Optional[str] = None) -> None:
-    """Helper to log administrative actions to the AuditLog table."""
-    try:
-        user_val = user if (user and user.is_authenticated) else None
-        AuditLog.objects.create(
-            user=user_val,
-            action=action,
-            model_name=model_name,
-            object_repr=object_repr,
-            changes=changes
-        )
-    except Exception as e:
-        logger.error("Falha ao salvar log de auditoria: %s", str(e))
 
 
 class DashboardView(LoginRequiredMixin, generic.ListView):
@@ -263,66 +248,13 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         page_number = self.request.GET.get('page')
         context['page_obj'] = paginator.get_page(page_number)
 
-        # Build datasets for Chart.js
-        now = timezone.now()
         start_date_str = self.request.GET.get('start_date', '').strip()
         end_date_str = self.request.GET.get('end_date', '').strip()
         period = self.request.GET.get('period', '').strip()
-        
-        import datetime
-        from django.utils.dateparse import parse_date
-        
-        start_date_val = None
-        end_date_val = None
-        
-        if start_date_str and end_date_str:
-            start_date_val = parse_date(start_date_str)
-            end_date_val = parse_date(end_date_str)
-            
-        if start_date_val and end_date_val:
-            start_dt = timezone.make_aware(datetime.datetime.combine(start_date_val, datetime.time.min))
-            end_dt = timezone.make_aware(datetime.datetime.combine(end_date_val, datetime.time.max))
-            period = 'custom'
-        else:
-            if not period:
-                period = '24h'
-            if period == '7d':
-                start_dt = now - timedelta(days=7)
-                start_date_str = (now - timedelta(days=7)).strftime('%Y-%m-%d')
-            elif period == '30d':
-                start_dt = now - timedelta(days=30)
-                start_date_str = (now - timedelta(days=30)).strftime('%Y-%m-%d')
-            else: # '24h'
-                start_dt = now - timedelta(days=1)
-                period = '24h'
-                start_date_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
-            end_dt = now
-            end_date_str = now.strftime('%Y-%m-%d')
 
-        # Filter logs in range
-        chart_logs_query = target.logs.filter(timestamp__gte=start_dt, timestamp__lte=end_dt).order_by('timestamp')
-        
-        # Downsample if log count exceeds 300 to optimize performance
-        log_count = chart_logs_query.count()
-        if log_count > 300:
-            step = log_count // 300
-            chart_logs = list(chart_logs_query)[::step]
-        else:
-            chart_logs = list(chart_logs_query)
-
-        # Dynamic format for X-axis labels based on duration
-        if (end_dt - start_dt) > timedelta(days=1):
-            timestamp_format = '%d/%m %H:%M'
-        else:
-            timestamp_format = '%H:%M:%S'
-
-        context['chart_timestamps'] = [timezone.localtime(log.timestamp).strftime(timestamp_format) for log in chart_logs]
-        context['chart_latencies'] = [log.latency if log.status else 0 for log in chart_logs]
-        context['chart_statuses'] = [1 if log.status else 0 for log in chart_logs]
-        
-        context['period'] = period
-        context['start_date'] = start_date_str
-        context['end_date'] = end_date_str
+        from .services import TargetDetailService
+        chart_ctx = TargetDetailService.get_chart_context(target, start_date_str, end_date_str, period)
+        context.update(chart_ctx)
         
         context['uptime_24h'] = target.uptime_percentage_24h
         context['avg_latency'] = target.average_latency_24h
@@ -489,101 +421,17 @@ class GroupReportPDFView(LoginRequiredMixin, View):
     
     def get(self, request: HttpRequest, group_id: int, *args: Any, **kwargs: Any) -> HttpResponse:
         group = get_object_or_404(Group, pk=group_id)
-        
-        # Retrieve custom start and end dates (defaulting to last 30 days)
         start_date_str = request.GET.get('start_date', '').strip()
         end_date_str = request.GET.get('end_date', '').strip()
         
-        from django.utils import timezone
-        from django.utils.dateparse import parse_date
-        from datetime import timedelta
-        import datetime
-        from django.db.models import Count, Q, Case, When, Value, FloatField, F
-        from django.db.models.functions import Cast
+        from .services import SLAReportService
+        pdf_bytes, filename = SLAReportService.generate_pdf_report(group, start_date_str, end_date_str)
         
-        # Fallbacks
-        end_date = timezone.now()
-        start_date = end_date - timedelta(days=30)
-        
-        if start_date_str:
-            parsed_start = parse_date(start_date_str)
-            if parsed_start:
-                start_date = timezone.make_aware(datetime.datetime.combine(parsed_start, datetime.time.min))
-                
-        if end_date_str:
-            parsed_end = parse_date(end_date_str)
-            if parsed_end:
-                end_date = timezone.make_aware(datetime.datetime.combine(parsed_end, datetime.time.max))
-        
-        # Calculate availability over the specified range for each active target in this group
-        targets = group.targets.filter(is_active=True).annotate(
-            total_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date)),
-            success_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date, logs__status=True))
-        ).annotate(
-            availability=Case(
-                When(total_logs=0, then=Case(
-                    When(last_status=True, then=Value(100.0)),
-                    default=Value(0.0)
-                )),
-                default=Cast(F('success_logs') * 100.0 / F('total_logs'), output_field=FloatField())
-            )
-        ).order_by('host', 'port')
-        
-        # Round availability to 1 decimal place, calculate average, and pair targets for 2-column layout
-        total_availability = 0.0
-        target_count = len(targets)
-        
-        for target in targets:
-            target.availability_rounded = round(target.availability, 1)
-            total_availability += target.availability_rounded
-            
-        # Pair targets side-by-side (cols = 2)
-        paired_targets = []
-        cols = 2
-        for i in range(0, len(targets), cols):
-            chunk = list(targets[i:i + cols])
-            while len(chunk) < cols:
-                chunk.append(None)
-            paired_targets.append(chunk)
-            
-        group_availability = round(total_availability / target_count, 1) if target_count > 0 else 100.0
-        
-        # Calculate how many days are in the period
-        delta_days = (end_date - start_date).days
-        if delta_days <= 0:
-            delta_days = 1
-        
-        # Render HTML template for the PDF report
-        from django.template.loader import render_to_string
-        from xhtml2pdf import pisa
-        import io
-        
-        context = {
-            'group': group,
-            'paired_targets': paired_targets,
-            'group_availability': group_availability,
-            'target_count': target_count,
-            'start_date': start_date,
-            'end_date': end_date,
-            'period_days': delta_days,
-            'generated_at': timezone.now(),
-        }
-        
-        html_string = render_to_string('monitor/group_report_pdf.html', context)
-        
-        # Create PDF
-        pdf_buffer = io.BytesIO()
-        pisa_status = pisa.CreatePDF(html_string, dest=pdf_buffer)
-        
-        if pisa_status.err:
+        if pdf_bytes is None:
             return HttpResponse("Erro ao gerar PDF", status=500)
             
-        pdf_buffer.seek(0)
-        response = HttpResponse(pdf_buffer, content_type='application/pdf')
-        
-        # Format filename to be safe
-        safe_name = "".join([c if c.isalnum() else "_" for c in group.name.lower()])
-        response['Content-Disposition'] = f'filename="relatorio_sla_{safe_name}.pdf"'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'filename="{filename}"'
         return response
 
 
@@ -618,62 +466,16 @@ class UpdateGroupView(LoginRequiredMixin, View):
             messages.error(request, f"Já existe um grupo com o nome '{new_name}'.")
             return redirect('edit_group', pk=group.id)
             
-        old_name = group.name
-        if old_name != new_name:
-            group.name = new_name
-            group.save()
-            log_audit(
-                user=request.user,
-                action='Editar',
-                model_name='Grupo',
-                object_repr=old_name,
-                changes=f"Grupo renomeado de '{old_name}' para '{new_name}'"
-            )
-        else:
-            group.save()
-            
         # Batch update check intervals and telegram alert thresholds
         check_interval = request.POST.get('check_interval', '').strip()
         telegram_alert_threshold = request.POST.get('telegram_alert_threshold', '').strip()
         selected_targets = request.POST.getlist('selected_targets')
         
-        success_msg = f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso." if old_name != new_name else f"Grupo '{new_name}' atualizado."
+        from .services import GroupManagerService
+        _, success_msg = GroupManagerService.update_group_settings(
+            group, new_name, check_interval, telegram_alert_threshold, selected_targets, request.user
+        )
         
-        if selected_targets:
-            changes_desc = []
-            if check_interval:
-                try:
-                    interval_val = int(check_interval)
-                    updated_count = MonitorTarget.objects.filter(
-                        id__in=selected_targets, 
-                        group=group
-                    ).update(check_interval=interval_val)
-                    success_msg += f" Frequência de verificação atualizada em {updated_count} dispositivo(s)."
-                    changes_desc.append(f"Frequência definida para {interval_val}m")
-                except ValueError:
-                    messages.error(request, "Intervalo de verificação inválido.")
-            
-            if telegram_alert_threshold:
-                try:
-                    threshold_val = int(telegram_alert_threshold)
-                    updated_count = MonitorTarget.objects.filter(
-                        id__in=selected_targets, 
-                        group=group
-                    ).update(telegram_alert_threshold=threshold_val)
-                    success_msg += f" Regra de alerta do Telegram atualizada em {updated_count} dispositivo(s)."
-                    changes_desc.append(f"Alerta de Telegram definido para {threshold_val} falha(s)")
-                except ValueError:
-                    messages.error(request, "Regra de alerta do Telegram inválida.")
-                    
-            if changes_desc:
-                log_audit(
-                    user=request.user,
-                    action='Lote',
-                    model_name='Dispositivo',
-                    object_repr=f"Grupo: {new_name}",
-                    changes=f"Atualização em lote para {len(selected_targets)} dispositivos: {', '.join(changes_desc)}"
-                )
-                
         messages.success(request, success_msg)
         return redirect('dashboard')
 
@@ -938,64 +740,8 @@ class DeleteDeviceView(LoginRequiredMixin, View):
 class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
     def get(self, request, pk):
         device = get_object_or_404(Device, pk=pk)
-        interfaces = []
-        error = None
-
-        if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
-            from .services import PortCheckerService
-            # SNMP Walk on ifDescr (1.3.6.1.2.1.2.2.1.2)
-            walk_results = PortCheckerService.snmp_walk(
-                device.host, 
-                device.snmp_community, 
-                device.snmp_port, 
-                "1.3.6.1.2.1.2.2.1.2"
-            )
-            if not walk_results:
-                error = "Não foi possível obter dados via SNMP. Verifique o IP, Comunidade SNMP e a conectividade."
-            else:
-                for oid_str, val in walk_results:
-                    idx = oid_str.split('.')[-1]
-                    name = val
-                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon', 'bridge', 'vlan', 'wlan', 'combo', 'ath', 'eth', 'br', 'lan', 'wan']):
-                        # Check if already monitored
-                        is_monitored = device.sensors.filter(
-                            sensor_type='snmp_traffic', 
-                            sensor_identifier=idx
-                        ).exists()
-                        interfaces.append({
-                            'identifier': idx,
-                            'name': name,
-                            'is_monitored': is_monitored
-                        })
-        elif device.device_type == 'mikrotik':
-            from .services import MikrotikAPI
-            api = MikrotikAPI(device.host, device.api_username, device.api_password, device.api_port)
-            if api.connect():
-                try:
-                    res = api.talk(["/interface/print"])
-                    for line in res:
-                        name = ""
-                        for word in line:
-                            if word.startswith("=name="):
-                                name = word[6:]
-                        if name:
-                            is_monitored = device.sensors.filter(
-                                sensor_type='mikrotik_api',
-                                sensor_identifier=f"traffic:{name}"
-                            ).exists()
-                            interfaces.append({
-                                'identifier': f"traffic:{name}",
-                                'name': name,
-                                'is_monitored': is_monitored
-                            })
-                except Exception as e:
-                    error = f"Erro ao ler interfaces via API: {str(e)}"
-                finally:
-                    api.close()
-            else:
-                error = "Não foi possível conectar na API MikroTik. Verifique as credenciais, porta e IP."
-        else:
-            error = "Auto-descoberta não suportada para este tipo de equipamento."
+        from .services import DeviceDiscoveryService
+        interfaces, error = DeviceDiscoveryService.discover_interfaces(device)
 
         context = {
             'device': device,
@@ -1007,72 +753,9 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
     def post(self, request, pk):
         device = get_object_or_404(Device, pk=pk)
         selected_identifiers = request.POST.getlist('selected_interfaces')
-        created_count = 0
-
-        for identifier in selected_identifiers:
-            if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
-                # Get interface name
-                from .services import PortCheckerService
-                status, name = PortCheckerService._snmp_get(
-                    device.host, 
-                    device.snmp_community, 
-                    device.snmp_port, 
-                    f"1.3.6.1.2.1.2.2.1.2.{identifier}"
-                )
-                name = name or f"Interface {identifier}"
-                
-                sensor, created = MonitorTarget.objects.get_or_create(
-                    device=device,
-                    sensor_type='snmp_traffic',
-                    sensor_identifier=identifier,
-                    host=device.host,
-                    group=device.group,
-                    defaults={
-                        'label': f"{device.name} - {name}",
-                        'check_interval': 1,
-                        'telegram_alert_threshold': 1
-                    }
-                )
-                if created:
-                    created_count += 1
-                    from .services import PortCheckerService
-                    try:
-                        PortCheckerService.check_target(sensor.id)
-                    except Exception as e:
-                        logger.error("Erro na checagem inicial síncrona da interface %d: %s", sensor.id, str(e))
-                    try:
-                        from .tasks import check_single_target
-                        check_single_target.delay(sensor.id)
-                    except Exception:
-                        pass
-                    
-            elif device.device_type == 'mikrotik':
-                if identifier.startswith("traffic:"):
-                    name = identifier.split(":", 1)[1]
-                    sensor, created = MonitorTarget.objects.get_or_create(
-                        device=device,
-                        sensor_type='mikrotik_api',
-                        sensor_identifier=identifier,
-                        host=device.host,
-                        group=device.group,
-                        defaults={
-                            'label': f"{device.name} - {name} Tráfego",
-                            'check_interval': 1,
-                            'telegram_alert_threshold': 1
-                        }
-                    )
-                    if created:
-                        created_count += 1
-                        from .services import PortCheckerService
-                        try:
-                            PortCheckerService.check_target(sensor.id)
-                        except Exception as e:
-                            logger.error("Erro na checagem inicial síncrona da interface %d: %s", sensor.id, str(e))
-                        try:
-                            from .tasks import check_single_target
-                            check_single_target.delay(sensor.id)
-                        except Exception:
-                            pass
+        
+        from .services import DeviceDiscoveryService
+        created_count = DeviceDiscoveryService.provision_sensors(device, selected_identifiers)
 
         messages.success(request, f"Sucesso! {created_count} novos sensores de tráfego foram adicionados ao equipamento '{device.name}'.")
         return redirect('dashboard')
