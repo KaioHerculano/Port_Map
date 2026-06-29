@@ -307,14 +307,25 @@ class PortCheckerService:
     @staticmethod
     def _snmp_get(host: str, community: str, port: int, oid: str, timeout: float = 2.0) -> Tuple[bool, Optional[str]]:
         try:
-            from pysnmp.hlapi.v3arch.sync import get_cmd, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity, SnmpEngine
-            errorIndication, errorStatus, errorIndex, varBinds = get_cmd(
-                SnmpEngine(),
-                CommunityData(community, mpModel=1),
-                UdpTransportTarget((host, port), timeout=timeout, retries=1),
-                ContextData(),
-                ObjectType(ObjectIdentity(oid))
-            )
+            import asyncio
+            from pysnmp.hlapi.asyncio import getCmd, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity, SnmpEngine
+
+            async def do_get():
+                return await getCmd(
+                    SnmpEngine(),
+                    CommunityData(community, mpModel=1),
+                    UdpTransportTarget((host, port), timeout=timeout, retries=1),
+                    ContextData(),
+                    ObjectType(ObjectIdentity(oid))
+                )
+
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            errorIndication, errorStatus, errorIndex, varBinds = loop.run_until_complete(do_get())
             
             if errorIndication or errorStatus:
                 return False, None
@@ -329,20 +340,43 @@ class PortCheckerService:
     def snmp_walk(host: str, community: str, port: int, oid: str, timeout: float = 2.0) -> List[Tuple[str, str]]:
         results: List[Tuple[str, str]] = []
         try:
-            from pysnmp.hlapi.v3arch.sync import next_cmd, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity, SnmpEngine
-            iterator = next_cmd(
-                SnmpEngine(),
-                CommunityData(community, mpModel=1),
-                UdpTransportTarget((host, port), timeout=timeout, retries=1),
-                ContextData(),
-                ObjectType(ObjectIdentity(oid)),
-                lexicographicMode=False
-            )
-            for errorIndication, errorStatus, errorIndex, varBinds in iterator:
-                if errorIndication or errorStatus:
-                    break
-                for varBind in varBinds:
-                    results.append((str(varBind[0]), str(varBind[1])))
+            import asyncio
+            from pysnmp.hlapi.asyncio import nextCmd, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity, SnmpEngine
+
+            async def do_walk():
+                walk_results = []
+                current_oid = oid
+                snmp_engine = SnmpEngine()
+                while True:
+                    errorIndication, errorStatus, errorIndex, varBinds = await nextCmd(
+                        snmp_engine,
+                        CommunityData(community, mpModel=1),
+                        UdpTransportTarget((host, port), timeout=timeout, retries=1),
+                        ContextData(),
+                        ObjectType(ObjectIdentity(current_oid)),
+                        lexicographicMode=False
+                    )
+                    if errorIndication or errorStatus or not varBinds:
+                        break
+                    
+                    varBind = varBinds[0][0]
+                    val_oid = str(varBind[0])
+                    val_value = str(varBind[1])
+                    
+                    if not val_oid.startswith(oid):
+                        break
+                        
+                    walk_results.append((val_oid, val_value))
+                    current_oid = val_oid
+                return walk_results
+
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            results = loop.run_until_complete(do_walk())
         except Exception as e:
             logger.error("SNMP walk failed for %s (%s): %s", host, oid, str(e))
         return results
