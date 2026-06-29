@@ -265,6 +265,11 @@ class MonitorLog(models.Model):
     latency = models.FloatField(
         help_text="Tempo de resposta do socket em milissegundos"
     )
+    metric_value = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Valor numérico bruto da métrica coletada (ex: graus, %, Mbps)"
+    )
     timestamp = models.DateTimeField(
         auto_now_add=True, 
         db_index=True
