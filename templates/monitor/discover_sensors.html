@@ -27,15 +27,15 @@
     </div>
   {% else %}
     <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.95rem;">
-      Encontramos as seguintes portas/interfaces de tráfego no equipamento. Selecione as interfaces que deseja adicionar como sensores de tráfego ativos no painel.
+      Encontramos os seguintes sensores compatíveis no equipamento. Selecione os que deseja monitorar.
     </p>
 
     <form method="post">
       {% csrf_token %}
       
       <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
-        <button type="button" onclick="selectAll(true);" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); border-radius: 6px;">Marcar Todas</button>
-        <button type="button" onclick="selectAll(false);" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); border-radius: 6px;">Desmarcar Todas</button>
+        <button type="button" onclick="selectAll(true);" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); border-radius: 6px;">Marcar Todos</button>
+        <button type="button" onclick="selectAll(false);" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); border-radius: 6px;">Desmarcar Todos</button>
       </div>
 
       <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; max-height: 450px; overflow-y: auto; padding: 0.5rem; margin-bottom: 2rem;">
@@ -43,7 +43,8 @@
           <thead>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-muted);">
               <th style="padding: 0.75rem 1rem; width: 40px;"></th>
-              <th style="padding: 0.75rem 1rem;">Nome da Interface</th>
+              <th style="padding: 0.75rem 1rem;">Sensor</th>
+              <th style="padding: 0.75rem 1rem;">Tipo de Sensor</th>
               <th style="padding: 0.75rem 1rem;">Identificador</th>
               <th style="padding: 0.75rem 1rem; text-align: right;">Status do Monitor</th>
             </tr>
@@ -63,7 +64,12 @@
                     {{ iface.name }}
                   </label>
                 </td>
-                <td style="padding: 0.75rem 1rem; color: var(--text-muted); font-family: monospace;">
+                <td style="padding: 0.75rem 1rem;">
+                  <span style="font-size: 0.8rem; background: rgba(99, 102, 241, 0.1); color: #a5b4fc; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid rgba(99, 102, 241, 0.2); font-weight: 500;">
+                    {{ iface.type_label }}
+                  </span>
+                </td>
+                <td style="padding: 0.75rem 1rem; color: var(--text-muted); font-family: monospace; font-size: 0.85rem;">
                   {{ iface.identifier }}
                 </td>
                 <td style="padding: 0.75rem 1rem; text-align: right;">
@@ -76,8 +82,8 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="4" style="padding: 3rem; text-align: center; color: var(--text-muted);">
-                  Nenhuma interface compatível encontrada.
+                <td colspan="5" style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                  Nenhum sensor compatível encontrado.
                 </td>
               </tr>
             {% endfor %}

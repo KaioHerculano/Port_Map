@@ -19,4 +19,6 @@ urlpatterns = [
     path('device/<int:pk>/edit/', views.UpdateDeviceView.as_view(), name='edit_device'),
     path('device/<int:pk>/delete/', views.DeleteDeviceView.as_view(), name='delete_device'),
     path('device/<int:pk>/discover/', views.DiscoverDeviceSensorsView.as_view(), name='discover_sensors'),
+    path('api/status-update/', views.StatusUpdateAPIView.as_view(), name='api_status_update'),
+    path('api/discover-preview/', views.DiscoverPreviewAPIView.as_view(), name='api_discover_preview'),
 ]

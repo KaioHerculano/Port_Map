@@ -197,7 +197,13 @@
       <tr>
         <th>Data e Hora do Teste</th>
         <th>Estado</th>
-        <th>Latência de Conexão</th>
+        <th>
+          {% if target.sensor_type == 'ping' or target.sensor_type == 'tcp' %}
+            Latência de Conexão
+          {% else %}
+            Valor do Sensor
+          {% endif %}
+        </th>
       </tr>
     </thead>
     <tbody>
@@ -208,15 +214,43 @@
         </td>
         <td>
           {% if log.status %}
-            <span class="status-badge online"><span class="dot"></span>ABERTA (Online)</span>
+            <span class="status-badge online">
+              <span class="dot"></span>
+              {% if target.sensor_type == 'ping' or target.sensor_type == 'tcp' %}ABERTA (Online){% else %}ONLINE{% endif %}
+            </span>
           {% else %}
-            <span class="status-badge offline"><span class="dot"></span>FECHADA (Offline)</span>
+            <span class="status-badge offline">
+              <span class="dot"></span>
+              {% if target.sensor_type == 'ping' or target.sensor_type == 'tcp' %}FECHADA (Offline){% else %}FALHA / OFFLINE{% endif %}
+            </span>
           {% endif %}
         </td>
         <td>
-          <span class="td-latency {% if log.status %}{% if log.latency < 150 %}fast{% else %}slow{% endif %}{% else %}none{% endif %}">
-            {% if log.status %}{{ log.latency }} ms{% else %}- (Erro de Conexão){% endif %}
-          </span>
+          {% if target.sensor_type == 'ping' or target.sensor_type == 'tcp' %}
+            <span class="td-latency {% if log.status %}{% if log.latency < 150 %}fast{% else %}slow{% endif %}{% else %}none{% endif %}">
+              {% if log.status %}{{ log.latency }} ms{% else %}- (Erro de Conexão){% endif %}
+            </span>
+          {% else %}
+            <span style="color: white; font-weight: 600; font-size: 0.95rem;">
+              {% if log.status %}
+                {% if log.metric_value is not None %}
+                  {{ log.metric_value|floatformat:1 }} {{ chart_unit }}
+                {% else %}
+                  {% if "psu" in target.label|lower or "estado da psu" in target.label|lower %}
+                    OK
+                  {% else %}
+                    Online
+                  {% endif %}
+                {% endif %}
+              {% else %}
+                {% if "psu" in target.label|lower or "estado da psu" in target.label|lower %}
+                  Sem Energia / Falha
+                {% else %}
+                  N/A
+                {% endif %}
+              {% endif %}
+            </span>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

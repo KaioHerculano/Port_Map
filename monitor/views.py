@@ -80,6 +80,27 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
             inactive_count=Count('targets', filter=Q(targets__is_active=False, targets__device__isnull=True))
         )
         
+        # Auto-correct labels of active snmp_numeric sensors that have raw OID labels
+        health_labels = {
+            '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+            '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+            '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+            '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+            '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+            '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+            '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+            '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
+            '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
+            '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+            '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+        }
+        for sensor in MonitorTarget.objects.filter(sensor_type='snmp_numeric', label__icontains='métrica 1.3.6.1.4.1.14988.1.1.3.'):
+            oid_key = sensor.sensor_identifier
+            if oid_key in health_labels:
+                device_prefix = f"{sensor.device.name} - " if sensor.device else ""
+                sensor.label = f"{device_prefix}{health_labels[oid_key]}"
+                sensor.save(update_fields=['label'])
+
         # Fetch devices (annotated or with their prefetch sensors)
         devices_qs = Device.objects.all().prefetch_related('sensors')
         if group_id:
@@ -242,6 +263,27 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         context = super().get_context_data(**kwargs)
         target = self.object
 
+        # Auto-correct raw OID labels in the database to clean friendly names
+        if "métrica 1.3.6.1.4.1.14988.1.1.3." in (target.label or "").lower():
+            oid_key = target.sensor_identifier
+            health_labels = {
+                '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+                '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+                '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+                '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+                '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+                '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+                '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+                '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
+                '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
+                '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+                '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+            }
+            if oid_key in health_labels:
+                device_prefix = f"{target.device.name} - " if target.device else ""
+                target.label = f"{device_prefix}{health_labels[oid_key]}"
+                target.save(update_fields=['label'])
+
         # Retrieve connection history
         logs_list = target.logs.all().order_by('-timestamp')
         paginator = Paginator(logs_list, 30)
@@ -262,17 +304,33 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         # Determine chart label and unit
         sensor_type = target.sensor_type
         label_lower = (target.label or "").lower()
+        ident_lower = (target.sensor_identifier or "").lower()
         
-        if sensor_type == 'snmp_traffic' or (target.sensor_identifier or '').startswith('traffic:'):
+        if sensor_type == 'snmp_traffic' or ident_lower.startswith('traffic:') or "tráfego" in label_lower or "traffic" in label_lower:
             chart_label = "Tráfego"
             chart_unit = "Mbps"
-        elif "temp" in label_lower or "temperatura" in label_lower or target.sensor_identifier == 'temp':
+        elif "temp" in label_lower or "temperatura" in label_lower or ident_lower == 'temp' or "1.3.6.1.4.1.14988.1.1.3.10.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.11.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.9.0" in ident_lower:
             chart_label = "Temperatura"
             chart_unit = "ºC"
-        elif "cpu" in label_lower or target.sensor_identifier == 'cpu':
+        elif "volt" in label_lower or "voltagem" in label_lower or "1.3.6.1.4.1.14988.1.1.3.8.0" in ident_lower:
+            chart_label = "Voltagem"
+            chart_unit = "V"
+        elif "consumo" in label_lower or "power" in label_lower or "wates" in label_lower or "watts" in label_lower or "energia" in label_lower or "1.3.6.1.4.1.14988.1.1.3.12.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.14.0" in ident_lower:
+            chart_label = "Consumo"
+            chart_unit = "W"
+        elif "corrente" in label_lower or "current" in label_lower or "1.3.6.1.4.1.14988.1.1.3.13.0" in ident_lower:
+            chart_label = "Corrente"
+            chart_unit = "A"
+        elif "cooler" in label_lower or "fan" in label_lower or "rotação" in label_lower or "rpm" in label_lower or "1.3.6.1.4.1.14988.1.1.3.17.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.18.0" in ident_lower:
+            chart_label = "Rotação"
+            chart_unit = "RPM"
+        elif "psu" in label_lower or "estado da psu" in label_lower:
+            chart_label = "Estado da Fonte"
+            chart_unit = "Status"
+        elif "cpu" in label_lower or ident_lower == 'cpu' or "1.3.6.1.2.1.25.3.3.1.2.1" in ident_lower:
             chart_label = "Uso de CPU"
             chart_unit = "%"
-        elif "uptime" in label_lower or target.sensor_identifier == 'uptime':
+        elif "uptime" in label_lower or ident_lower == 'uptime' or "1.3.6.1.2.1.1.3.0" in ident_lower:
             chart_label = "Tempo de Atividade"
             chart_unit = "Dias"
         else:
@@ -578,7 +636,24 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
         response = super().form_valid(form)
         device = self.object
         selected = self.request.POST.getlist('sensors')
+        discovery_run = self.request.POST.get('discovery_run') == 'true'
 
+        if discovery_run:
+            from .services import DeviceDiscoveryService
+            created_count = DeviceDiscoveryService.provision_sensors(device, selected)
+            
+            log_audit(
+                user=self.request.user,
+                action='Criar',
+                model_name='Equipamento',
+                object_repr=device.name,
+                changes=f"Novo equipamento cadastrado com auto-descoberta na criação. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
+            )
+            messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {created_count} sensor(es) criado(s).")
+            from django.shortcuts import redirect
+            return redirect('dashboard')
+
+        # Default legacy fallback if discovery wasn't run on creation page
         # Define available sensors per device type
         SENSOR_DEFS = {
             'generic_ping': {
@@ -622,11 +697,20 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
             )
             if s['identifier']:
                 kwargs['sensor_identifier'] = s['identifier']
+                
+            # Inherit custom intervals and alert thresholds from device
+            interval = device.check_interval
+            if s['type'] == 'snmp_numeric' and "temp" in s['label'].lower():
+                interval = max(5, device.check_interval)
+            elif s['type'] == 'mikrotik_api' and s['identifier'] == 'temp':
+                interval = max(5, device.check_interval)
+                
             t, created = MonitorTarget.objects.get_or_create(
                 **kwargs,
                 defaults={
                     'label': f"{device.name} - {s['label']}",
-                    'check_interval': s['interval'],
+                    'check_interval': interval,
+                    'telegram_alert_threshold': device.telegram_alert_threshold,
                     'is_active': True,
                 }
             )
@@ -641,23 +725,18 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
             object_repr=device.name,
             changes=f"Novo equipamento cadastrado. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
         )
-        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {len(selected)} sensor(es) criado(s).")
+        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {len(selected)} sensor(es) criado(s). Carregando auto-descoberta...")
         
-        # Trigger checks for all new sensors immediately and synchronously
-        from .services import PortCheckerService
+        # Trigger checks for all new sensors in background
         for sensor in device.sensors.all():
-            try:
-                PortCheckerService.check_target(sensor.id)
-            except Exception as e:
-                logger.error("Erro na checagem inicial síncrona do alvo %d: %s", sensor.id, str(e))
-            
             try:
                 from .tasks import check_single_target
                 check_single_target.delay(sensor.id)
             except Exception:
                 pass
             
-        return response
+        from django.shortcuts import redirect
+        return redirect('discover_sensors', pk=device.id)
 
 
 class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
@@ -666,15 +745,76 @@ class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
     template_name = 'monitor/edit_device.html'
     success_url = reverse_lazy('dashboard')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        device = self.get_object()
+        
+        # Discover all sensors dynamically for edit page!
+        from .services import DeviceDiscoveryService
+        discovered_sensors, error = DeviceDiscoveryService.discover_interfaces(device)
+        
+        import json
+        context['discovered_sensors_json'] = json.dumps(discovered_sensors)
+        context['discovery_error'] = error
+        return context
+
     def form_valid(self, form):
         response = super().form_valid(form)
         device = self.object
+        
+        # Propagate group and telegram threshold in bulk
+        device.sensors.all().update(
+            telegram_alert_threshold=device.telegram_alert_threshold,
+            group=device.group
+        )
+        
+        # Propagate check interval with specific limits for temperature
+        for sensor in device.sensors.all():
+            interval = device.check_interval
+            if sensor.sensor_type == 'snmp_numeric' and "temp" in (sensor.label or "").lower():
+                interval = max(5, device.check_interval)
+            elif sensor.sensor_type == 'mikrotik_api' and sensor.sensor_identifier.startswith("health:temp"):
+                interval = max(5, device.check_interval)
+            
+            sensor.check_interval = interval
+            sensor.save(update_fields=['check_interval'])
+
+        # Process selected sensors from post data
+        selected_identifiers = self.request.POST.getlist('sensors')
+        
+        def get_target_identifier(target):
+            if target.sensor_type == 'ping':
+                return 'ping'
+            elif target.sensor_type == 'snmp_traffic':
+                return f"snmp_traffic:{target.sensor_identifier}"
+            elif target.sensor_type == 'snmp_numeric':
+                return f"snmp_numeric:{target.sensor_identifier}"
+            elif target.sensor_type == 'mikrotik_api':
+                return target.sensor_identifier
+            return None
+
+        existing_targets = device.sensors.all()
+        
+        # 1. Delete sensors that are unchecked in the edit form
+        for target in existing_targets:
+            ident = get_target_identifier(target)
+            if ident and ident not in selected_identifiers:
+                target.delete()
+                
+        # 2. Add/provision newly checked sensors
+        existing_idents = {get_target_identifier(t) for t in existing_targets}
+        new_idents = [ident for ident in selected_identifiers if ident and ident not in existing_idents]
+        
+        if new_idents:
+            from .services import DeviceDiscoveryService
+            DeviceDiscoveryService.provision_sensors(device, new_idents)
+
         log_audit(
             user=self.request.user,
             action='Editar',
             model_name='Equipamento',
             object_repr=device.name,
-            changes=f"Alterado configurações do equipamento ID {device.id}"
+            changes=f"Alterado configurações do equipamento ID {device.id} (propagado para {device.sensors.count()} sensores)"
         )
         messages.success(self.request, f"Equipamento '{device.name}' atualizado com sucesso!")
         return response
@@ -718,3 +858,53 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
 
         messages.success(request, f"Sucesso! {created_count} novos sensores de tráfego foram adicionados ao equipamento '{device.name}'.")
         return redirect('dashboard')
+
+
+class StatusUpdateAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        targets_qs = MonitorTarget.objects.all().values(
+            'id', 'last_status', 'sensor_value', 'last_latency', 'is_active', 'sensor_type'
+        )
+        return JsonResponse({'targets': list(targets_qs)})
+
+
+class DiscoverPreviewAPIView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        device_type = request.POST.get('device_type', 'mikrotik_snmp')
+        print(f"DEBUG PREVIEW API: device_type={device_type} POST keys={list(request.POST.keys())} all={request.POST.dict()}", flush=True)
+        host = request.POST.get('host', '').strip()
+        snmp_community = request.POST.get('snmp_community', 'public').strip()
+        snmp_port = request.POST.get('snmp_port', '161')
+        api_port = request.POST.get('api_port', '8728')
+        api_username = request.POST.get('api_username', '').strip()
+        api_password = request.POST.get('api_password', '').strip()
+        
+        try:
+            snmp_port = int(snmp_port) if snmp_port else 161
+        except ValueError:
+            snmp_port = 161
+            
+        try:
+            api_port = int(api_port) if api_port else 8728
+        except ValueError:
+            api_port = 8728
+
+        # Instantiate a temporary Device
+        device = Device(
+            device_type=device_type,
+            host=host,
+            snmp_community=snmp_community,
+            snmp_port=snmp_port,
+            api_port=api_port,
+            api_username=api_username,
+            api_password=api_password
+        )
+
+        from .services import DeviceDiscoveryService
+        sensors, error = DeviceDiscoveryService.discover_interfaces(device)
+
+        return JsonResponse({
+            'success': error is None,
+            'error': error,
+            'sensors': sensors
+        })

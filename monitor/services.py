@@ -475,15 +475,100 @@ class PortCheckerService:
         elif sensor_type in ('snmp_numeric', 'snmp_traffic'):
             comm = device.snmp_community if device else "public"
             snmp_port = device.snmp_port if device else 161
-            
             if sensor_type == 'snmp_numeric':
                 oid = target.sensor_identifier
                 status, val = PortCheckerService._snmp_get(host, comm, snmp_port, oid)
+                
+                # Dynamic fallback for CPU Temperature OID on MikroTik
+                if oid == '1.3.6.1.4.1.14988.1.1.3.10.0' and (not status or val is None or str(val).strip() == '' or str(val).strip().lower() in ('n/a', 'nosuchinstance', 'nosuchobject')):
+                    status_alt, val_alt = PortCheckerService._snmp_get(host, comm, snmp_port, '1.3.6.1.4.1.14988.1.1.3.11.0')
+                    if status_alt and val_alt is not None and str(val_alt).strip() != '' and str(val_alt).strip().lower() not in ('n/a', 'nosuchinstance', 'nosuchobject'):
+                        oid = '1.3.6.1.4.1.14988.1.1.3.11.0'
+                        status, val = status_alt, val_alt
+
                 latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
                 if status and val is not None:
+                    val_str = str(val).strip()
+                    if val_str.lower() in ('n/a', 'no such instance currently exists at this oid', 'no such object', 'no such instance', 'null', 'none', '', 'nosuchinstance', 'nosuchobject'):
+                        status = False
+                        sensor_value = "N/A"
+                    # BGP peer state check
+                    elif oid.startswith('1.3.6.1.2.1.15.3.1.2.') or oid.startswith('1.3.6.1.4.1.14988.1.1.18.1.1.2.'):
+                        try:
+                            state_int = int(val)
+                            bgp_states = {
+                                1: "Idle",
+                                2: "Connect",
+                                3: "Active",
+                                4: "OpenSent",
+                                5: "OpenConfirm",
+                                6: "Established"
+                            }
+                            state_name = bgp_states.get(state_int, f"Desconhecido ({state_int})")
+                            status = (state_int == 6)
+                            sensor_value = "Estabelecido" if status else state_name
+                            val = state_name
+                        except ValueError:
+                            status = False
+                            sensor_value = f"Erro BGP: {val}"
                     # Specific formatting for CPU or Temp if labels match
-                    if "temp" in (target.label or "").lower() or "temperatura" in (target.label or "").lower():
-                        sensor_value = f"{val}º C"
+                    elif "temp" in (target.label or "").lower() or "temperatura" in (target.label or "").lower() or oid in ('1.3.6.1.4.1.14988.1.1.3.10.0', '1.3.6.1.4.1.14988.1.1.3.11.0', '1.3.6.1.4.1.14988.1.1.3.9.0'):
+                        try:
+                            float_val = float(val)
+                            # Typically if it is > 150, it is in tenths of a degree (e.g. 450 -> 45.0)
+                            if float_val > 150:
+                                float_val = float_val / 10.0
+                            sensor_value = f"{float_val:.1f}ºC"
+                            val = float_val
+                        except (ValueError, TypeError):
+                            sensor_value = f"{val}ºC" if val else "N/A"
+                    elif "volt" in (target.label or "").lower() or oid == '1.3.6.1.4.1.14988.1.1.3.8.0':
+                        try:
+                            float_val = float(val)
+                            # Voltages > 50 are usually in tenths of a volt (e.g. 241 -> 24.1)
+                            if float_val > 50:
+                                float_val = float_val / 10.0
+                            sensor_value = f"{float_val:.1f} V"
+                            val = float_val
+                        except (ValueError, TypeError):
+                            sensor_value = f"{val} V" if val else "N/A"
+                    elif "consumo" in (target.label or "").lower() or "power" in (target.label or "").lower() or oid in ('1.3.6.1.4.1.14988.1.1.3.12.0', '1.3.6.1.4.1.14988.1.1.3.14.0'):
+                        try:
+                            float_val = float(val)
+                            # Handle different scales of power consumption (milliwatts or tenths of a watt)
+                            if float_val > 500:
+                                float_val = float_val / 100.0
+                            elif float_val > 50:
+                                float_val = float_val / 10.0
+                            sensor_value = f"{float_val:.1f} W"
+                            val = float_val
+                        except (ValueError, TypeError):
+                            sensor_value = f"{val} W" if val else "N/A"
+                    elif "corrente" in (target.label or "").lower() or "current" in (target.label or "").lower() or oid == '1.3.6.1.4.1.14988.1.1.3.13.0':
+                        try:
+                            float_val = float(val)
+                            if float_val > 10:
+                                float_val = float_val / 1000.0 if float_val > 100 else float_val / 10.0
+                            sensor_value = f"{float_val:.2f} A"
+                            val = float_val
+                        except (ValueError, TypeError):
+                            sensor_value = f"{val} A" if val else "N/A"
+                    elif "cooler" in (target.label or "").lower() or "fan" in (target.label or "").lower() or oid in ('1.3.6.1.4.1.14988.1.1.3.17.0', '1.3.6.1.4.1.14988.1.1.3.18.0'):
+                        try:
+                            sensor_value = f"{int(float(val))} RPM"
+                        except (ValueError, TypeError):
+                            sensor_value = f"{val} RPM" if val else "N/A"
+                    elif "psu" in (target.label or "").lower() or "estado da psu" in (target.label or "").lower() or oid in ('1.3.6.1.4.1.14988.1.1.3.15.0', '1.3.6.1.4.1.14988.1.1.3.16.0'):
+                        try:
+                            val_int = int(val)
+                            if val_int == 1:
+                                sensor_value = "OK"
+                                status = True
+                            else:
+                                sensor_value = "Sem Energia / Falha"
+                                status = False
+                        except (ValueError, TypeError):
+                            sensor_value = val
                     elif "cpu" in (target.label or "").lower():
                         sensor_value = f"{val}%"
                     elif "uptime" in (target.label or "").lower():
@@ -579,8 +664,23 @@ class PortCheckerService:
                             sensor_value = f"{cpu_load}%"
                             val = cpu_load
                             
+                        elif metric.startswith('cpu:'):
+                            core_idx = metric.split(':', 1)[1]
+                            res = api.talk(["/system/resource/cpu/print"])
+                            core_load = "0"
+                            for line in res:
+                                matched = False
+                                for word in line:
+                                    if word == f"=cpu={core_idx}":
+                                        matched = True
+                                if matched:
+                                    for word in line:
+                                        if word.startswith("=load="):
+                                            core_load = word[6:]
+                            sensor_value = f"{core_load}%"
+                            val = core_load
+
                         elif metric == 'temp':
-                            # Try print health, fallback if temperature is not present
                             res = api.talk(["/system/health/print"])
                             temp = "N/A"
                             for line in res:
@@ -589,6 +689,45 @@ class PortCheckerService:
                                         temp = word.split("=")[-1]
                             sensor_value = f"{temp}º C" if temp != "N/A" else "N/A"
                             val = temp if temp != "N/A" else None
+
+                        elif metric.startswith('health:'):
+                            health_name = metric.split(':', 1)[1]
+                            res = api.talk(["/system/health/print"])
+                            health_val = "N/A"
+                            for line in res:
+                                is_target = False
+                                current_val = None
+                                for word in line:
+                                    if word == f"=name={health_name}":
+                                        is_target = True
+                                    elif word.startswith("=value="):
+                                        current_val = word[7:]
+                                if is_target and current_val is not None:
+                                    health_val = current_val
+                                    break
+                                
+                                for word in line:
+                                    if word.startswith(f"={health_name}="):
+                                        health_val = word.split("=")[-1]
+                            
+                            if not health_val or str(health_val).strip().lower() in ('n/a', 'null', 'none', ''):
+                                status = False
+                                sensor_value = "N/A"
+                                val = None
+                            else:
+                                if "temp" in health_name.lower():
+                                    sensor_value = f"{health_val}ºC"
+                                elif "voltage" in health_name.lower():
+                                    sensor_value = f"{health_val} V"
+                                elif "current" in health_name.lower():
+                                    sensor_value = f"{health_val} A"
+                                elif "power" in health_name.lower():
+                                    sensor_value = f"{health_val} W"
+                                elif "fan" in health_name.lower():
+                                    sensor_value = f"{health_val} RPM"
+                                else:
+                                    sensor_value = health_val
+                                val = health_val
 
                         elif metric == 'uptime':
                             res = api.talk(["/system/resource/print"])
@@ -599,6 +738,26 @@ class PortCheckerService:
                                         uptime = word[8:]
                             sensor_value = uptime
                             val = uptime if uptime != "N/A" else None
+
+                        elif metric.startswith('bgp:'):
+                            peer_name = metric.split(':', 1)[1]
+                            res = api.talk(["/routing/bgp/peer/print", f"?name={peer_name}"])
+                            if not res or len(res) <= 1:
+                                res = api.talk(["/routing/bgp/session/print", f"?name={peer_name}"])
+                            
+                            state = "N/A"
+                            for line in res:
+                                for word in line:
+                                    if word.startswith("=state="):
+                                        state = word[7:]
+                            
+                            if state == "established":
+                                status = True
+                                sensor_value = "Estabelecido"
+                            else:
+                                status = False
+                                sensor_value = state.capitalize() if state != "N/A" else "Inativo"
+                            val = state if state != "N/A" else None
 
                         elif metric.startswith('traffic:'):
                             interface_name = metric.split(':', 1)[1]
@@ -954,91 +1113,334 @@ class GroupManagerService:
 class DeviceDiscoveryService:
     """Service to handle device sensor auto-discovery via SNMP or MikroTik RouterOS API."""
     @staticmethod
+    def _is_sensor_monitored(device: Device, sensor_type: str, identifier: str) -> bool:
+        if not device or not device.pk:
+            return False
+        return device.sensors.filter(sensor_type=sensor_type, sensor_identifier=identifier).exists()
+
+    @staticmethod
     def discover_interfaces(device: Device) -> Tuple[List[dict], Optional[str]]:
-        interfaces = []
+        sensors = []
         error = None
 
-        if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
-            # SNMP Walk on ifDescr (1.3.6.1.2.1.2.2.1.2)
+        if device.device_type == 'mikrotik':
+            from .services import MikrotikAPI
+            api = MikrotikAPI(device.host, device.api_username, device.api_password, device.api_port)
+            if api.connect():
+                try:
+                    # 1. Discover Interfaces (Traffic)
+                    try:
+                        res = api.talk(["/interface/print"])
+                        for line in res:
+                            name = ""
+                            for word in line:
+                                if word.startswith("=name="):
+                                    name = word[6:]
+                            if name:
+                                is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                                    device,
+                                    'mikrotik_api',
+                                    f"traffic:{name}"
+                                )
+                                sensors.append({
+                                    'identifier': f"traffic:{name}",
+                                    'name': name,
+                                    'type_label': 'Interface (Tráfego)',
+                                    'is_monitored': is_monitored
+                                })
+                    except Exception as e:
+                        logger.error("Erro ao descobrir interfaces via API: %s", str(e))
+
+                    # 2. Discover CPU Cores
+                    try:
+                        res = api.talk(["/system/resource/cpu/print"])
+                        for line in res:
+                            cpu_idx = None
+                            for word in line:
+                                if word.startswith("=cpu="):
+                                    cpu_idx = word[5:]
+                            if cpu_idx is not None:
+                                ident = f"cpu:{cpu_idx}"
+                                is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                                    device,
+                                    'mikrotik_api',
+                                    ident
+                                )
+                                sensors.append({
+                                    'identifier': ident,
+                                    'name': f"CPU Core {cpu_idx}",
+                                    'type_label': 'CPU (Uso)',
+                                    'is_monitored': is_monitored
+                                })
+                    except Exception as e:
+                        logger.error("Erro ao descobrir CPUs via API: %s", str(e))
+
+                    # 3. Discover Health Sensors
+                    try:
+                        res = api.talk(["/system/health/print"])
+                        metrics = set()
+                        for line in res:
+                            for word in line:
+                                if word.startswith("=name="):
+                                    metrics.add(word[6:])
+                                elif word.startswith("="):
+                                    parts = word.split("=")
+                                    if len(parts) >= 2:
+                                        k = parts[1]
+                                        if k not in ('.id', 'value', 'name', 're', 'done', 'trap', 'fatal'):
+                                            metrics.add(k)
+                        
+                        friendly_names = {
+                            'voltage': 'Voltagem',
+                            'temperature': 'Temperatura da Placa',
+                            'cpu-temperature': 'Temperatura da CPU',
+                            'current': 'Corrente',
+                            'power-consumption': 'Consumo de Energia',
+                            'fan1-speed': 'Cooler 1 Speed',
+                            'fan2-speed': 'Cooler 2 Speed',
+                        }
+                        
+                        for metric in sorted(metrics):
+                            ident = f"health:{metric}"
+                            is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                                device,
+                                'mikrotik_api',
+                                ident
+                            )
+                            sensors.append({
+                                'identifier': ident,
+                                'name': friendly_names.get(metric, metric.replace("-", " ").capitalize()),
+                                'type_label': 'Saúde (Sensor)',
+                                'is_monitored': is_monitored
+                            })
+                    except Exception as e:
+                        logger.error("Erro ao descobrir sensores de saúde via API: %s", str(e))
+
+                    # 4. Discover BGP Peers
+                    try:
+                        res = api.talk(["/routing/bgp/peer/print"])
+                        found_bgp = False
+                        for line in res:
+                            peer_name = ""
+                            peer_ip = ""
+                            for word in line:
+                                if word.startswith("=name="):
+                                    peer_name = word[6:]
+                                elif word.startswith("=remote-address="):
+                                    peer_ip = word[16:]
+                            if peer_name:
+                                found_bgp = True
+                                ident = f"bgp:{peer_name}"
+                                is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                                    device,
+                                    'mikrotik_api',
+                                    ident
+                                )
+                                sensors.append({
+                                    'identifier': ident,
+                                    'name': f"BGP Peer: {peer_name} ({peer_ip or 'Endereço Indefinido'})",
+                                    'type_label': 'BGP (Sessão)',
+                                    'is_monitored': is_monitored
+                                })
+                        
+                        if not found_bgp:
+                            res = api.talk(["/routing/bgp/session/print"])
+                            for line in res:
+                                peer_name = ""
+                                peer_ip = ""
+                                for word in line:
+                                    if word.startswith("=name="):
+                                        peer_name = word[6:]
+                                    elif word.startswith("=remote-address="):
+                                        peer_ip = word[16:]
+                                if peer_name:
+                                    ident = f"bgp:{peer_name}"
+                                    is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                                        device,
+                                        'mikrotik_api',
+                                        ident
+                                    )
+                                    sensors.append({
+                                        'identifier': ident,
+                                        'name': f"BGP Session: {peer_name} ({peer_ip or 'Endereço Indefinido'})",
+                                        'type_label': 'BGP (Sessão)',
+                                        'is_monitored': is_monitored
+                                    })
+                    except Exception as e:
+                        logger.error("Erro ao descobrir BGP via API: %s", str(e))
+
+                except Exception as e:
+                    error = f"Erro ao ler sensores via API: {str(e)}"
+                finally:
+                    api.close()
+            else:
+                error = "Não foi possível conectar na API MikroTik. Verifique as credenciais, porta e IP."
+
+        elif device.device_type == 'mikrotik_snmp':
+            # 1. Discover Interfaces (Traffic)
             walk_results = PortCheckerService.snmp_walk(
                 device.host, 
                 device.snmp_community, 
                 device.snmp_port, 
                 "1.3.6.1.2.1.2.2.1.2"
             )
-            if not walk_results:
+            if walk_results is None:
                 error = "Não foi possível obter dados via SNMP. Verifique o IP, Comunidade SNMP e a conectividade."
             else:
                 for oid_str, val in walk_results:
                     idx = oid_str.split('.')[-1]
                     name = val
                     if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon', 'bridge', 'vlan', 'wlan', 'combo', 'ath', 'eth', 'br', 'lan', 'wan']):
-                        is_monitored = device.sensors.filter(
-                            sensor_type='snmp_traffic', 
-                            sensor_identifier=idx
-                        ).exists()
-                        interfaces.append({
-                            'identifier': idx,
+                        is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                            device,
+                            'snmp_traffic',
+                            idx
+                        )
+                        sensors.append({
+                            'identifier': f"snmp_traffic:{idx}",
                             'name': name,
+                            'type_label': 'Interface (Tráfego)',
                             'is_monitored': is_monitored
                         })
-        elif device.device_type == 'mikrotik':
-            from .services import MikrotikAPI
-            api = MikrotikAPI(device.host, device.api_username, device.api_password, device.api_port)
-            if api.connect():
-                try:
-                    res = api.talk(["/interface/print"])
-                    for line in res:
-                        name = ""
-                        for word in line:
-                            if word.startswith("=name="):
-                                name = word[6:]
-                        if name:
-                            is_monitored = device.sensors.filter(
-                                sensor_type='mikrotik_api',
-                                sensor_identifier=f"traffic:{name}"
-                            ).exists()
-                            interfaces.append({
-                                'identifier': f"traffic:{name}",
-                                'name': name,
-                                'is_monitored': is_monitored
-                            })
-                except Exception as e:
-                    error = f"Erro ao ler interfaces via API: {str(e)}"
-                finally:
-                    api.close()
+                
+                # 2. Discover CPU Cores
+                cpu_results = PortCheckerService.snmp_walk(
+                    device.host,
+                    device.snmp_community,
+                    device.snmp_port,
+                    "1.3.6.1.2.1.25.3.3.1.2"
+                )
+                if cpu_results:
+                    for oid_str, val in cpu_results:
+                        idx = oid_str.split('.')[-1]
+                        ident = f"snmp_numeric:1.3.6.1.2.1.25.3.3.1.2.{idx}"
+                        is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                            device,
+                            'snmp_numeric',
+                            f"1.3.6.1.2.1.25.3.3.1.2.{idx}"
+                        )
+                        sensors.append({
+                            'identifier': ident,
+                            'name': f"CPU Core {idx}",
+                            'type_label': 'CPU (Uso)',
+                            'is_monitored': is_monitored
+                        })
+
+                # 3. Discover Health Sensors via SNMP Walk
+                health_results = PortCheckerService.snmp_walk(
+                    device.host,
+                    device.snmp_community,
+                    device.snmp_port,
+                    "1.3.6.1.4.1.14988.1.1.3"
+                )
+                if health_results:
+                    health_map = {
+                        '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+                        '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+                        '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+                        '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+                        '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+                        '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+                        '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+                        '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+                        '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+                    }
+                    for oid_str, val in health_results:
+                        val_str = str(val).strip()
+                        if val_str and val_str.lower() not in ('n/a', 'null', 'none', '', 'nosuchinstance', 'nosuchobject'):
+                            if oid_str in health_map:
+                                label = health_map[oid_str]
+                                ident = f"snmp_numeric:{oid_str}"
+                                is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                                    device,
+                                    'snmp_numeric',
+                                    oid_str
+                                )
+                                sensors.append({
+                                    'identifier': ident,
+                                    'name': label,
+                                    'type_label': 'Saúde (Sensor)',
+                                    'is_monitored': is_monitored
+                                })
+
+                # 4. Discover BGP Peers
+                bgp_results = PortCheckerService.snmp_walk(
+                    device.host,
+                    device.snmp_community,
+                    device.snmp_port,
+                    "1.3.6.1.2.1.15.3.1.2"
+                )
+                if bgp_results:
+                    for oid_str, val in bgp_results:
+                        peer_ip = ".".join(oid_str.split('.')[-4:])
+                        ident = f"snmp_numeric:1.3.6.1.2.1.15.3.1.2.{peer_ip}"
+                        is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                            device,
+                            'snmp_numeric',
+                            f"1.3.6.1.2.1.15.3.1.2.{peer_ip}"
+                        )
+                        sensors.append({
+                            'identifier': ident,
+                            'name': f"BGP Peer: {peer_ip}",
+                            'type_label': 'BGP (Sessão)',
+                            'is_monitored': is_monitored
+                        })
+        
+        elif device.device_type in ('parks_olt', 'generic_snmp'):
+            walk_results = PortCheckerService.snmp_walk(
+                device.host, 
+                device.snmp_community, 
+                device.snmp_port, 
+                "1.3.6.1.2.1.2.2.1.2"
+            )
+            if walk_results is None:
+                error = "Não foi possível obter dados via SNMP. Verifique o IP, Comunidade SNMP e a conectividade."
             else:
-                error = "Não foi possível conectar na API MikroTik. Verifique as credenciais, porta e IP."
+                for oid_str, val in walk_results:
+                    idx = oid_str.split('.')[-1]
+                    name = val
+                    if any(x in name.lower() for x in ['gpon', 'ether', 'sfp', 'port', 'pon', 'bridge', 'vlan', 'wlan', 'combo', 'ath', 'eth', 'br', 'lan', 'wan']):
+                        is_monitored = DeviceDiscoveryService._is_sensor_monitored(
+                            device,
+                            'snmp_traffic',
+                            idx
+                        )
+                        sensors.append({
+                            'identifier': f"snmp_traffic:{idx}",
+                            'name': name,
+                            'type_label': 'Interface (Tráfego)',
+                            'is_monitored': is_monitored
+                        })
         else:
             error = "Auto-descoberta não suportada para este tipo de equipamento."
-
-        return interfaces, error
+        return sensors, error
 
     @staticmethod
     def provision_sensors(device: Device, selected_identifiers: List[str]) -> int:
         created_count = 0
 
         for identifier in selected_identifiers:
-            if device.device_type in ('parks_olt', 'mikrotik_snmp', 'generic_snmp'):
-                # Get interface name
+            # 1. SNMP Traffic
+            if identifier.startswith("snmp_traffic:"):
+                idx = identifier.split(":", 1)[1]
                 status, name = PortCheckerService._snmp_get(
                     device.host, 
                     device.snmp_community, 
                     device.snmp_port, 
-                    f"1.3.6.1.2.1.2.2.1.2.{identifier}"
+                    f"1.3.6.1.2.1.2.2.1.2.{idx}"
                 )
-                name = name or f"Interface {identifier}"
+                name = name or f"Interface {idx}"
                 
                 sensor, created = MonitorTarget.objects.get_or_create(
                     device=device,
                     sensor_type='snmp_traffic',
-                    sensor_identifier=identifier,
+                    sensor_identifier=idx,
                     host=device.host,
                     group=device.group,
                     defaults={
                         'label': f"{device.name} - {name}",
-                        'check_interval': 1,
-                        'telegram_alert_threshold': 1
+                        'check_interval': device.check_interval,
+                        'telegram_alert_threshold': device.telegram_alert_threshold
                     }
                 )
                 if created:
@@ -1052,33 +1454,115 @@ class DeviceDiscoveryService:
                         check_single_target.delay(sensor.id)
                     except Exception:
                         pass
-                    
+
+            # 2. SNMP Numeric (CPU, Health, BGP)
+            elif identifier.startswith("snmp_numeric:"):
+                oid = identifier.split(":", 1)[1]
+                
+                # Determine friendly label and custom interval defaults based on OID
+                label = f"Métrica {oid}"
+                interval = device.check_interval
+                
+                health_labels = {
+                    '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+                    '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+                    '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+                    '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+                    '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+                    '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+                    '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+                    '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
+                    '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
+                    '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+                    '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+                }
+                
+                if oid in health_labels:
+                    label = health_labels[oid]
+                    interval = max(5, device.check_interval)
+                elif oid.startswith('1.3.6.1.2.1.25.3.3.1.2.'):
+                    idx = oid.split('.')[-1]
+                    label = f"CPU Core {idx}"
+                elif oid.startswith('1.3.6.1.2.1.15.3.1.2.'):
+                    peer_ip = ".".join(oid.split('.')[-4:])
+                    label = f"BGP Peer {peer_ip}"
+                
+                sensor, created = MonitorTarget.objects.get_or_create(
+                    device=device,
+                    sensor_type='snmp_numeric',
+                    sensor_identifier=oid,
+                    host=device.host,
+                    group=device.group,
+                    defaults={
+                        'label': f"{device.name} - {label}",
+                        'check_interval': interval,
+                        'telegram_alert_threshold': device.telegram_alert_threshold
+                    }
+                )
+                if created:
+                    created_count += 1
+                    try:
+                        PortCheckerService.check_target(sensor.id)
+                    except Exception as e:
+                        logger.error("Erro na checagem inicial síncrona do sensor SNMP %d: %s", sensor.id, str(e))
+                    try:
+                        from .tasks import check_single_target
+                        check_single_target.delay(sensor.id)
+                    except Exception:
+                        pass
+
+            # 3. MikroTik API (Traffic, CPU, Health, BGP)
             elif device.device_type == 'mikrotik':
+                # Map metric identifiers to labels
+                label = identifier
+                interval = device.check_interval
+                
                 if identifier.startswith("traffic:"):
                     name = identifier.split(":", 1)[1]
-                    sensor, created = MonitorTarget.objects.get_or_create(
-                        device=device,
-                        sensor_type='mikrotik_api',
-                        sensor_identifier=identifier,
-                        host=device.host,
-                        group=device.group,
-                        defaults={
-                            'label': f"{device.name} - {name} Tráfego",
-                            'check_interval': 1,
-                            'telegram_alert_threshold': 1
-                        }
-                    )
-                    if created:
-                        created_count += 1
-                        try:
-                            PortCheckerService.check_target(sensor.id)
-                        except Exception as e:
-                            logger.error("Erro na checagem inicial síncrona da interface %d: %s", sensor.id, str(e))
-                        try:
-                            from .tasks import check_single_target
-                            check_single_target.delay(sensor.id)
-                        except Exception:
-                            pass
+                    label = f"{name} Tráfego"
+                elif identifier.startswith("cpu:"):
+                    cpu_idx = identifier.split(":", 1)[1]
+                    label = f"CPU Core {cpu_idx}"
+                elif identifier.startswith("health:"):
+                    metric = identifier.split(":", 1)[1]
+                    friendly_names = {
+                        'voltage': 'Voltagem',
+                        'temperature': 'Temperatura da Placa',
+                        'cpu-temperature': 'Temperatura da CPU',
+                        'current': 'Corrente',
+                        'power-consumption': 'Consumo de Energia',
+                        'fan1-speed': 'Cooler 1 Speed',
+                        'fan2-speed': 'Cooler 2 Speed',
+                    }
+                    label = friendly_names.get(metric, metric.replace("-", " ").capitalize())
+                    interval = max(5, device.check_interval)
+                elif identifier.startswith("bgp:"):
+                    peer_name = identifier.split(":", 1)[1]
+                    label = f"BGP Peer {peer_name}"
+                
+                sensor, created = MonitorTarget.objects.get_or_create(
+                    device=device,
+                    sensor_type='mikrotik_api',
+                    sensor_identifier=identifier,
+                    host=device.host,
+                    group=device.group,
+                    defaults={
+                        'label': f"{device.name} - {label}",
+                        'check_interval': interval,
+                        'telegram_alert_threshold': device.telegram_alert_threshold
+                    }
+                )
+                if created:
+                    created_count += 1
+                    try:
+                        PortCheckerService.check_target(sensor.id)
+                    except Exception as e:
+                        logger.error("Erro na checagem inicial síncrona do sensor API %d: %s", sensor.id, str(e))
+                    try:
+                        from .tasks import check_single_target
+                        check_single_target.delay(sensor.id)
+                    except Exception:
+                        pass
 
         return created_count
 

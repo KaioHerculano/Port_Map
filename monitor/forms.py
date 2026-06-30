@@ -6,6 +6,7 @@ class DeviceForm(forms.ModelForm):
         model = Device
         fields = [
             'name', 'host', 'device_type', 'group', 'is_active', 
+            'check_interval', 'telegram_alert_threshold',
             'snmp_community', 'snmp_port', 
             'api_username', 'api_password', 'api_port'
         ]
@@ -31,6 +32,14 @@ class DeviceForm(forms.ModelForm):
             'is_active': forms.CheckboxInput(attrs={
                 'style': 'width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer;'
             }),
+            'check_interval': forms.Select(attrs={
+                'class': 'form-input',
+                'style': 'width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;'
+            }),
+            'telegram_alert_threshold': forms.Select(attrs={
+                'class': 'form-input',
+                'style': 'width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;'
+            }),
             'snmp_community': forms.TextInput(attrs={
                 'class': 'form-input', 
                 'placeholder': 'public',
@@ -55,3 +64,21 @@ class DeviceForm(forms.ModelForm):
                 'style': 'width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;'
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['api_username'].required = False
+        self.fields['api_password'].required = False
+        self.fields['api_port'].required = False
+        self.fields['snmp_community'].required = False
+        self.fields['snmp_port'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get('snmp_community'):
+            cleaned_data['snmp_community'] = 'public'
+        if not cleaned_data.get('snmp_port'):
+            cleaned_data['snmp_port'] = 161
+        if not cleaned_data.get('api_port'):
+            cleaned_data['api_port'] = 8728
+        return cleaned_data

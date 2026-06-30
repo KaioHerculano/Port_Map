@@ -3,6 +3,26 @@ from django.utils import timezone
 from datetime import timedelta
 from django.conf import settings
 
+CHECK_INTERVAL_CHOICES = [
+    (1, 'A cada 1 minuto'),
+    (5, 'A cada 5 minutos'),
+    (15, 'A cada 15 minutos'),
+    (30, 'A cada 30 minutos'),
+    (48, 'A cada 48 minutos (30 vezes por dia)'),
+    (60, 'A cada 1 hora'),
+    (120, 'A cada 2 horas'),
+    (360, 'A cada 6 horas'),
+    (720, 'A cada 12 horas'),
+    (1440, 'A cada 24 horas (1 vez por dia)'),
+]
+
+TELEGRAM_ALERT_CHOICES = [
+    (1, 'Imediatamente (1ª falha)'),
+    (2, 'Após 2 falhas consecutivas'),
+    (3, 'Após 3 falhas consecutivas'),
+    (0, 'Desativar Alertas (Não notificar)'),
+]
+
 class Group(models.Model):
     name = models.CharField(
         max_length=255, 
@@ -21,7 +41,6 @@ class Group(models.Model):
 
 class Device(models.Model):
     DEVICE_TYPES = [
-        ('mikrotik', 'MikroTik RouterOS (API)'),
         ('mikrotik_snmp', 'MikroTik (SNMP)'),
         ('parks_olt', 'OLT Parks GPON'),
         ('generic_snmp', 'Genérico (SNMP)'),
@@ -39,7 +58,7 @@ class Device(models.Model):
     device_type = models.CharField(
         max_length=50,
         choices=DEVICE_TYPES,
-        default='generic_ping',
+        default='mikrotik_snmp',
         help_text="Tipo de equipamento para comunicação e coleta de dados"
     )
     group = models.ForeignKey(
@@ -82,6 +101,16 @@ class Device(models.Model):
     api_port = models.IntegerField(
         default=8728,
         help_text="Porta da API MikroTik (padrão: 8728)"
+    )
+    check_interval = models.IntegerField(
+        default=60,
+        choices=CHECK_INTERVAL_CHOICES,
+        help_text="Frequência de verificação padrão para os sensores deste equipamento (em minutos)"
+    )
+    telegram_alert_threshold = models.IntegerField(
+        default=1,
+        choices=TELEGRAM_ALERT_CHOICES,
+        help_text="Regra de alerta de Telegram padrão para os sensores deste equipamento"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -166,18 +195,7 @@ class MonitorTarget(models.Model):
     )
     check_interval = models.IntegerField(
         default=60,
-        choices=[
-            (1, 'A cada 1 minuto'),
-            (5, 'A cada 5 minutos'),
-            (15, 'A cada 15 minutos'),
-            (30, 'A cada 30 minutos'),
-            (48, 'A cada 48 minutos (30 vezes por dia)'),
-            (60, 'A cada 1 hora'),
-            (120, 'A cada 2 horas'),
-            (360, 'A cada 6 horas'),
-            (720, 'A cada 12 horas'),
-            (1440, 'A cada 24 horas (1 vez por dia)'),
-        ],
+        choices=CHECK_INTERVAL_CHOICES,
         help_text="Frequência de verificação deste sensor (em minutos)"
     )
     last_checked = models.DateTimeField(
@@ -195,12 +213,7 @@ class MonitorTarget(models.Model):
         help_text="Último tempo de resposta em milissegundos"
     )
     telegram_alert_threshold = models.IntegerField(
-        choices=[
-            (1, 'Imediatamente (1ª falha)'),
-            (2, 'Após 2 falhas consecutivas'),
-            (3, 'Após 3 falhas consecutivas'),
-            (0, 'Não notificar'),
-        ],
+        choices=TELEGRAM_ALERT_CHOICES,
         default=1,
         help_text="Regra para disparo de alertas de falha no Telegram"
     )
@@ -212,7 +225,7 @@ class MonitorTarget(models.Model):
     )
 
     class Meta:
-        ordering = ['host', 'port']
+        ordering = ['id']
 
     def __str__(self):
         label_str = f" ({self.label})" if self.label else ""

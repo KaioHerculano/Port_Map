@@ -14,6 +14,19 @@
   <form method="post">
     {% csrf_token %}
     
+    {% if form.errors %}
+      <div class="glass-panel" style="padding: 1rem; margin-bottom: 1.25rem; border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.1); border-radius: 8px; color: #fca5a5; font-size: 0.9rem;">
+        <h4 style="margin: 0 0 0.5rem 0; font-weight: 600; color: #ef4444;">⚠️ Por favor, corrija os erros abaixo:</h4>
+        <ul style="margin: 0; padding-left: 1.25rem;">
+          {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+              <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
+            {% endfor %}
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+    
     <div class="form-group" style="margin-bottom: 1.25rem;">
       <label for="{{ form.name.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Nome do Equipamento</label>
       {{ form.name }}
@@ -38,6 +51,18 @@
       <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione um grupo para organizar seus sensores.</span>
     </div>
 
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+      <label for="{{ form.check_interval.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Frequência de Verificação</label>
+      {{ form.check_interval }}
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Frequência de verificação padrão para todos os sensores criados sob este equipamento.</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+      <label for="{{ form.telegram_alert_threshold.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Regra de Alerta do Telegram</label>
+      {{ form.telegram_alert_threshold }}
+      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Define a quantidade padrão de falhas consecutivas antes de notificar no Telegram.</span>
+    </div>
+
     <!-- SNMP Configuration Section -->
     <div id="snmp-section" class="glass-panel" style="padding: 1.25rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1.25rem; background: rgba(0,0,0,0.15); display: none;">
       <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 1rem; font-weight: 600;">Configurações do SNMP</h3>
@@ -53,31 +78,32 @@
       </div>
     </div>
 
-    <!-- MikroTik API Configuration Section -->
-    <div id="mikrotik-section" class="glass-panel" style="padding: 1.25rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1.25rem; background: rgba(0,0,0,0.15); display: none;">
-      <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 1rem; font-weight: 600;">Credenciais da API RouterOS</h3>
-      
-      <div class="form-group" style="margin-bottom: 1rem;">
-        <label for="{{ form.api_username.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Usuário API</label>
-        {{ form.api_username }}
-      </div>
-      
-      <div class="form-group" style="margin-bottom: 1rem;">
-        <label for="{{ form.api_password.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Senha API</label>
-        {{ form.api_password }}
-      </div>
-
-      <div class="form-group" style="margin-bottom: 0;">
-        <label for="{{ form.api_port.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Porta API (TCP)</label>
-        {{ form.api_port }}
-      </div>
-    </div>
+    <!-- Discovery Run Hidden Indicator -->
+    <input type="hidden" name="discovery_run" id="discovery_run" value="false">
 
     <!-- Sensor Selection -->
     <div id="sensor-section" style="margin-bottom: 1.5rem; display: none;">
       <div style="border: 1px solid rgba(99,102,241,0.3); border-radius: 10px; padding: 1.25rem; background: rgba(99,102,241,0.05);">
-        <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 0.25rem; font-weight: 600;">🔌 Sensores a Criar</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 1rem 0;">Marque os sensores que deseja ativar. Você pode alterar depois.</p>
+        <style>
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        </style>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h3 style="color: white; font-size: 1rem; margin: 0 0 0.25rem 0; font-weight: 600;">🔌 Sensores a Criar</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Marque os sensores que deseja ativar. Você pode alterar depois.</p>
+          </div>
+          <button type="button" id="btn-auto-discover" class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.25rem; cursor: pointer; height: 32px; background: #6e44ff; border-color: #6e44ff; border-radius: 8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+            </svg>
+            Auto-descobrir
+          </button>
+        </div>
+        
         <div id="sensor-options" style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
           <!-- Populated by JS -->
         </div>
@@ -102,21 +128,16 @@
   document.addEventListener("DOMContentLoaded", function() {
     const deviceTypeSelect = document.getElementById("{{ form.device_type.id_for_label }}");
     const snmpSection = document.getElementById("snmp-section");
-    const mikrotikSection = document.getElementById("mikrotik-section");
     const sensorSection = document.getElementById("sensor-section");
     const sensorOptions = document.getElementById("sensor-options");
+    const btnAutoDiscover = document.getElementById("btn-auto-discover");
+    const discoveryRunInput = document.getElementById("discovery_run");
 
-    // Sensor definitions per device type
+    // Default sensor definitions per device type (legacy/fallback)
     const SENSORS = {
       generic_ping:  [{ key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',       desc: 'Latência ICMP' }],
       parks_olt:     [{ key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',       desc: 'Latência ICMP' }],
       generic_snmp:  [{ key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',       desc: 'Latência ICMP' }],
-      mikrotik: [
-        { key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',        desc: 'Latência ICMP' },
-        { key: 'cpu',    icon: 'bi-cpu',              label: 'Uso de CPU',  desc: 'Via API RouterOS' },
-        { key: 'temp',   icon: 'bi-thermometer-half', label: 'Temperatura', desc: 'CPU/Board (°C)' },
-        { key: 'uptime', icon: 'bi-clock-history',   label: 'Uptime',      desc: 'Tempo de atividade' },
-      ],
       mikrotik_snmp: [
         { key: 'ping',   icon: 'bi-broadcast',       label: 'Ping',        desc: 'Latência ICMP' },
         { key: 'cpu',    icon: 'bi-cpu',              label: 'Uso de CPU',  desc: 'OID hrProcessorLoad' },
@@ -126,6 +147,8 @@
     };
 
     function buildSensorCheckboxes(type) {
+      if (discoveryRunInput.value === "true") return;
+
       sensorOptions.innerHTML = '';
       const list = SENSORS[type] || [];
       if (list.length === 0) { sensorSection.style.display = 'none'; return; }
@@ -155,12 +178,136 @@
 
     function toggleSections() {
       const type = deviceTypeSelect.value;
-      snmpSection.style.display    = (type === 'parks_olt' || type === 'generic_snmp' || type === 'mikrotik_snmp') ? 'block' : 'none';
-      mikrotikSection.style.display = (type === 'mikrotik') ? 'block' : 'none';
+      snmpSection.style.display = (type === 'parks_olt' || type === 'generic_snmp' || type === 'mikrotik_snmp') ? 'block' : 'none';
+      btnAutoDiscover.style.display = (type === 'mikrotik_snmp') ? 'flex' : 'none';
       buildSensorCheckboxes(type);
     }
 
-    deviceTypeSelect.addEventListener("change", toggleSections);
+    deviceTypeSelect.addEventListener("change", function() {
+      discoveryRunInput.value = "false";
+      toggleSections();
+    });
+    
+    // AJAX Auto-discovery
+    btnAutoDiscover.addEventListener("click", function() {
+      const hostInput = document.getElementById("id_host");
+      if (!hostInput || !hostInput.value.trim()) {
+        alert("Por favor, preencha o campo de IP ou Hostname antes de fazer a auto-descoberta.");
+        if (hostInput) hostInput.focus();
+        return;
+      }
+
+      const originalText = btnAutoDiscover.innerHTML;
+      btnAutoDiscover.disabled = true;
+      btnAutoDiscover.innerHTML = `
+        <div class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.1); border-radius:50%; border-top-color:white; animation:spin 1s linear infinite; margin-right:0.25rem; vertical-align:middle;"></div>
+        Descobrindo...
+      `;
+
+      sensorOptions.innerHTML = `
+        <div style="color: #6366f1; font-size: 0.85rem; padding: 1.5rem; width: 100%; text-align: center;">
+          <div class="spinner" style="display:inline-block; width:20px; height:20px; border:2.5px solid rgba(255,255,255,0.05); border-radius:50%; border-top-color:#6366f1; animation:spin 1s linear infinite; margin-right:0.5rem; vertical-align:middle;"></div>
+          Consultando equipamento em tempo real. Isso pode levar alguns segundos...
+        </div>
+      `;
+
+      const formData = new FormData(document.querySelector("form"));
+
+      fetch("{% url 'api_discover_preview' %}", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+        },
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        btnAutoDiscover.disabled = false;
+        btnAutoDiscover.innerHTML = originalText;
+
+        if (data.success && data.sensors && data.sensors.length > 0) {
+          discoveryRunInput.value = "true";
+          sensorOptions.innerHTML = "";
+
+          const groups = {};
+          data.sensors.forEach(s => {
+            const grp = s.type_label || "Outros";
+            if (!groups[grp]) groups[grp] = [];
+            groups[grp].push(s);
+          });
+
+          const container = document.createElement("div");
+          container.style.cssText = "display:flex; flex-direction:column; gap:1rem; width:100%;";
+
+          for (const [grpName, list] of Object.entries(groups)) {
+            const groupWrapper = document.createElement("div");
+            groupWrapper.style.cssText = "border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem;";
+
+            const grpTitle = document.createElement("h4");
+            grpTitle.style.cssText = "color: white; font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem 0; color: #a5b4fc;";
+            grpTitle.innerText = grpName;
+            groupWrapper.appendChild(grpTitle);
+
+            const itemsGrid = document.createElement("div");
+            itemsGrid.style.cssText = "display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem;";
+
+            list.forEach(s => {
+              const cbId = "sensor_dyn_" + s.identifier;
+              const labelEl = document.createElement("label");
+              labelEl.htmlFor = cbId;
+              labelEl.style.cssText = "display:flex;align-items:center;gap:0.5rem;cursor:pointer;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:0.4rem 0.6rem;user-select:none;transition:background 0.2s;";
+
+              const prefix = s.identifier.includes(":") ? s.identifier.split(":")[0] : "snmp";
+              let icon = "bi-activity";
+              if (prefix === "traffic" || prefix === "snmp_traffic") icon = "bi-arrow-down-up";
+              else if (prefix === "cpu") icon = "bi-cpu";
+              else if (prefix === "health" || prefix === "snmp_numeric") icon = "bi-heart-pulse";
+              else if (prefix === "bgp") icon = "bi-shuffle";
+
+              labelEl.innerHTML = `
+                <input type="checkbox" name="sensors" id="${cbId}" value="${s.identifier}" checked style="accent-color:#6366f1;width:14px;height:14px;cursor:pointer;">
+                <i class="bi ${icon}" style="font-size:0.9rem;color:#c084fc;flex-shrink:0;"></i>
+                <span style="font-size:0.8rem;color:white;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${s.name}">${s.name}</span>
+              `;
+
+              labelEl.addEventListener("mouseenter", () => { labelEl.style.background = "rgba(99,102,241,0.12)"; });
+              labelEl.addEventListener("mouseleave", () => {
+                const cb = labelEl.querySelector("input");
+                labelEl.style.background = cb.checked ? "rgba(99,102,241,0.08)" : "rgba(255,255,255,0.03)";
+              });
+
+              itemsGrid.appendChild(labelEl);
+            });
+
+            groupWrapper.appendChild(itemsGrid);
+            container.appendChild(groupWrapper);
+          }
+          sensorOptions.appendChild(container);
+        } else {
+          discoveryRunInput.value = "false";
+          const err = data.error || "Nenhum sensor de tráfego, CPU, BGP ou Saúde compatível foi localizado no IP informado.";
+          sensorOptions.innerHTML = `
+            <div style="color: #ef4444; font-size: 0.85rem; padding: 1rem; width: 100%; text-align: center; border: 1px dashed rgba(239,68,68,0.3); border-radius: 8px;">
+              ⚠️ Falha ao buscar sensores: ${err}<br>
+              <span style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display:block;">Verifique o IP e a comunidade SNMP e tente novamente. Mantendo sensores básicos padrão.</span>
+            </div>
+          `;
+          setTimeout(() => buildSensorCheckboxes(deviceTypeSelect.value), 4000);
+        }
+      })
+      .catch(err => {
+        btnAutoDiscover.disabled = false;
+        btnAutoDiscover.innerHTML = originalText;
+        discoveryRunInput.value = "false";
+        sensorOptions.innerHTML = `
+          <div style="color: #ef4444; font-size: 0.85rem; padding: 1rem; width: 100%; text-align: center;">
+            Erro de rede ou timeout ao conectar ao equipamento. Mantendo sensores básicos padrão.
+          </div>
+        `;
+        setTimeout(() => buildSensorCheckboxes(deviceTypeSelect.value), 3000);
+      });
+    });
+
     toggleSections();
   });
 </script>

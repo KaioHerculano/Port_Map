@@ -576,7 +576,7 @@
       <!-- Device Sensors Grid (PRTG-style layout) -->
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 0.25rem;">
         {% for sensor in device.sensors.all %}
-        <div class="glass-panel" style="padding: 0.75rem; border: 1px solid {% if not sensor.is_active %}rgba(100,116,139,0.2){% elif sensor.last_status == True %}rgba(16,185,129,0.2){% elif sensor.last_status == False %}rgba(239,68,68,0.2){% else %}rgba(255,255,255,0.05){% endif %}; border-radius: 8px; display: flex; flex-direction: column; gap: 0.35rem; position: relative; background: {% if not sensor.is_active %}rgba(100,116,139,0.03){% elif sensor.last_status == True %}rgba(16,185,129,0.03){% elif sensor.last_status == False %}rgba(239,68,68,0.03){% else %}rgba(0,0,0,0.1){% endif %};">
+        <div id="sensor-card-{{ sensor.id }}" class="glass-panel" style="padding: 0.75rem; border: 1px solid {% if not sensor.is_active %}rgba(100,116,139,0.2){% elif sensor.last_status == True %}rgba(16,185,129,0.2){% elif sensor.last_status == False %}rgba(239,68,68,0.2){% else %}rgba(255,255,255,0.05){% endif %}; border-radius: 8px; display: flex; flex-direction: column; gap: 0.35rem; position: relative; background: {% if not sensor.is_active %}rgba(100,116,139,0.03){% elif sensor.last_status == True %}rgba(16,185,129,0.03){% elif sensor.last_status == False %}rgba(239,68,68,0.03){% else %}rgba(0,0,0,0.1){% endif %};">
           
           <!-- Sensor Title & Detail Link -->
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.25rem;">
@@ -595,16 +595,15 @@
           <!-- Sensor Value & Latency -->
           <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end;">
             <div style="display: flex; flex-direction: column;">
-              <span style="font-size: 0.95rem; font-weight: 700; color: {% if not sensor.is_active %}#94a3b8{% elif sensor.last_status == True %}#34d399{% elif sensor.last_status == False %}#f87171{% else %}#94a3b8{% endif %};">
+              <span id="sensor-val-{{ sensor.id }}" style="font-size: 0.95rem; font-weight: 700; color: {% if not sensor.is_active %}#94a3b8{% elif sensor.last_status == True %}#34d399{% elif sensor.last_status == False %}#f87171{% else %}#94a3b8{% endif %};">
                 {{ sensor.sensor_value|default:"Sem dados" }}
               </span>
-              {% if sensor.last_status == True and sensor.sensor_type != 'ping' and sensor.last_latency %}
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Ping: {{ sensor.last_latency }}ms</span>
-              {% endif %}
+              <span id="sensor-latency-{{ sensor.id }}" style="display: none;">
+              </span>
             </div>
             
             <!-- Small status dot indicator -->
-            <span style="width: 8px; height: 8px; border-radius: 50%; background: {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %}; box-shadow: 0 0 6px {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %};"></span>
+            <span id="sensor-dot-{{ sensor.id }}" style="width: 8px; height: 8px; border-radius: 50%; background: {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %}; box-shadow: 0 0 6px {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %};"></span>
           </div>
         </div>
         {% empty %}
@@ -847,6 +846,101 @@
     });
   }
 
+  // Fetch real-time status from endpoint and update DOM
+  function refreshStatusData(onComplete = null) {
+    fetch('/api/status-update/')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.targets) {
+          data.targets.forEach(t => {
+            // 1. Update standalone targets list if exists
+            const statusCell = document.getElementById('status-cell-' + t.id);
+            if (statusCell) {
+              let badgeHTML = '';
+              if (!t.is_active) {
+                badgeHTML = '<span class="status-badge inactive"><span class="dot"></span>Inativo</span>';
+              } else if (t.last_status === true) {
+                badgeHTML = '<span class="status-badge online"><span class="dot"></span>Aberta</span>';
+              } else if (t.last_status === false) {
+                badgeHTML = '<span class="status-badge offline"><span class="dot"></span>Fechada</span>';
+              } else {
+                badgeHTML = '<span class="status-badge inactive"><span class="dot"></span>Sem dados</span>';
+              }
+              if (statusCell.innerHTML !== badgeHTML) {
+                statusCell.innerHTML = badgeHTML;
+              }
+            }
+
+            const latencyCell = document.getElementById('latency-cell-' + t.id);
+            if (latencyCell) {
+              let latencyHTML = '';
+              if (!t.is_active || t.last_latency === null) {
+                latencyHTML = '<span class="td-latency none">-</span>';
+              } else {
+                const speedClass = t.last_latency < 150 ? 'fast' : 'slow';
+                latencyHTML = `<span class="td-latency ${speedClass}">${t.last_latency} ms</span>`;
+              }
+              if (latencyCell.innerHTML !== latencyHTML) {
+                latencyCell.innerHTML = latencyHTML;
+              }
+            }
+
+            // 2. Update device sensors cards if exists
+            const sensorCard = document.getElementById('sensor-card-' + t.id);
+            const sensorVal = document.getElementById('sensor-val-' + t.id);
+            const sensorLatency = document.getElementById('sensor-latency-' + t.id);
+            const sensorDot = document.getElementById('sensor-dot-' + t.id);
+
+            if (sensorCard && sensorVal && sensorDot) {
+              const displayVal = t.sensor_value || 'Sem dados';
+              if (sensorVal.innerText !== displayVal) {
+                sensorVal.innerText = displayVal;
+              }
+
+              // Update sensor colors
+              let cardBorder = 'rgba(255,255,255,0.05)';
+              let cardBg = 'rgba(0,0,0,0.1)';
+              let valColor = '#94a3b8';
+              let dotBg = '#64748b';
+
+              if (!t.is_active) {
+                cardBorder = 'rgba(100,116,139,0.2)';
+                cardBg = 'rgba(100,116,139,0.03)';
+              } else if (t.last_status === true) {
+                cardBorder = 'rgba(16,185,129,0.2)';
+                cardBg = 'rgba(16,185,129,0.03)';
+                valColor = '#34d399';
+                dotBg = '#10b981';
+              } else if (t.last_status === false) {
+                cardBorder = 'rgba(239,68,68,0.2)';
+                cardBg = 'rgba(239,68,68,0.03)';
+                valColor = '#f87171';
+                dotBg = '#ef4444';
+              }
+
+              sensorCard.style.borderColor = cardBorder;
+              sensorCard.style.background = cardBg;
+              sensorVal.style.color = valColor;
+              sensorDot.style.background = dotBg;
+              sensorDot.style.boxShadow = `0 0 6.0px ${dotBg}`;
+
+              if (sensorLatency) {
+                sensorLatency.style.display = 'none';
+              }
+            }
+          });
+
+          // Recalculate stats counts in DOM
+          updateStats();
+
+          if (onComplete) {
+            onComplete(data.targets);
+          }
+        }
+      })
+      .catch(err => console.error("Erro ao atualizar status:", err));
+  }
+
   // Scan a single target manually
   function scanSingleTarget(id, button) {
     button.disabled = true;
@@ -867,9 +961,21 @@
     .then(response => response.json())
     .then(data => {
       if (data.status === 'success') {
-        showToast('Verificação agendada com sucesso. Recarregando dados...', 'info');
-        // Reload page after brief delay to let celery finish the job
-        setTimeout(() => window.location.reload(), 1500);
+        showToast('Verificação agendada.', 'info');
+        
+        let attempts = 0;
+        const intervalId = setInterval(() => {
+          attempts++;
+          refreshStatusData((targets) => {
+            const currentTarget = targets.find(t => t.id === id);
+            if ((currentTarget && currentTarget.sensor_value !== 'Aguardando 2ª leitura' && currentTarget.sensor_value !== 'Calculando...') || attempts >= 8) {
+              clearInterval(intervalId);
+              button.disabled = false;
+              button.innerHTML = originalContent;
+              showToast('Métrica atualizada!', 'success');
+            }
+          });
+        }, 1500);
       } else {
         button.disabled = false;
         button.innerHTML = originalContent;
@@ -882,6 +988,9 @@
       showToast('Ocorreu um erro de rede.', 'error');
     });
   }
+
+  // Set background polling every 10 seconds
+  setInterval(refreshStatusData, 10000);
 
   // Scan all targets manually
   function scanAllTargets() {
