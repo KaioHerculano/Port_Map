@@ -475,6 +475,7 @@ class GroupServiceStatsAndSettingsTests(TestCase):
 
     def test_get_groups_with_stats(self):
         from monitor.services import GroupService
+
         MonitorTarget.objects.create(
             host=fake.ipv4(),
             port=80,
@@ -502,33 +503,21 @@ class GroupServiceStatsAndSettingsTests(TestCase):
         self.assertEqual(g.devices_online, 1)
 
     def test_update_group_settings_devices(self):
-        from monitor.services import GroupManagerService
         from django.contrib.auth import get_user_model
+
+        from monitor.services import GroupManagerService
+
         User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="password"
-        )
+        user = User.objects.create_user(username=fake.user_name(), password="password")
 
         GroupManagerService.update_group_settings(
-            self.group,
-            self.group.name,
-            "",
-            "",
-            [],
-            [str(self.device.id)],
-            user
+            self.group, self.group.name, "", "", [], [str(self.device.id)], user
         )
         self.device.refresh_from_db()
         self.assertEqual(self.device.group, self.group)
 
         GroupManagerService.update_group_settings(
-            self.group,
-            self.group.name,
-            "",
-            "",
-            [],
-            [],
-            user
+            self.group, self.group.name, "", "", [], [], user
         )
         self.device.refresh_from_db()
         self.assertIsNone(self.device.group)

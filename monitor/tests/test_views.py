@@ -260,6 +260,7 @@ class MonitorViewTests(TestCase):
 
     def test_status_update_api_view_returns_devices_and_groups(self):
         from monitor.models import Device
+
         User = get_user_model()
         user = User.objects.create_user(
             username=fake.user_name(), password="testpassword", email=fake.email()

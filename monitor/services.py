@@ -1392,7 +1392,9 @@ class GroupManagerService:
         except ValueError:
             selected_device_ids = []
 
-        devices_to_remove = Device.objects.filter(group=group).exclude(id__in=selected_device_ids)
+        devices_to_remove = Device.objects.filter(group=group).exclude(
+            id__in=selected_device_ids
+        )
         for dev in devices_to_remove:
             dev.group = None
             dev.save()
@@ -1405,7 +1407,9 @@ class GroupManagerService:
                 changes=f"Equipamento removido do grupo '{group.name}'",
             )
 
-        devices_to_add = Device.objects.filter(id__in=selected_device_ids).exclude(group=group)
+        devices_to_add = Device.objects.filter(id__in=selected_device_ids).exclude(
+            group=group
+        )
         for dev in devices_to_add:
             dev.group = group
             dev.save()
@@ -2049,7 +2053,9 @@ class DashboardService:
                 if not sensors:
                     devices_offline += 1
                 else:
-                    ping_sensor = next((s for s in sensors if s.sensor_type == "ping"), None)
+                    ping_sensor = next(
+                        (s for s in sensors if s.sensor_type == "ping"), None
+                    )
                     if ping_sensor:
                         if ping_sensor.last_status is True:
                             devices_online += 1
@@ -2279,7 +2285,9 @@ class GroupService:
                     if not sensors:
                         g.devices_offline += 1
                     else:
-                        ping_sensor = next((s for s in sensors if s.sensor_type == "ping"), None)
+                        ping_sensor = next(
+                            (s for s in sensors if s.sensor_type == "ping"), None
+                        )
                         if ping_sensor:
                             if ping_sensor.last_status is True:
                                 g.devices_online += 1
