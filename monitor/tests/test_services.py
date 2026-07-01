@@ -532,3 +532,45 @@ class GroupServiceStatsAndSettingsTests(TestCase):
         )
         self.device.refresh_from_db()
         self.assertIsNone(self.device.group)
+
+
+class TargetDetailServiceTests(TestCase):
+    def setUp(self):
+        self.target = MonitorTarget.objects.create(
+            host=fake.ipv4(),
+            port=80,
+            is_active=True,
+        )
+
+    def test_get_chart_context_hourly_periods(self):
+        from monitor.services import TargetDetailService
+
+        for _ in range(5):
+            MonitorLog.objects.create(
+                target=self.target,
+                status=True,
+                latency=fake.random_int(1, 10),
+            )
+
+        for p in ["1h", "3h", "6h", "12h", "24h", "7d", "30d"]:
+            ctx = TargetDetailService.get_chart_context(self.target, "", "", p)
+            self.assertEqual(ctx["period"], p)
+            self.assertIn("chart_timestamps", ctx)
+            self.assertIn("chart_latencies", ctx)
+
+    def test_get_chart_context_downsampling(self):
+        from monitor.services import TargetDetailService
+
+        logs = []
+        for _ in range(120):
+            logs.append(
+                MonitorLog(
+                    target=self.target,
+                    status=True,
+                    latency=5,
+                )
+            )
+        MonitorLog.objects.bulk_create(logs)
+
+        ctx = TargetDetailService.get_chart_context(self.target, "", "", "24h")
+        self.assertTrue(len(ctx["chart_latencies"]) <= 80)

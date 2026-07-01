@@ -60,6 +60,10 @@
 
       <form method="get" id="chartFilterForm" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <select name="period" id="periodSelect" onchange="toggleCustomDates();" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 6px; color: white; font-size: 0.8rem; outline: none; height: 32px; font-family: inherit; cursor: pointer;">
+          <option value="1h" {% if period == '1h' %}selected{% endif %}>Última 1 hora</option>
+          <option value="3h" {% if period == '3h' %}selected{% endif %}>Últimas 3 horas</option>
+          <option value="6h" {% if period == '6h' %}selected{% endif %}>Últimas 6 horas</option>
+          <option value="12h" {% if period == '12h' %}selected{% endif %}>Últimas 12 horas</option>
           <option value="24h" {% if period == '24h' %}selected{% endif %}>Último dia (24h)</option>
           <option value="7d" {% if period == '7d' %}selected{% endif %}>Últimos 7 dias</option>
           <option value="30d" {% if period == '30d' %}selected{% endif %}>Últimos 30 dias</option>
@@ -351,6 +355,9 @@
             },
             ticks: {
               color: '#9ca3af',
+              autoSkip: true,
+              maxTicksLimit: 12,
+              maxRotation: 0,
               font: {
                 family: 'Plus Jakarta Sans',
                 size: 10

@@ -1151,13 +1151,25 @@ class TargetDetailService:
         else:
             if not period:
                 period = "24h"
-            if period == "7d":
+            if period == "1h":
+                start_dt = now - timedelta(hours=1)
+                start_date_str = (now - timedelta(hours=1)).strftime("%Y-%m-%d")
+            elif period == "3h":
+                start_dt = now - timedelta(hours=3)
+                start_date_str = (now - timedelta(hours=3)).strftime("%Y-%m-%d")
+            elif period == "6h":
+                start_dt = now - timedelta(hours=6)
+                start_date_str = (now - timedelta(hours=6)).strftime("%Y-%m-%d")
+            elif period == "12h":
+                start_dt = now - timedelta(hours=12)
+                start_date_str = (now - timedelta(hours=12)).strftime("%Y-%m-%d")
+            elif period == "7d":
                 start_dt = now - timedelta(days=7)
                 start_date_str = (now - timedelta(days=7)).strftime("%Y-%m-%d")
             elif period == "30d":
                 start_dt = now - timedelta(days=30)
                 start_date_str = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-            else:  # '24h'
+            else:
                 start_dt = now - timedelta(days=1)
                 period = "24h"
                 start_date_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1169,10 +1181,10 @@ class TargetDetailService:
             timestamp__gte=start_dt, timestamp__lte=end_dt
         ).order_by("timestamp")
 
-        # Downsample if log count exceeds 300 to optimize performance
+        # Downsample if log count exceeds 80 to optimize performance
         log_count = chart_logs_query.count()
-        if log_count > 300:
-            step = log_count // 300
+        if log_count > 80:
+            step = (log_count + 79) // 80
             chart_logs = list(chart_logs_query)[::step]
         else:
             chart_logs = list(chart_logs_query)
@@ -1181,7 +1193,7 @@ class TargetDetailService:
         if (end_dt - start_dt) > timedelta(days=1):
             timestamp_format = "%d/%m %H:%M"
         else:
-            timestamp_format = "%H:%M:%S"
+            timestamp_format = "%H:%M"
 
         # Determine if we should plot metric_value instead of latency
         is_metric = target.sensor_type not in ("ping", "tcp")
