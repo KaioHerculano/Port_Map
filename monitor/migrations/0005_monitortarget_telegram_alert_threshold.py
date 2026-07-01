@@ -6,13 +6,22 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('monitor', '0004_setup_celery_beat_task'),
+        ("monitor", "0004_setup_celery_beat_task"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='monitortarget',
-            name='telegram_alert_threshold',
-            field=models.IntegerField(choices=[(1, 'Imediatamente (1ª falha)'), (2, 'Após 2 falhas consecutivas'), (3, 'Após 3 falhas consecutivas'), (0, 'Não notificar')], default=1, help_text='Regra para disparo de alertas de falha no Telegram'),
+            model_name="monitortarget",
+            name="telegram_alert_threshold",
+            field=models.IntegerField(
+                choices=[
+                    (1, "Imediatamente (1ª falha)"),
+                    (2, "Após 2 falhas consecutivas"),
+                    (3, "Após 3 falhas consecutivas"),
+                    (0, "Não notificar"),
+                ],
+                default=1,
+                help_text="Regra para disparo de alertas de falha no Telegram",
+            ),
         ),
     ]

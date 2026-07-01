@@ -6,13 +6,17 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('monitor', '0009_alter_device_device_type'),
+        ("monitor", "0009_alter_device_device_type"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='monitorlog',
-            name='metric_value',
-            field=models.FloatField(blank=True, help_text='Valor numérico bruto da métrica coletada (ex: graus, %, Mbps)', null=True),
+            model_name="monitorlog",
+            name="metric_value",
+            field=models.FloatField(
+                blank=True,
+                help_text="Valor numérico bruto da métrica coletada (ex: graus, %, Mbps)",
+                null=True,
+            ),
         ),
     ]

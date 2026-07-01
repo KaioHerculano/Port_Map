@@ -7,25 +7,47 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('monitor', '0001_initial'),
+        ("monitor", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Group',
+            name="Group",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(help_text='Nome do grupo (ex: Câmeras Vigia)', max_length=255, unique=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "name",
+                    models.CharField(
+                        help_text="Nome do grupo (ex: Câmeras Vigia)",
+                        max_length=255,
+                        unique=True,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ['name'],
+                "ordering": ["name"],
             },
         ),
         migrations.AddField(
-            model_name='monitortarget',
-            name='group',
-            field=models.ForeignKey(blank=True, help_text='Grupo ao qual esta porta pertence', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='targets', to='monitor.group'),
+            model_name="monitortarget",
+            name="group",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="Grupo ao qual esta porta pertence",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="targets",
+                to="monitor.group",
+            ),
         ),
     ]

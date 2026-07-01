@@ -8,40 +8,106 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='MonitorTarget',
+            name="MonitorTarget",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('label', models.CharField(blank=True, help_text='Identificação do servidor ou porta (ex: Servidor Central)', max_length=255, null=True)),
-                ('host', models.CharField(help_text='Endereço IP ou Hostname (ex: 45.174.193.10 ou google.com)', max_length=255)),
-                ('port', models.IntegerField(help_text='Porta TCP (ex: 40001)')),
-                ('is_active', models.BooleanField(default=True, help_text='Habilitar/Desabilitar o monitoramento automático deste alvo')),
-                ('last_checked', models.DateTimeField(blank=True, null=True)),
-                ('last_status', models.BooleanField(blank=True, help_text='Último status: True para Aberta (online), False para Fechada (offline)', null=True)),
-                ('last_latency', models.FloatField(blank=True, help_text='Último tempo de resposta em milissegundos', null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "label",
+                    models.CharField(
+                        blank=True,
+                        help_text="Identificação do servidor ou porta (ex: Servidor Central)",
+                        max_length=255,
+                        null=True,
+                    ),
+                ),
+                (
+                    "host",
+                    models.CharField(
+                        help_text="Endereço IP ou Hostname (ex: 45.174.193.10 ou google.com)",
+                        max_length=255,
+                    ),
+                ),
+                ("port", models.IntegerField(help_text="Porta TCP (ex: 40001)")),
+                (
+                    "is_active",
+                    models.BooleanField(
+                        default=True,
+                        help_text="Habilitar/Desabilitar o monitoramento automático deste alvo",
+                    ),
+                ),
+                ("last_checked", models.DateTimeField(blank=True, null=True)),
+                (
+                    "last_status",
+                    models.BooleanField(
+                        blank=True,
+                        help_text="Último status: True para Aberta (online), False para Fechada (offline)",
+                        null=True,
+                    ),
+                ),
+                (
+                    "last_latency",
+                    models.FloatField(
+                        blank=True,
+                        help_text="Último tempo de resposta em milissegundos",
+                        null=True,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ['host', 'port'],
-                'unique_together': {('host', 'port')},
+                "ordering": ["host", "port"],
+                "unique_together": {("host", "port")},
             },
         ),
         migrations.CreateModel(
-            name='MonitorLog',
+            name="MonitorLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('status', models.BooleanField(help_text='True se a porta estiver aberta, False caso contrário')),
-                ('latency', models.FloatField(help_text='Tempo de resposta do socket em milissegundos')),
-                ('timestamp', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('target', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='logs', to='monitor.monitortarget')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "status",
+                    models.BooleanField(
+                        help_text="True se a porta estiver aberta, False caso contrário"
+                    ),
+                ),
+                (
+                    "latency",
+                    models.FloatField(
+                        help_text="Tempo de resposta do socket em milissegundos"
+                    ),
+                ),
+                ("timestamp", models.DateTimeField(auto_now_add=True, db_index=True)),
+                (
+                    "target",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="logs",
+                        to="monitor.monitortarget",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-timestamp'],
+                "ordering": ["-timestamp"],
             },
         ),
     ]
