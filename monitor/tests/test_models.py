@@ -84,3 +84,63 @@ class MonitorModelTests(TestCase):
         )
         self.assertEqual(device.sensors.count(), 1)
         self.assertEqual(device.sensors.first(), sensor)
+
+    def test_string_representations_and_empty_uptime(self):
+        from django.contrib.auth import get_user_model
+
+        from monitor.models import AuditLog, DailySummary, Group
+
+        # Test Group __str__
+        group = Group.objects.create(name="Grupo A")
+        self.assertEqual(str(group), "Grupo A")
+
+        # Test MonitorTarget uptime when no logs exist
+        target_status_true = MonitorTarget.objects.create(
+            host="192.168.1.1", port=80, last_status=True
+        )
+        target_status_false = MonitorTarget.objects.create(
+            host="192.168.1.2", port=80, last_status=False
+        )
+        self.assertEqual(target_status_true.uptime_percentage_24h, 100.0)
+        self.assertEqual(target_status_true.uptime_percentage_30d, 100.0)
+        self.assertEqual(target_status_false.uptime_percentage_24h, 0.0)
+        self.assertEqual(target_status_false.uptime_percentage_30d, 0.0)
+
+        # Test MonitorLog __str__
+        log_open = MonitorLog.objects.create(
+            target=target_status_true, status=True, latency=10.0
+        )
+        log_closed = MonitorLog.objects.create(
+            target=target_status_true, status=False, latency=0.0
+        )
+        self.assertIn("ABERTA", str(log_open))
+        self.assertIn("FECHADA", str(log_closed))
+
+        # Test DailySummary __str__
+        summary = DailySummary.objects.create(
+            target=target_status_true,
+            date=timezone.localdate(),
+            availability=99.5,
+            avg_latency=12.4,
+        )
+        self.assertIn("99.5%", str(summary))
+
+        # Test AuditLog __str__ (with and without user)
+        audit_system = AuditLog.objects.create(
+            action="Criar",
+            model_name="Dispositivo",
+            object_repr="Rep",
+            changes="Criou",
+        )
+        self.assertIn("Sistema", str(audit_system))
+
+        User = get_user_model()
+        user = User.objects.create_user(username="testaudituser", password="password")
+        audit_user = AuditLog.objects.create(
+            user=user,
+            action="Criar",
+            model_name="Dispositivo",
+            object_repr="Rep",
+            changes="Criou",
+        )
+        self.assertIn("testaudituser", str(audit_user))
