@@ -39,11 +39,17 @@
       </svg>
       Testar Todos
     </button>
-    <a href="{% url 'add_targets' %}" class="btn btn-primary">
+    <a href="{% url 'add_targets' %}" class="btn btn-secondary">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      Nova Porta/Grupo
+    </a>
+    <a href="{% url 'add_device' %}" class="btn btn-primary">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
-      Novo Cadastro
+      Novo Equipamento
     </a>
   </div>
 </div>
@@ -146,6 +152,9 @@
 <div class="view-tabs" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
   <button class="view-tab-btn active" id="tab-btn-targets" onclick="switchViewTab('targets')" style="background: none; border: none; color: white; font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid var(--primary); position: relative; bottom: -9px; transition: all 0.2s;">
     Alvos
+  </button>
+  <button class="view-tab-btn" id="tab-btn-devices" onclick="switchViewTab('devices')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
+    Equipamentos
   </button>
   <button class="view-tab-btn" id="tab-btn-groups" onclick="switchViewTab('groups')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
     Grupos
@@ -510,6 +519,113 @@
   </div>
 </div>
 
+<!-- View Devices Content -->
+<div id="view-devices" class="view-content" style="display: none; margin-bottom: 2rem;">
+  <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
+    {% for device in devices %}
+    <div class="glass-panel" style="padding: 1.5rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; display: flex; flex-direction: column; gap: 1rem;">
+      
+      <!-- Device Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <h3 style="color: white; font-size: 1.2rem; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+            {% if device.device_type == 'mikrotik' or device.device_type == 'mikrotik_snmp' %}
+              <span style="color: #c084fc; font-weight: 800; font-family: monospace;">[MikroTik]</span>
+            {% elif device.device_type == 'parks_olt' %}
+              <span style="color: #34d399; font-weight: 800; font-family: monospace;">[Parks OLT]</span>
+            {% else %}
+              <span style="color: #94a3b8; font-weight: 800; font-family: monospace;">[Equipamento]</span>
+            {% endif %}
+            {{ device.name }}
+          </h3>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">
+            IP: <code style="color: white; background: rgba(255,255,255,0.05); padding: 0.1rem 0.3rem; border-radius: 4px;">{{ device.host }}</code> 
+            | Tipo: {{ device.get_device_type_display }}
+            {% if device.group %} | Grupo: <strong>{{ device.group.name }}</strong>{% endif %}
+          </span>
+        </div>
+        
+        <!-- Device Actions -->
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          {% if device.device_type == 'mikrotik' or device.device_type == 'parks_olt' or device.device_type == 'mikrotik_snmp' or device.device_type == 'generic_snmp' %}
+            <a href="{% url 'discover_sensors' device.id %}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; display: flex; align-items: center; gap: 0.25rem; border-color: rgba(110, 68, 255, 0.4); background: rgba(110, 68, 255, 0.05); color: #c084fc;">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
+              </svg>
+              Auto-descoberta
+            </a>
+          {% endif %}
+          <a href="{% url 'edit_device' device.id %}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; display: flex; align-items: center; gap: 0.25rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+            </svg>
+            Editar
+          </a>
+          <form method="post" action="{% url 'delete_device' device.id %}" onsubmit="return confirm('Deseja realmente remover o equipamento &quot;{{ device.name|escapejs }}&quot; e TODOS os seus sensores?');" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; display: flex; align-items: center; gap: 0.25rem; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); color: #ef4444; cursor: pointer;">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+              Excluir
+            </button>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Device Sensors Grid (PRTG-style layout) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 0.25rem;">
+        {% for sensor in device.sensors.all %}
+        <div id="sensor-card-{{ sensor.id }}" class="glass-panel" style="padding: 0.75rem; border: 1px solid {% if not sensor.is_active %}rgba(100,116,139,0.2){% elif sensor.last_status == True %}rgba(16,185,129,0.2){% elif sensor.last_status == False %}rgba(239,68,68,0.2){% else %}rgba(255,255,255,0.05){% endif %}; border-radius: 8px; display: flex; flex-direction: column; gap: 0.35rem; position: relative; background: {% if not sensor.is_active %}rgba(100,116,139,0.03){% elif sensor.last_status == True %}rgba(16,185,129,0.03){% elif sensor.last_status == False %}rgba(239,68,68,0.03){% else %}rgba(0,0,0,0.1){% endif %};">
+          
+          <!-- Sensor Title & Detail Link -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.25rem;">
+            <a href="{% url 'target_detail' sensor.id %}" style="color: white; font-size: 0.85rem; font-weight: 600; text-decoration: none; word-break: break-word; hover: underline; flex-grow: 1;" title="Clique para ver gráficos e SLA">
+              {{ sensor.label|default:sensor.get_sensor_type_display }}
+            </a>
+            
+            <!-- Quick Refresh Button -->
+            <button onclick="scanSingleTarget({{ sensor.id }}, this)" style="background: none; border: none; padding: 0; color: var(--text-muted); cursor: pointer; hover: color: white;" title="Checar Agora">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 12px; height: 12px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Sensor Value & Latency -->
+          <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="display: flex; flex-direction: column;">
+              <span id="sensor-val-{{ sensor.id }}" style="font-size: 0.95rem; font-weight: 700; color: {% if not sensor.is_active %}#94a3b8{% elif sensor.last_status == True %}#34d399{% elif sensor.last_status == False %}#f87171{% else %}#94a3b8{% endif %};">
+                {{ sensor.sensor_value|default:"Sem dados" }}
+              </span>
+              <span id="sensor-latency-{{ sensor.id }}" style="display: none;">
+              </span>
+            </div>
+            
+            <!-- Small status dot indicator -->
+            <span id="sensor-dot-{{ sensor.id }}" style="width: 8px; height: 8px; border-radius: 50%; background: {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %}; box-shadow: 0 0 6px {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %};"></span>
+          </div>
+        </div>
+        {% empty %}
+        <div style="grid-column: 1 / -1; padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+          Nenhum sensor cadastrado neste equipamento. Clique em "Auto-descoberta" acima para gerar sensores!
+        </div>
+        {% endfor %}
+      </div>
+      
+    </div>
+    {% empty %}
+    <div class="glass-panel" style="padding: 3rem; text-align: center; color: var(--text-muted); border-radius: 12px;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--border-color);">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-.778.099-1.533.284-2.253" />
+      </svg>
+      <p style="font-size: 1.1rem; font-weight: 600; color: white;">Nenhum equipamento cadastrado</p>
+      <p style="font-size: 0.85rem; margin-top: 0.25rem;">Clique no botão "Novo Equipamento" no topo da página para cadastrar seu primeiro roteador ou OLT.</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
 {% if user.is_superuser %}
 <!-- View Audit Content -->
 <div id="view-audit" class="view-content" style="display: none; margin-bottom: 2rem;">
@@ -730,6 +846,101 @@
     });
   }
 
+  // Fetch real-time status from endpoint and update DOM
+  function refreshStatusData(onComplete = null) {
+    fetch('/api/status-update/')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.targets) {
+          data.targets.forEach(t => {
+            // 1. Update standalone targets list if exists
+            const statusCell = document.getElementById('status-cell-' + t.id);
+            if (statusCell) {
+              let badgeHTML = '';
+              if (!t.is_active) {
+                badgeHTML = '<span class="status-badge inactive"><span class="dot"></span>Inativo</span>';
+              } else if (t.last_status === true) {
+                badgeHTML = '<span class="status-badge online"><span class="dot"></span>Aberta</span>';
+              } else if (t.last_status === false) {
+                badgeHTML = '<span class="status-badge offline"><span class="dot"></span>Fechada</span>';
+              } else {
+                badgeHTML = '<span class="status-badge inactive"><span class="dot"></span>Sem dados</span>';
+              }
+              if (statusCell.innerHTML !== badgeHTML) {
+                statusCell.innerHTML = badgeHTML;
+              }
+            }
+
+            const latencyCell = document.getElementById('latency-cell-' + t.id);
+            if (latencyCell) {
+              let latencyHTML = '';
+              if (!t.is_active || t.last_latency === null) {
+                latencyHTML = '<span class="td-latency none">-</span>';
+              } else {
+                const speedClass = t.last_latency < 150 ? 'fast' : 'slow';
+                latencyHTML = `<span class="td-latency ${speedClass}">${t.last_latency} ms</span>`;
+              }
+              if (latencyCell.innerHTML !== latencyHTML) {
+                latencyCell.innerHTML = latencyHTML;
+              }
+            }
+
+            // 2. Update device sensors cards if exists
+            const sensorCard = document.getElementById('sensor-card-' + t.id);
+            const sensorVal = document.getElementById('sensor-val-' + t.id);
+            const sensorLatency = document.getElementById('sensor-latency-' + t.id);
+            const sensorDot = document.getElementById('sensor-dot-' + t.id);
+
+            if (sensorCard && sensorVal && sensorDot) {
+              const displayVal = t.sensor_value || 'Sem dados';
+              if (sensorVal.innerText !== displayVal) {
+                sensorVal.innerText = displayVal;
+              }
+
+              // Update sensor colors
+              let cardBorder = 'rgba(255,255,255,0.05)';
+              let cardBg = 'rgba(0,0,0,0.1)';
+              let valColor = '#94a3b8';
+              let dotBg = '#64748b';
+
+              if (!t.is_active) {
+                cardBorder = 'rgba(100,116,139,0.2)';
+                cardBg = 'rgba(100,116,139,0.03)';
+              } else if (t.last_status === true) {
+                cardBorder = 'rgba(16,185,129,0.2)';
+                cardBg = 'rgba(16,185,129,0.03)';
+                valColor = '#34d399';
+                dotBg = '#10b981';
+              } else if (t.last_status === false) {
+                cardBorder = 'rgba(239,68,68,0.2)';
+                cardBg = 'rgba(239,68,68,0.03)';
+                valColor = '#f87171';
+                dotBg = '#ef4444';
+              }
+
+              sensorCard.style.borderColor = cardBorder;
+              sensorCard.style.background = cardBg;
+              sensorVal.style.color = valColor;
+              sensorDot.style.background = dotBg;
+              sensorDot.style.boxShadow = `0 0 6.0px ${dotBg}`;
+
+              if (sensorLatency) {
+                sensorLatency.style.display = 'none';
+              }
+            }
+          });
+
+          // Recalculate stats counts in DOM
+          updateStats();
+
+          if (onComplete) {
+            onComplete(data.targets);
+          }
+        }
+      })
+      .catch(err => console.error("Erro ao atualizar status:", err));
+  }
+
   // Scan a single target manually
   function scanSingleTarget(id, button) {
     button.disabled = true;
@@ -750,9 +961,21 @@
     .then(response => response.json())
     .then(data => {
       if (data.status === 'success') {
-        showToast('Verificação agendada com sucesso. Recarregando dados...', 'info');
-        // Reload page after brief delay to let celery finish the job
-        setTimeout(() => window.location.reload(), 1500);
+        showToast('Verificação agendada.', 'info');
+        
+        let attempts = 0;
+        const intervalId = setInterval(() => {
+          attempts++;
+          refreshStatusData((targets) => {
+            const currentTarget = targets.find(t => t.id === id);
+            if ((currentTarget && currentTarget.sensor_value !== 'Aguardando 2ª leitura' && currentTarget.sensor_value !== 'Calculando...') || attempts >= 8) {
+              clearInterval(intervalId);
+              button.disabled = false;
+              button.innerHTML = originalContent;
+              showToast('Métrica atualizada!', 'success');
+            }
+          });
+        }, 1500);
       } else {
         button.disabled = false;
         button.innerHTML = originalContent;
@@ -765,6 +988,9 @@
       showToast('Ocorreu um erro de rede.', 'error');
     });
   }
+
+  // Set background polling every 10 seconds
+  setInterval(refreshStatusData, 10000);
 
   // Scan all targets manually
   function scanAllTargets() {
@@ -845,26 +1071,33 @@
     }, 4000);
   }
 
-  // Switch between Alvos (Targets), Grupos (Groups) and Auditoria (Audit Logs) Views
+  // Switch between Alvos (Targets), Equipamentos (Devices), Grupos (Groups) and Auditoria (Audit Logs) Views
   function switchViewTab(mode) {
     const targetsView = document.getElementById('view-targets');
+    const devicesView = document.getElementById('view-devices');
     const groupsView = document.getElementById('view-groups');
     const auditView = document.getElementById('view-audit');
     const targetsBtn = document.getElementById('tab-btn-targets');
+    const devicesBtn = document.getElementById('tab-btn-devices');
     const groupsBtn = document.getElementById('tab-btn-groups');
     const auditBtn = document.getElementById('tab-btn-audit');
     
-    if (!targetsView || !groupsView) return;
+    if (!targetsView) return;
 
     // Reset all views
     targetsView.style.display = 'none';
-    groupsView.style.display = 'none';
+    if (devicesView) devicesView.style.display = 'none';
+    if (groupsView) groupsView.style.display = 'none';
     if (auditView) auditView.style.display = 'none';
 
     // Reset all buttons styling
     if (targetsBtn) {
       targetsBtn.style.color = 'var(--text-muted)';
       targetsBtn.style.borderBottomColor = 'transparent';
+    }
+    if (devicesBtn) {
+      devicesBtn.style.color = 'var(--text-muted)';
+      devicesBtn.style.borderBottomColor = 'transparent';
     }
     if (groupsBtn) {
       groupsBtn.style.color = 'var(--text-muted)';
@@ -875,8 +1108,15 @@
       auditBtn.style.borderBottomColor = 'transparent';
     }
 
-    if (mode === 'groups') {
-      groupsView.style.display = 'block';
+    if (mode === 'devices') {
+      if (devicesView) devicesView.style.display = 'block';
+      if (devicesBtn) {
+        devicesBtn.style.color = 'white';
+        devicesBtn.style.borderBottomColor = 'var(--primary)';
+      }
+      sessionStorage.setItem('active_dashboard_tab', 'devices');
+    } else if (mode === 'groups') {
+      if (groupsView) groupsView.style.display = 'block';
       if (groupsBtn) {
         groupsBtn.style.color = 'white';
         groupsBtn.style.borderBottomColor = 'var(--primary)';
@@ -908,6 +1148,8 @@
       const savedTab = sessionStorage.getItem('active_dashboard_tab');
       if (savedTab === 'groups') {
         switchViewTab('groups');
+      } else if (savedTab === 'devices') {
+        switchViewTab('devices');
       } else if (savedTab === 'audit') {
         switchViewTab('audit');
       } else {

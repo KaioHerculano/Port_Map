@@ -1,179 +1,262 @@
-# PortMap Monitor 🌐📡
+# PortMap Monitor
 
-O **PortMap Monitor** é um sistema profissional e moderno desenvolvido em Django para o monitoramento assíncrono e em tempo real de portas TCP ativas em múltiplos endereços IP ou hostnames. Ele foi projetado para substituir scripts manuais temporários por uma interface robusta, de alta performance e visualmente impressionante.
-
----
-
-## 🚀 Funcionalidades Principais
-
-*   **Autenticação Flexível (E-mail ou Usuário)**: A tela de login permite a autenticação de forma transparente tanto utilizando o nome de usuário (username) quanto o e-mail cadastrado.
-*   **Cadastro Altamente Prático de Portas (Lote/Bulk)**:
-    *   **Cadastro Individual**: Nome, IP/Hostname e porta única.
-    *   **Cadastro em Lote (Bulk)**: Área de texto para colar múltiplos registros de uma vez.
-    *   **Faixas de Portas (Ranges)**: Cadastre como `45.174.193.10:40001-40048` e o sistema criará e monitorará todos os 48 alvos sequencialmente em background.
-    *   **Portas por Vírgula**: Suporte a listagens curtas como `192.168.1.1:80,443,8080`.
-    *   **Identificadores (Labels)**: Defina apelidos amigáveis no fim de cada linha entre colchetes ou parênteses, ex: `10.0.0.5:22 [Servidor SSH]`.
-*   **Varreduras Assíncronas com Celery & Redis**: Os testes de portas não travam o servidor web. Eles são distribuídos para Workers do Celery que testam as conexões de forma concorrente utilizando Sockets TCP puros de baixo nível com timeout controlado.
-*   **Visualização de Dados (Dashboard Premium)**:
-    *   Painel estatístico com contadores de alvos online (portas abertas), offline (portas fechadas), inativos e totais.
-    *   Filtros dinâmicos rápidos por status e busca textual integrada.
-    *   Gráficos dinâmicos interativos (Chart.js) exibindo o histórico de variação de latência (ms) nas últimas 50 conexões.
-    *   Tabela com controle AJAX instantâneo para ativar/desativar monitoramentos individualmente e excluir alvos sem necessidade de dar refresh na página.
+O **PortMap Monitor** é um sistema profissional desenvolvido em Django para monitoramento assíncrono e em tempo real de equipamentos de rede. Ele oferece suporte a múltiplos protocolos de monitoramento e uma interface moderna baseada em glassmorphism dark theme.
 
 ---
 
-## 🛠️ Arquitetura de Software e Boas Práticas
+## Funcionalidades Principais
 
-O projeto foi escrito sob rígidos princípios de qualidade de código (**SOLID, DRY, KISS e Clean Code**):
+### Monitoramento Multi-Protocolo
 
-1.  **Class-Based Views (CBVs) Exclusivas**: Nenhuma view funcional (FBV) foi utilizada. Todo o fluxo web herda das classes genéricas otimizadas do Django (ex: `generic.ListView`, `generic.TemplateView`, `generic.DetailView`, etc.).
-2.  **Isolamento de Regras de Negócio (Services Layer)**: As views não possuem regras de banco ou parsing. Toda a lógica foi extraída para o arquivo `monitor/services.py`:
-    *   `PortParserService`: Faz a higienização, validação de limites de portas (1-65535) e a expansão de lotes/ranges em transações atômicas seguras no banco de dados.
-    *   `PortCheckerService`: Responsável por conduzir a conexão TCP via Socket, medir a latência com precisão de milissegundos e persistir o log final.
-3.  **Prevenção de Consultas N+1**: Utilização estratégica de `.select_related()` e `.prefetch_related()` para garantir carregamento eficiente de tabelas e histórico de monitoramento em uma única consulta SQL.
-4.  **Logging**: Todo o rastreamento operacional e tratamento de erros do sistema utiliza o módulo `logging` integrado ao invés de funções `print()`.
-5.  **Tipagem Estrita**: Funções e métodos implementam `type hints` em Python para facilitar manutenção futura e autocompletes de IDEs.
+Cada equipamento pode ter **vários sensores independentes** configurados:
+
+| Sensor | Protocolo | Descrição |
+|--------|-----------|-----------|
+| **Ping** | ICMP | Mede latência e disponibilidade via ICMP |
+| **TCP** | TCP Socket | Verifica se uma porta está aberta e responsiva |
+| **SNMP Numérico** | SNMP v2c | Lê OIDs numéricos (CPU, temperatura, uptime) |
+| **SNMP Tráfego** | SNMP v2c | Mede taxa de tráfego (Mbps) em interfaces |
+| **MikroTik API** | RouterOS API | Lê CPU, temperatura e uptime via API nativa |
+
+### Equipamentos Suportados
+
+- **MikroTik (API RouterOS)** — CPU, temperatura da board, uptime via API
+- **MikroTik (SNMP)** — CPU (`hrProcessorLoad`), temperatura (`mtxrHlCpuTemperature`), uptime (`sysUpTime`)
+- **OLT Parks GPON (SNMP)** — Ping + SNMP genérico
+- **Genérico (SNMP)** — Qualquer OID customizado
+- **Genérico (Apenas Ping)** — Monitoramento por latência ICMP
+
+### Gráficos com Unidade Correta por Sensor
+
+O gráfico histórico de cada sensor exibe automaticamente a unidade correta:
+- Temperatura → **Histórico de Temperatura (°C)**
+- CPU → **Histórico de Uso de CPU (%)**
+- Uptime → **Histórico de Uptime (Dias)**
+- Tráfego → **Histórico de Tráfego (Mbps)**
+- Ping / TCP → **Histórico de Latência (ms)**
+
+### Seleção de Sensores no Cadastro
+
+Ao cadastrar um equipamento, o formulário exibe **checkboxes dinâmicos** com todos os sensores disponíveis para aquele tipo. Todos vêm marcados por padrão; o usuário pode desmarcar qualquer um para não criá-lo.
+
+### Outras Funcionalidades
+
+- **Autenticação por e-mail ou usuário**
+- **Cadastro em lote (Bulk)** com suporte a faixas de portas (`10.0.0.1:40001-40048`) e múltiplas portas por vírgula
+- **Dashboard estatístico** com filtros rápidos, busca textual e tabela com controle AJAX
+- **Relatórios SLA** em PDF por grupo
+- **Alertas Telegram** configuráveis por sensor (1ª falha, 2ª falha, 3ª falha consecutiva, ou desabilitado)
+- **Grupos** para organizar equipamentos com gestão de alertas em lote
+- **Auditoria** de ações dos usuários
 
 ---
 
-## 📦 Stack Tecnológica
+## Arquitetura de Software
 
-*   **Linguagem**: Python >= 3.12
-*   **Framework Web**: Django >= 4.2 (Configurado em PT-BR e fuso horário de São Paulo)
-*   **Banco de Dados**: SQLite3 (Pronto para migrar para PostgreSQL/Docker)
-*   **Gerenciador de Dependências**: Poetry
-*   **Fila de Tarefas / Asincronismo**: Celery
-*   **Message Broker (Mensageria)**: Redis
-*   **Gráficos / Frontend**: HTML5, Vanilla CSS (Glassmorphic Dark Theme), JS Puro, Chart.js
+O projeto segue princípios **SOLID, DRY, KISS e Clean Code**:
+
+1. **Class-Based Views (CBVs) exclusivas** — Nenhuma FBV. Todo fluxo web herda das classes genéricas do Django.
+2. **Services Layer isolada** (`monitor/services.py`):
+   - `PortParserService` — Higienização, validação e expansão de lotes/ranges
+   - `PortCheckerService` — Execução dos checks por protocolo, parsing de métricas e geração de dados para gráfico
+   - `SLAReportService` — Compilação de dados SLA e geração de PDF
+3. **Prevenção de N+1** — Uso de `.select_related()` e `.prefetch_related()` estratégicos
+4. **Logging** — `logging` em vez de `print()` em toda a aplicação
+5. **Type hints** — Tipagem estrita em funções e métodos
 
 ---
 
-## ⚙️ Preparação do Ambiente e Instalação
+## Stack Tecnológica
+
+| Camada | Tecnologia |
+|--------|-----------|
+| Linguagem | Python >= 3.12 |
+| Framework Web | Django >= 4.2 |
+| Banco de Dados | PostgreSQL (Docker) / SQLite (dev local) |
+| Gerenciador de dependências | Poetry |
+| Fila de tarefas | Celery |
+| Message Broker | Redis |
+| SNMP | pysnmp (hlapi.asyncio) |
+| RouterOS | routeros-api |
+| Frontend | HTML5, Vanilla CSS, JS Puro, Chart.js, Bootstrap Icons |
+
+---
+
+## Instalação Local
 
 ### Pré-requisitos
-1.  **Python** instalado (versão 3.12 ou superior).
-2.  **Poetry** instalado globalmente na máquina (`pip install poetry`).
-3.  **Redis Server** rodando localmente (porta padrão `6379`).
 
-### Passo 1: Clonar o Repositório e Instalar Dependências
-Navegue até a pasta do projeto e instale todas as dependências declaradas no Poetry Lockfile:
+1. **Python** >= 3.12
+2. **Poetry** (`pip install poetry`)
+3. **Redis Server** rodando na porta `6379`
+
+### Passo 1 — Instalar Dependências
+
 ```bash
 poetry install
 ```
 
-### Passo 2: Executar as Migrações do Banco de Dados
-Gere a estrutura inicial de tabelas do SQLite (incluindo as tabelas de controle de tarefas do Celery Beat):
+### Passo 2 — Aplicar Migrações
+
 ```bash
 poetry run python manage.py migrate
 ```
 
-### Passo 3: Criar um Usuário Administrador
-Para acessar o painel pela primeira vez, utilize o superusuário de testes já configurado:
-*   **Usuário**: `admin` (ou e-mail `admin@example.com`)
-*   **Senha**: `admin123`
+### Passo 3 — Criar Superusuário
 
-Se preferir criar uma nova credencial personalizada, execute:
 ```bash
 poetry run python manage.py createsuperuser
 ```
 
----
+### Passo 4 — Iniciar os Processos
 
-## ⚡ Como Iniciar o Sistema para Testes
-
-O PortMap necessita de três processos principais rodando simultaneamente:
-
-### 1. Iniciar o Servidor Web Django
-Inicia a interface de gerenciamento:
+**Terminal 1 — Servidor Web:**
 ```bash
 poetry run python manage.py runserver
 ```
-Acesse no seu navegador: **[http://127.0.0.1:8003/](http://127.0.0.1:8003/)**
+Acesse: **http://127.0.0.1:8000/**
 
-### 2. Iniciar o Celery Worker (Conexões de Teste)
-Processa a fila de varredura assíncrona das portas:
+**Terminal 2 — Celery Worker:**
 ```bash
 poetry run celery -A app worker --loglevel=info -P threads
 ```
-*(Nota: A flag `-P threads` é altamente recomendada no ambiente Windows para garantir estabilidade multithread do Celery).*
+> A flag `-P threads` é recomendada no Windows para evitar problemas de `asyncio` no Celery.
 
-### 3. Iniciar o Celery Beat (Varredura Automática Agendada)
-Caso deseje disparar coletas automatizadas em períodos cronometrados:
+**Terminal 3 — Celery Beat (agendador):**
 ```bash
 poetry run celery -A app beat --loglevel=info
 ```
 
 ---
 
-## 🐳 Executando com Docker e Docker Compose
+## Executando com Docker Compose
 
-O projeto está totalmente preparado para ser executado em containers isolados contendo Django, Celery Worker, Celery Beat, Redis e PostgreSQL.
+O projeto está preparado para rodar em containers com Django, Celery Worker, Celery Beat, Redis e PostgreSQL.
 
-### Passo 1: Construir e iniciar os containers
-Na raiz do projeto (onde está o arquivo `docker-compose.yml`), execute o comando:
+### Subir os containers
+
 ```bash
 docker compose up --build -d
 ```
 
-Este comando irá:
-1. Compilar a imagem Docker do Django baseada em `python:3.12-slim` utilizando o Poetry.
-2. Iniciar o banco de dados PostgreSQL e aguardar seu estado saudável (`service_healthy`).
-3. Iniciar o Redis.
-4. Aplicar as migrações automáticas do banco.
-5. Iniciar os serviços Web, Celery Worker e Celery Beat conectados em rede interna.
+Isso irá:
+1. Compilar a imagem Django baseada em `python:3.12-slim`
+2. Iniciar PostgreSQL e aguardar `service_healthy`
+3. Iniciar Redis
+4. Aplicar as migrações automaticamente
+5. Iniciar Web, Celery Worker e Celery Beat em rede interna
 
-O painel de controle estará disponível no navegador em **[http://localhost:8003/](http://localhost:8003/)**.
+Acesse: **http://localhost:8003/**
 
-### Passo 2: Criar um Superuser dentro do container
-Para criar uma conta administrativa no container em execução, execute:
+### Criar superusuário no container
+
 ```bash
 docker exec -it port_map_web poetry run python manage.py createsuperuser
 ```
 
-### Passo 3: Parar os serviços
-Para derrubar e encerrar todos os containers mantendo os volumes de dados persistidos no PostgreSQL, execute:
+### Parar os serviços
+
 ```bash
 docker compose down
 ```
 
 ---
 
-## 🔔 Integração e Notificações do Telegram
+## Variáveis de Ambiente
 
-O sistema está totalmente integrado com a API do Telegram para enviar alertas de status em tempo real (como câmeras offline ou serviços reestabelecidos).
-
-### 1. Configurando o Telegram no arquivo `.env`
-Para ativar o envio das notificações, declare as seguintes variáveis no arquivo `.env` (ou nos parâmetros de ambiente do Docker Compose):
+Configure o arquivo `.env` (ou as variáveis do Docker Compose):
 
 ```env
-TELEGRAM_BOT_TOKEN=seu_token_obtido_no_botfather
-TELEGRAM_CHAT_ID=-5424296618
+# Banco de dados (Docker)
+DB_NAME=portmap
+DB_USER=portmap
+DB_PASSWORD=portmap
+DB_HOST=db
+DB_PORT=5432
+
+# Telegram (opcional — deixe vazio para desativar alertas)
+TELEGRAM_BOT_TOKEN=seu_token_do_botfather
+TELEGRAM_CHAT_ID=-1001234567890
 ```
-*Caso essas variáveis fiquem vazias, o sistema desativará o envio de mensagens de forma silenciosa e continuará funcionando normalmente.*
 
-### 2. Regras de Disparo de Alerta (Prevenção de Spam)
-Você pode configurar a regra de disparo de notificação **individualmente por sensor** (no formulário de cadastro/edição do dispositivo) ou aplicar uma regra **em lote para todos os dispositivos de um grupo** (na tela de edição do grupo). As opções são:
-*   **Imediatamente (1ª falha)**: Envia o alerta assim que a primeira varredura falhar.
-*   **Após 2 falhas consecutivas**: Aguarda a segunda varredura consecutiva falhar antes de disparar o alerta.
-*   **Após 3 falhas consecutivas**: Aguarda três varreduras consecutivas falharem.
-*   **Não notificar**: Desativa completamente os alertas de Telegram para o sensor correspondente.
-
-> [!NOTE]
-> **Envio Único**: O sistema armazena o histórico e garante que, uma vez disparado o alerta de queda (ao atingir a quantidade configurada de falhas), **nenhuma outra mensagem de erro repetida seja enviada** enquanto o dispositivo permanecer offline. Um novo alerta de recuperação (`Dispositivo Restabelecido! 🟢`) só será enviado no momento em que a varredura detectar o restabelecimento do serviço (status online), reiniciando o fluxo.
-
-### 3. Teste Manual de Notificação
-Para confirmar se o Bot e o Chat ID foram configurados de forma correta e estão entregando mensagens no seu grupo:
-1. Abra a tela de **Detalhes** de qualquer dispositivo monitorado.
-2. Clique no botão **`Testar Telegram`** localizado no cabeçalho superior.
-3. O bot enviará uma mensagem de teste formatada em HTML contendo a identificação do dispositivo, IP, porta e grupo correspondente.
+> Se `TELEGRAM_BOT_TOKEN` ou `TELEGRAM_CHAT_ID` estiverem vazios, o sistema desativa os alertas silenciosamente.
 
 ---
 
-## 🧪 Execução de Testes Automatizados
+## Integração com Telegram
 
-O sistema conta com 35 testes automatizados que cobrem fluxos cruciais como criação de usuários com restrições de e-mail único, login por e-mail insensível a maiúsculas, cálculo matemático correto da disponibilidade de SLA, parser robusto de faixas sequenciais de portas, batch updates de configurações e o ciclo de transição de alertas do Telegram com mocks HTTP.
+### Configuração de Alertas por Sensor
 
-Para rodar a suite de testes completa, execute:
+Cada sensor pode ser configurado individualmente com a regra de disparo:
+
+| Opção | Comportamento |
+|-------|--------------|
+| Imediatamente (1ª falha) | Alerta na 1ª varredura falha |
+| Após 2 falhas consecutivas | Aguarda 2 varreduras falhas |
+| Após 3 falhas consecutivas | Aguarda 3 varreduras falhas |
+| Não notificar | Sem alertas para este sensor |
+
+> O sistema garante envio único por queda — não há spam enquanto o dispositivo estiver offline. O alerta de recuperação é enviado assim que o sensor voltar ao estado Online.
+
+### Configuração em Lote por Grupo
+
+Na tela de edição de um grupo, é possível aplicar a mesma regra de alerta para todos os sensores do grupo de uma vez.
+
+### Teste Manual
+
+Em qualquer tela de detalhe de sensor, clique em **"Testar Telegram"** para validar a configuração do bot e do Chat ID.
+
+---
+
+## Observações sobre SNMP
+
+- O sistema usa **pysnmp `hlapi.asyncio`** com `asyncio.new_event_loop()` em cada chamada para garantir compatibilidade com workers Celery (que podem ter loops fechados ou ausentes).
+- OIDs de temperatura do MikroTik (`1.3.6.1.4.1.14988.1.1.3.10.0`) retornam o valor em **décimos de grau** — o sistema divide por 10 automaticamente para exibir em °C.
+- OID de uptime (`1.3.6.1.2.1.1.3.0`) retorna em **centésimos de segundo (timeticks)** — o sistema converte para dias/horas/minutos.
+
+---
+
+## Testes Automatizados
+
+O projeto conta com **40 testes automatizados** cobrindo:
+
+- Autenticação por e-mail (case-insensitive) e por username
+- Parser de lotes de portas com faixas e múltiplas entradas
+- Cálculo de disponibilidade SLA
+- Ciclo completo de alertas Telegram com mocks HTTP
+- Batch update de configurações de grupo
+- Parsing e armazenamento de `metric_value` por tipo de sensor
+
+Para executar a suite completa:
+
 ```bash
+# Localmente (SQLite)
 $env:DB_ENGINE="django.db.backends.sqlite3"; poetry run python manage.py test
+
+# Ou sem variável de ambiente se já configurado
+poetry run python manage.py test
+```
+
+---
+
+## Estrutura de Arquivos Relevantes
+
+```
+port_map/
+├── monitor/
+│   ├── models.py          # Device, MonitorTarget, MonitorLog, Group, AuditLog
+│   ├── services.py        # PortCheckerService, PortParserService, SLAReportService
+│   ├── views.py           # CBVs: Dashboard, AddDevice, TargetDetail, SLAReport...
+│   ├── tasks.py           # Tarefas Celery: check_single_target, run_scheduled_checks
+│   ├── forms.py           # DeviceForm, BulkAddForm, GroupForm
+│   └── migrations/        # Histórico de migrações do banco
+├── templates/
+│   └── monitor/
+│       ├── dashboard.html
+│       ├── add_device.html  # Formulário com seleção de sensores por checkboxes
+│       ├── target_detail.html # Gráfico com label/unidade dinâmica por sensor
+│       └── ...
+├── docker-compose.yml
+├── Dockerfile
+└── pyproject.toml
 ```

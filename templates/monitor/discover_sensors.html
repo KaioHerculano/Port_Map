@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}Descoberta de Sensores - Port Monitor{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="header-title">
+    <h1>Descoberta de Sensores</h1>
+    <p>Equipamento: <strong>{{ device.name }}</strong> (<code>{{ device.host }}</code>)</p>
+  </div>
+</div>
+
+<div class="glass-panel" style="max-width: 800px; margin: 0 auto; padding: 2rem; min-height: 300px;">
+  {% if error %}
+    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 1.25rem; color: #f87171; margin-bottom: 1.5rem; display: flex; align-items: flex-start; gap: 0.75rem;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 24px; height: 24px; flex-shrink: 0;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+      </svg>
+      <div>
+        <h4 style="margin: 0 0 0.25rem 0; font-weight: 600; color: white;">Falha na Auto-descoberta</h4>
+        <p style="margin: 0; font-size: 0.9rem; line-height: 1.4;">{{ error }}</p>
+      </div>
+    </div>
+    <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+      <a href="{% url 'dashboard' %}" class="btn btn-secondary" style="padding: 0.6rem 1.5rem;">Voltar ao Dashboard</a>
+      <a href="" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Tentar Novamente</a>
+    </div>
+  {% else %}
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.95rem;">
+      Encontramos os seguintes sensores compatíveis no equipamento. Selecione os que deseja monitorar.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      
+      <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" onclick="selectAll(true);" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); border-radius: 6px;">Marcar Todos</button>
+        <button type="button" onclick="selectAll(false);" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); border-radius: 6px;">Desmarcar Todos</button>
+      </div>
+
+      <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; max-height: 450px; overflow-y: auto; padding: 0.5rem; margin-bottom: 2rem;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-muted);">
+              <th style="padding: 0.75rem 1rem; width: 40px;"></th>
+              <th style="padding: 0.75rem 1rem;">Sensor</th>
+              <th style="padding: 0.75rem 1rem;">Tipo de Sensor</th>
+              <th style="padding: 0.75rem 1rem;">Identificador</th>
+              <th style="padding: 0.75rem 1rem; text-align: right;">Status do Monitor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for iface in interfaces %}
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); hover: background-color: rgba(255,255,255,0.01);">
+                <td style="padding: 0.75rem 1rem; text-align: center;">
+                  {% if iface.is_monitored %}
+                    <input type="checkbox" disabled checked style="width: 16px; height: 16px; opacity: 0.5; cursor: not-allowed;">
+                  {% else %}
+                    <input type="checkbox" name="selected_interfaces" value="{{ iface.identifier }}" id="iface_{{ forloop.counter }}" style="width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;">
+                  {% endif %}
+                </td>
+                <td style="padding: 0.75rem 1rem;">
+                  <label for="iface_{{ forloop.counter }}" style="color: white; font-weight: 500; cursor: pointer; display: block;">
+                    {{ iface.name }}
+                  </label>
+                </td>
+                <td style="padding: 0.75rem 1rem;">
+                  <span style="font-size: 0.8rem; background: rgba(99, 102, 241, 0.1); color: #a5b4fc; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid rgba(99, 102, 241, 0.2); font-weight: 500;">
+                    {{ iface.type_label }}
+                  </span>
+                </td>
+                <td style="padding: 0.75rem 1rem; color: var(--text-muted); font-family: monospace; font-size: 0.85rem;">
+                  {{ iface.identifier }}
+                </td>
+                <td style="padding: 0.75rem 1rem; text-align: right;">
+                  {% if iface.is_monitored %}
+                    <span style="font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); color: #34d399; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">Monitorando</span>
+                  {% else %}
+                    <span style="font-size: 0.75rem; background: rgba(255, 255, 255, 0.05); color: var(--text-muted); padding: 0.2rem 0.5rem; border-radius: 4px;">Não Habilitado</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                  Nenhum sensor compatível encontrado.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="form-actions" style="display: flex; gap: 1rem; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.25rem;">
+        <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Importar Sensores Selecionados</button>
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary" style="padding: 0.6rem 1.5rem;">Voltar ao Dashboard</a>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function selectAll(status) {
+    document.querySelectorAll("input[name='selected_interfaces']").forEach(cb => {
+      cb.checked = status;
+    });
+  }
+</script>
+{% endblock %}

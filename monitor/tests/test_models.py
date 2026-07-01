@@ -15,10 +15,12 @@ class MonitorModelTests(TestCase):
         self.assertEqual(str(target), "127.0.0.1:8000 (Servidor de Teste)")
         self.assertTrue(target.is_active)
 
-    def test_duplicate_host_port_raises_integrity_error(self):
-        MonitorTarget.objects.create(host="192.168.1.1", port=80)
-        with self.assertRaises(IntegrityError):
-            MonitorTarget.objects.create(host="192.168.1.1", port=80)
+    def test_allow_duplicate_host_port_for_different_sensors(self):
+        # We can now create multiple targets/sensors on the same host and port because the unique constraint was removed
+        t1 = MonitorTarget.objects.create(host="192.168.1.1", port=80, sensor_type='tcp')
+        t2 = MonitorTarget.objects.create(host="192.168.1.1", port=80, sensor_type='ping')
+        self.assertEqual(t1.host, t2.host)
+        self.assertEqual(t1.port, t2.port)
 
     def test_uptime_percentage_and_average_latency_calculation(self):
         target = MonitorTarget.objects.create(host="127.0.0.1", port=9000, last_status=True)
@@ -52,3 +54,21 @@ class MonitorModelTests(TestCase):
         
         # Availability should be (2/3) * 100 = 66.7
         self.assertEqual(target.uptime_percentage_30d, 66.7)
+
+    def test_device_model_creation_and_sensors(self):
+        from ..models import Device
+        device = Device.objects.create(
+            name="OLT Parks Teste",
+            host="172.31.255.2",
+            device_type="parks_olt"
+        )
+        self.assertEqual(str(device), "OLT Parks Teste (172.31.255.2)")
+        
+        sensor = MonitorTarget.objects.create(
+            device=device,
+            host=device.host,
+            sensor_type="ping",
+            label="OLT Parks Teste - Ping"
+        )
+        self.assertEqual(device.sensors.count(), 1)
+        self.assertEqual(device.sensors.first(), sensor)

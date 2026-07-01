@@ -235,3 +235,195 @@ class PortCheckerServiceTests(TestCase):
         call_args = mock_send_telegram_message.call_args[0][0]
         self.assertIn("Relatório Mensal", call_args)
         self.assertIn("192.168.1.20:80", call_args)  # Critical target listed
+
+
+from ..models import Device
+from ..services import DeviceDiscoveryService
+
+class MikroTikAdvancedMonitoringTests(TestCase):
+    def setUp(self):
+        self.device_api = Device.objects.create(
+            name="MikroTik API Test",
+            host="192.168.88.1",
+            device_type="mikrotik",
+            api_username="admin",
+            api_password="password",
+            check_interval=5,
+            telegram_alert_threshold=2
+        )
+        self.device_snmp = Device.objects.create(
+            name="MikroTik SNMP Test",
+            host="192.168.88.2",
+            device_type="mikrotik_snmp",
+            snmp_community="public",
+            snmp_port=161,
+            check_interval=5,
+            telegram_alert_threshold=2
+        )
+
+    @patch('monitor.services.MikrotikAPI')
+    def test_discover_and_provision_api_sensors(self, mock_api_class):
+        mock_api = MagicMock()
+        mock_api.connect.return_value = True
+        mock_api_class.return_value = mock_api
+        
+        # Mock talk responses for API
+        def mock_talk(sentence):
+            cmd = sentence[0]
+            if cmd == "/interface/print":
+                return [['!re', '=name=ether1'], ['!re', '=name=ether2']]
+            elif cmd == "/system/resource/cpu/print":
+                return [['!re', '=cpu=0', '=load=12'], ['!re', '=cpu=1', '=load=24']]
+            elif cmd == "/system/health/print":
+                return [['!re', '=name=voltage', '=value=24.2'], ['!re', '=name=temperature', '=value=45']]
+            elif cmd == "/routing/bgp/peer/print":
+                return [['!re', '=name=peer1', '=remote-address=10.0.0.1']]
+            return []
+            
+        mock_api.talk.side_effect = mock_talk
+        
+        sensors, error = DeviceDiscoveryService.discover_interfaces(self.device_api)
+        self.assertIsNone(error)
+        self.assertEqual(len(sensors), 7) # 2 interfaces, 2 CPUs, 2 health, 1 BGP peer
+        
+        identifiers = [s['identifier'] for s in sensors]
+        self.assertIn("traffic:ether1", identifiers)
+        self.assertIn("cpu:0", identifiers)
+        self.assertIn("health:voltage", identifiers)
+        self.assertIn("bgp:peer1", identifiers)
+        
+        # Provision them
+        count = DeviceDiscoveryService.provision_sensors(self.device_api, ["traffic:ether1", "cpu:0", "health:voltage", "bgp:peer1"])
+        self.assertEqual(count, 4)
+        
+        targets = self.device_api.sensors.all()
+        self.assertEqual(targets.count(), 4)
+        
+        # Check custom check_interval and telegram rule propagation
+        cpu_target = targets.get(sensor_identifier="cpu:0")
+        self.assertEqual(cpu_target.check_interval, 5)
+        self.assertEqual(cpu_target.telegram_alert_threshold, 2)
+        
+        # Check that temperature health metric has minimum of 5 minutes interval
+        volt_target = targets.get(sensor_identifier="health:voltage")
+        self.assertEqual(volt_target.check_interval, 5)
+
+    @patch('monitor.services.PortCheckerService.snmp_walk')
+    @patch('monitor.services.PortCheckerService._snmp_get')
+    def test_discover_and_provision_snmp_sensors(self, mock_snmp_get, mock_snmp_walk):
+        # Walk returns list of (oid_str, value)
+        def mock_walk(host, community, port, oid):
+            if oid == "1.3.6.1.2.1.2.2.1.2":
+                return [("1.3.6.1.2.1.2.2.1.2.1", "ether1"), ("1.3.6.1.2.1.2.2.1.2.2", "ether2")]
+            elif oid == "1.3.6.1.2.1.25.3.3.1.2":
+                return [("1.3.6.1.2.1.25.3.3.1.2.1", "12"), ("1.3.6.1.2.1.25.3.3.1.2.2", "24")]
+            elif oid == "1.3.6.1.2.1.15.3.1.2":
+                return [("1.3.6.1.2.1.15.3.1.2.10.0.0.1", "6")]
+            elif oid == "1.3.6.1.4.1.14988.1.1.3":
+                return [
+                    ("1.3.6.1.4.1.14988.1.1.3.8.0", "242"), # Voltage
+                    ("1.3.6.1.4.1.14988.1.1.3.10.0", "450") # CPU Temperature
+                ]
+            return []
+        mock_snmp_walk.side_effect = mock_walk
+        mock_snmp_get.return_value = (False, None)
+        
+        sensors, error = DeviceDiscoveryService.discover_interfaces(self.device_snmp)
+        self.assertIsNone(error)
+        
+        identifiers = [s['identifier'] for s in sensors]
+        self.assertIn("snmp_traffic:1", identifiers)
+        self.assertIn("snmp_numeric:1.3.6.1.2.1.25.3.3.1.2.1", identifiers)
+        self.assertIn("snmp_numeric:1.3.6.1.4.1.14988.1.1.3.10.0", identifiers)
+        self.assertIn("snmp_numeric:1.3.6.1.2.1.15.3.1.2.10.0.0.1", identifiers)
+
+    @patch('monitor.services.MikrotikAPI')
+    def test_check_mikrotik_api_advanced_sensors(self, mock_api_class):
+        mock_api = MagicMock()
+        mock_api.connect.return_value = True
+        mock_api_class.return_value = mock_api
+        
+        t_cpu = MonitorTarget.objects.create(
+            device=self.device_api,
+            sensor_type='mikrotik_api',
+            sensor_identifier='cpu:1',
+            label='Core 1',
+            host=self.device_api.host
+        )
+        t_volt = MonitorTarget.objects.create(
+            device=self.device_api,
+            sensor_type='mikrotik_api',
+            sensor_identifier='health:voltage',
+            label='Voltagem',
+            host=self.device_api.host
+        )
+        t_bgp = MonitorTarget.objects.create(
+            device=self.device_api,
+            sensor_type='mikrotik_api',
+            sensor_identifier='bgp:peer1',
+            label='BGP Peer 1',
+            host=self.device_api.host
+        )
+
+        # Mock check evaluations
+        def mock_talk(sentence):
+            if "/system/resource/cpu/print" in sentence[0]:
+                return [['!re', '=cpu=1', '=load=15'], ['!done']]
+            elif "/system/health/print" in sentence[0]:
+                return [['!re', '=name=voltage', '=value=24.5'], ['!done']]
+            elif "/routing/bgp/peer/print" in sentence[0]:
+                return [['!re', '=name=peer1', '=state=established'], ['!done']]
+            return []
+        mock_api.talk.side_effect = mock_talk
+        
+        # Check CPU load
+        PortCheckerService.check_target(t_cpu.id)
+        t_cpu.refresh_from_db()
+        self.assertEqual(t_cpu.sensor_value, "15%")
+        
+        # Check health voltage
+        PortCheckerService.check_target(t_volt.id)
+        t_volt.refresh_from_db()
+        self.assertEqual(t_volt.sensor_value, "24.5 V")
+        
+        # Check BGP peer state established
+        PortCheckerService.check_target(t_bgp.id)
+        t_bgp.refresh_from_db()
+        self.assertEqual(t_bgp.sensor_value, "Estabelecido")
+        self.assertTrue(t_bgp.last_status)
+
+    @patch('monitor.services.PortCheckerService._snmp_get')
+    def test_check_snmp_scale_factor_and_bgp(self, mock_snmp_get):
+        # 1. Test CPU temp scaling (450 -> 45.0ºC)
+        t_temp = MonitorTarget.objects.create(
+            device=self.device_snmp,
+            sensor_type='snmp_numeric',
+            sensor_identifier='1.3.6.1.4.1.14988.1.1.3.10.0',
+            label='CPU Temp',
+            host=self.device_snmp.host
+        )
+        mock_snmp_get.return_value = (True, "450")
+        PortCheckerService.check_target(t_temp.id)
+        t_temp.refresh_from_db()
+        self.assertEqual(t_temp.sensor_value, "45.0ºC")
+        
+        # 2. Test BGP peer state mapping (established=6 -> Online)
+        t_bgp = MonitorTarget.objects.create(
+            device=self.device_snmp,
+            sensor_type='snmp_numeric',
+            sensor_identifier='1.3.6.1.2.1.15.3.1.2.10.0.0.1',
+            label='BGP 10.0.0.1',
+            host=self.device_snmp.host
+        )
+        mock_snmp_get.return_value = (True, "6")
+        PortCheckerService.check_target(t_bgp.id)
+        t_bgp.refresh_from_db()
+        self.assertEqual(t_bgp.sensor_value, "Estabelecido")
+        self.assertTrue(t_bgp.last_status)
+        
+        # BGP Active state (3 -> Offline)
+        mock_snmp_get.return_value = (True, "3")
+        PortCheckerService.check_target(t_bgp.id)
+        t_bgp.refresh_from_db()
+        self.assertEqual(t_bgp.sensor_value, "Active")
+        self.assertFalse(t_bgp.last_status)

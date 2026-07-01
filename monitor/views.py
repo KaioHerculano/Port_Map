@@ -11,26 +11,12 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import MonitorTarget, MonitorLog, Group, AuditLog
-from .services import PortParserService
+from .models import MonitorTarget, MonitorLog, Group, AuditLog, Device
+from .forms import DeviceForm
+from .services import PortParserService, log_audit
 from .tasks import check_single_target, check_all_targets
 
 logger = logging.getLogger(__name__)
-
-
-def log_audit(user: Any, action: str, model_name: str, object_repr: str, changes: Optional[str] = None) -> None:
-    """Helper to log administrative actions to the AuditLog table."""
-    try:
-        user_val = user if (user and user.is_authenticated) else None
-        AuditLog.objects.create(
-            user=user_val,
-            action=action,
-            model_name=model_name,
-            object_repr=object_repr,
-            changes=changes
-        )
-    except Exception as e:
-        logger.error("Falha ao salvar log de auditoria: %s", str(e))
 
 
 class DashboardView(LoginRequiredMixin, generic.ListView):
@@ -41,7 +27,7 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('group')
+        queryset = super().get_queryset().select_related('group').filter(device__isnull=True)
         search_query = self.request.GET.get('q', '').strip()
         status_filter = self.request.GET.get('status', '').strip()
         group_id = self.request.GET.get('group', '').strip()
@@ -68,7 +54,7 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        all_targets = MonitorTarget.objects.all()
+        all_targets = MonitorTarget.objects.filter(device__isnull=True)
         
         group_id = self.request.GET.get('group', '').strip()
         if group_id:
@@ -86,13 +72,40 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
         context['status_filter'] = self.request.GET.get('status', '')
         context['group_id'] = group_id
 
-        # Fetch groups annotated with counts
+        # Fetch groups annotated with counts of standalone targets
         context['groups'] = Group.objects.annotate(
-            total_count=Count('targets'),
-            online_count=Count('targets', filter=Q(targets__last_status=True, targets__is_active=True)),
-            offline_count=Count('targets', filter=Q(targets__last_status=False, targets__is_active=True)),
-            inactive_count=Count('targets', filter=Q(targets__is_active=False))
+            total_count=Count('targets', filter=Q(targets__device__isnull=True)),
+            online_count=Count('targets', filter=Q(targets__last_status=True, targets__is_active=True, targets__device__isnull=True)),
+            offline_count=Count('targets', filter=Q(targets__last_status=False, targets__is_active=True, targets__device__isnull=True)),
+            inactive_count=Count('targets', filter=Q(targets__is_active=False, targets__device__isnull=True))
         )
+        
+        # Auto-correct labels of active snmp_numeric sensors that have raw OID labels
+        health_labels = {
+            '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+            '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+            '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+            '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+            '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+            '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+            '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+            '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
+            '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
+            '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+            '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+        }
+        for sensor in MonitorTarget.objects.filter(sensor_type='snmp_numeric', label__icontains='métrica 1.3.6.1.4.1.14988.1.1.3.'):
+            oid_key = sensor.sensor_identifier
+            if oid_key in health_labels:
+                device_prefix = f"{sensor.device.name} - " if sensor.device else ""
+                sensor.label = f"{device_prefix}{health_labels[oid_key]}"
+                sensor.save(update_fields=['label'])
+
+        # Fetch devices (annotated or with their prefetch sensors)
+        devices_qs = Device.objects.all().prefetch_related('sensors')
+        if group_id:
+            devices_qs = devices_qs.filter(group_id=group_id)
+        context['devices'] = devices_qs
         
         # Optimize query: select_related for related target model to avoid N+1
         context['recent_logs'] = MonitorLog.objects.select_related('target', 'target__group').order_by('-timestamp')[:15]
@@ -250,75 +263,82 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         context = super().get_context_data(**kwargs)
         target = self.object
 
+        # Auto-correct raw OID labels in the database to clean friendly names
+        if "métrica 1.3.6.1.4.1.14988.1.1.3." in (target.label or "").lower():
+            oid_key = target.sensor_identifier
+            health_labels = {
+                '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+                '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+                '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+                '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+                '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+                '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+                '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+                '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
+                '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
+                '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+                '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+            }
+            if oid_key in health_labels:
+                device_prefix = f"{target.device.name} - " if target.device else ""
+                target.label = f"{device_prefix}{health_labels[oid_key]}"
+                target.save(update_fields=['label'])
+
         # Retrieve connection history
         logs_list = target.logs.all().order_by('-timestamp')
         paginator = Paginator(logs_list, 30)
         page_number = self.request.GET.get('page')
         context['page_obj'] = paginator.get_page(page_number)
 
-        # Build datasets for Chart.js
-        now = timezone.now()
         start_date_str = self.request.GET.get('start_date', '').strip()
         end_date_str = self.request.GET.get('end_date', '').strip()
         period = self.request.GET.get('period', '').strip()
-        
-        import datetime
-        from django.utils.dateparse import parse_date
-        
-        start_date_val = None
-        end_date_val = None
-        
-        if start_date_str and end_date_str:
-            start_date_val = parse_date(start_date_str)
-            end_date_val = parse_date(end_date_str)
-            
-        if start_date_val and end_date_val:
-            start_dt = timezone.make_aware(datetime.datetime.combine(start_date_val, datetime.time.min))
-            end_dt = timezone.make_aware(datetime.datetime.combine(end_date_val, datetime.time.max))
-            period = 'custom'
-        else:
-            if not period:
-                period = '24h'
-            if period == '7d':
-                start_dt = now - timedelta(days=7)
-                start_date_str = (now - timedelta(days=7)).strftime('%Y-%m-%d')
-            elif period == '30d':
-                start_dt = now - timedelta(days=30)
-                start_date_str = (now - timedelta(days=30)).strftime('%Y-%m-%d')
-            else: # '24h'
-                start_dt = now - timedelta(days=1)
-                period = '24h'
-                start_date_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
-            end_dt = now
-            end_date_str = now.strftime('%Y-%m-%d')
 
-        # Filter logs in range
-        chart_logs_query = target.logs.filter(timestamp__gte=start_dt, timestamp__lte=end_dt).order_by('timestamp')
-        
-        # Downsample if log count exceeds 300 to optimize performance
-        log_count = chart_logs_query.count()
-        if log_count > 300:
-            step = log_count // 300
-            chart_logs = list(chart_logs_query)[::step]
-        else:
-            chart_logs = list(chart_logs_query)
-
-        # Dynamic format for X-axis labels based on duration
-        if (end_dt - start_dt) > timedelta(days=1):
-            timestamp_format = '%d/%m %H:%M'
-        else:
-            timestamp_format = '%H:%M:%S'
-
-        context['chart_timestamps'] = [timezone.localtime(log.timestamp).strftime(timestamp_format) for log in chart_logs]
-        context['chart_latencies'] = [log.latency if log.status else 0 for log in chart_logs]
-        context['chart_statuses'] = [1 if log.status else 0 for log in chart_logs]
-        
-        context['period'] = period
-        context['start_date'] = start_date_str
-        context['end_date'] = end_date_str
+        from .services import TargetDetailService
+        chart_ctx = TargetDetailService.get_chart_context(target, start_date_str, end_date_str, period)
+        context.update(chart_ctx)
         
         context['uptime_24h'] = target.uptime_percentage_24h
         context['avg_latency'] = target.average_latency_24h
+
+        # Determine chart label and unit
+        sensor_type = target.sensor_type
+        label_lower = (target.label or "").lower()
+        ident_lower = (target.sensor_identifier or "").lower()
+        
+        if sensor_type == 'snmp_traffic' or ident_lower.startswith('traffic:') or "tráfego" in label_lower or "traffic" in label_lower:
+            chart_label = "Tráfego"
+            chart_unit = "Mbps"
+        elif "temp" in label_lower or "temperatura" in label_lower or ident_lower == 'temp' or "1.3.6.1.4.1.14988.1.1.3.10.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.11.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.9.0" in ident_lower:
+            chart_label = "Temperatura"
+            chart_unit = "ºC"
+        elif "volt" in label_lower or "voltagem" in label_lower or "1.3.6.1.4.1.14988.1.1.3.8.0" in ident_lower:
+            chart_label = "Voltagem"
+            chart_unit = "V"
+        elif "consumo" in label_lower or "power" in label_lower or "wates" in label_lower or "watts" in label_lower or "energia" in label_lower or "1.3.6.1.4.1.14988.1.1.3.12.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.14.0" in ident_lower:
+            chart_label = "Consumo"
+            chart_unit = "W"
+        elif "corrente" in label_lower or "current" in label_lower or "1.3.6.1.4.1.14988.1.1.3.13.0" in ident_lower:
+            chart_label = "Corrente"
+            chart_unit = "A"
+        elif "cooler" in label_lower or "fan" in label_lower or "rotação" in label_lower or "rpm" in label_lower or "1.3.6.1.4.1.14988.1.1.3.17.0" in ident_lower or "1.3.6.1.4.1.14988.1.1.3.18.0" in ident_lower:
+            chart_label = "Rotação"
+            chart_unit = "RPM"
+        elif "psu" in label_lower or "estado da psu" in label_lower:
+            chart_label = "Estado da Fonte"
+            chart_unit = "Status"
+        elif "cpu" in label_lower or ident_lower == 'cpu' or "1.3.6.1.2.1.25.3.3.1.2.1" in ident_lower:
+            chart_label = "Uso de CPU"
+            chart_unit = "%"
+        elif "uptime" in label_lower or ident_lower == 'uptime' or "1.3.6.1.2.1.1.3.0" in ident_lower:
+            chart_label = "Tempo de Atividade"
+            chart_unit = "Dias"
+        else:
+            chart_label = "Latência"
+            chart_unit = "ms"
+            
+        context['chart_label'] = chart_label
+        context['chart_unit'] = chart_unit
         return context
 
 
@@ -380,22 +400,36 @@ class TriggerCheckView(LoginRequiredMixin, View):
     """Class-Based View to trigger manual Celery check executions."""
 
     def post(self, request: HttpRequest, pk: Optional[int] = None, *args: Any, **kwargs: Any) -> JsonResponse:
+        from .services import PortCheckerService
         if pk:
             target = get_object_or_404(MonitorTarget, pk=pk)
-            task = check_single_target.delay(target.id)
-            logger.info("Agendamento manual de varredura unica para %s:%d (Task ID: %s)", target.host, target.port, task.id)
+            try:
+                PortCheckerService.check_target(target.id)
+            except Exception as e:
+                logger.error("Erro na checagem síncrona manual do alvo %d: %s", target.id, str(e))
+                
+            try:
+                check_single_target.delay(target.id)
+            except Exception:
+                pass
             return JsonResponse({
                 'status': 'success',
-                'task_id': task.id,
-                'message': 'Teste de porta iniciado em segundo plano.'
+                'message': 'Teste de porta concluído com sucesso.'
             })
         else:
-            task = check_all_targets.delay()
-            logger.info("Agendamento manual de varredura global para todos os alvos ativos (Task ID: %s)", task.id)
+            active_targets = MonitorTarget.objects.filter(is_active=True)
+            for t in active_targets:
+                try:
+                    PortCheckerService.check_target(t.id)
+                except Exception as e:
+                    logger.error("Erro na checagem síncrona manual global do alvo %d: %s", t.id, str(e))
+            try:
+                check_all_targets.delay()
+            except Exception:
+                pass
             return JsonResponse({
                 'status': 'success',
-                'task_id': task.id,
-                'message': 'Teste global de portas iniciado em segundo plano.'
+                'message': 'Teste global de portas concluído com sucesso.'
             })
 
 
@@ -468,101 +502,17 @@ class GroupReportPDFView(LoginRequiredMixin, View):
     
     def get(self, request: HttpRequest, group_id: int, *args: Any, **kwargs: Any) -> HttpResponse:
         group = get_object_or_404(Group, pk=group_id)
-        
-        # Retrieve custom start and end dates (defaulting to last 30 days)
         start_date_str = request.GET.get('start_date', '').strip()
         end_date_str = request.GET.get('end_date', '').strip()
         
-        from django.utils import timezone
-        from django.utils.dateparse import parse_date
-        from datetime import timedelta
-        import datetime
-        from django.db.models import Count, Q, Case, When, Value, FloatField, F
-        from django.db.models.functions import Cast
+        from .services import SLAReportService
+        pdf_bytes, filename = SLAReportService.generate_pdf_report(group, start_date_str, end_date_str)
         
-        # Fallbacks
-        end_date = timezone.now()
-        start_date = end_date - timedelta(days=30)
-        
-        if start_date_str:
-            parsed_start = parse_date(start_date_str)
-            if parsed_start:
-                start_date = timezone.make_aware(datetime.datetime.combine(parsed_start, datetime.time.min))
-                
-        if end_date_str:
-            parsed_end = parse_date(end_date_str)
-            if parsed_end:
-                end_date = timezone.make_aware(datetime.datetime.combine(parsed_end, datetime.time.max))
-        
-        # Calculate availability over the specified range for each active target in this group
-        targets = group.targets.filter(is_active=True).annotate(
-            total_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date)),
-            success_logs=Count('logs', filter=Q(logs__timestamp__gte=start_date, logs__timestamp__lte=end_date, logs__status=True))
-        ).annotate(
-            availability=Case(
-                When(total_logs=0, then=Case(
-                    When(last_status=True, then=Value(100.0)),
-                    default=Value(0.0)
-                )),
-                default=Cast(F('success_logs') * 100.0 / F('total_logs'), output_field=FloatField())
-            )
-        ).order_by('host', 'port')
-        
-        # Round availability to 1 decimal place, calculate average, and pair targets for 2-column layout
-        total_availability = 0.0
-        target_count = len(targets)
-        
-        for target in targets:
-            target.availability_rounded = round(target.availability, 1)
-            total_availability += target.availability_rounded
-            
-        # Pair targets side-by-side (cols = 2)
-        paired_targets = []
-        cols = 2
-        for i in range(0, len(targets), cols):
-            chunk = list(targets[i:i + cols])
-            while len(chunk) < cols:
-                chunk.append(None)
-            paired_targets.append(chunk)
-            
-        group_availability = round(total_availability / target_count, 1) if target_count > 0 else 100.0
-        
-        # Calculate how many days are in the period
-        delta_days = (end_date - start_date).days
-        if delta_days <= 0:
-            delta_days = 1
-        
-        # Render HTML template for the PDF report
-        from django.template.loader import render_to_string
-        from xhtml2pdf import pisa
-        import io
-        
-        context = {
-            'group': group,
-            'paired_targets': paired_targets,
-            'group_availability': group_availability,
-            'target_count': target_count,
-            'start_date': start_date,
-            'end_date': end_date,
-            'period_days': delta_days,
-            'generated_at': timezone.now(),
-        }
-        
-        html_string = render_to_string('monitor/group_report_pdf.html', context)
-        
-        # Create PDF
-        pdf_buffer = io.BytesIO()
-        pisa_status = pisa.CreatePDF(html_string, dest=pdf_buffer)
-        
-        if pisa_status.err:
+        if pdf_bytes is None:
             return HttpResponse("Erro ao gerar PDF", status=500)
             
-        pdf_buffer.seek(0)
-        response = HttpResponse(pdf_buffer, content_type='application/pdf')
-        
-        # Format filename to be safe
-        safe_name = "".join([c if c.isalnum() else "_" for c in group.name.lower()])
-        response['Content-Disposition'] = f'filename="relatorio_sla_{safe_name}.pdf"'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'filename="{filename}"'
         return response
 
 
@@ -597,62 +547,16 @@ class UpdateGroupView(LoginRequiredMixin, View):
             messages.error(request, f"Já existe um grupo com o nome '{new_name}'.")
             return redirect('edit_group', pk=group.id)
             
-        old_name = group.name
-        if old_name != new_name:
-            group.name = new_name
-            group.save()
-            log_audit(
-                user=request.user,
-                action='Editar',
-                model_name='Grupo',
-                object_repr=old_name,
-                changes=f"Grupo renomeado de '{old_name}' para '{new_name}'"
-            )
-        else:
-            group.save()
-            
         # Batch update check intervals and telegram alert thresholds
         check_interval = request.POST.get('check_interval', '').strip()
         telegram_alert_threshold = request.POST.get('telegram_alert_threshold', '').strip()
         selected_targets = request.POST.getlist('selected_targets')
         
-        success_msg = f"Grupo '{old_name}' renomeado para '{new_name}' com sucesso." if old_name != new_name else f"Grupo '{new_name}' atualizado."
+        from .services import GroupManagerService
+        _, success_msg = GroupManagerService.update_group_settings(
+            group, new_name, check_interval, telegram_alert_threshold, selected_targets, request.user
+        )
         
-        if selected_targets:
-            changes_desc = []
-            if check_interval:
-                try:
-                    interval_val = int(check_interval)
-                    updated_count = MonitorTarget.objects.filter(
-                        id__in=selected_targets, 
-                        group=group
-                    ).update(check_interval=interval_val)
-                    success_msg += f" Frequência de verificação atualizada em {updated_count} dispositivo(s)."
-                    changes_desc.append(f"Frequência definida para {interval_val}m")
-                except ValueError:
-                    messages.error(request, "Intervalo de verificação inválido.")
-            
-            if telegram_alert_threshold:
-                try:
-                    threshold_val = int(telegram_alert_threshold)
-                    updated_count = MonitorTarget.objects.filter(
-                        id__in=selected_targets, 
-                        group=group
-                    ).update(telegram_alert_threshold=threshold_val)
-                    success_msg += f" Regra de alerta do Telegram atualizada em {updated_count} dispositivo(s)."
-                    changes_desc.append(f"Alerta de Telegram definido para {threshold_val} falha(s)")
-                except ValueError:
-                    messages.error(request, "Regra de alerta do Telegram inválida.")
-                    
-            if changes_desc:
-                log_audit(
-                    user=request.user,
-                    action='Lote',
-                    model_name='Dispositivo',
-                    object_repr=f"Grupo: {new_name}",
-                    changes=f"Atualização em lote para {len(selected_targets)} dispositivos: {', '.join(changes_desc)}"
-                )
-                
         messages.success(request, success_msg)
         return redirect('dashboard')
 
@@ -720,3 +624,287 @@ class TriggerMonthlyReportView(LoginRequiredMixin, View):
         # Trigger task asynchronously in Celery
         result = send_monthly_telegram_report.delay()
         return JsonResponse({'status': 'success', 'task_id': result.id})
+
+
+class AddDeviceView(LoginRequiredMixin, generic.CreateView):
+    model = Device
+    form_class = DeviceForm
+    template_name = 'monitor/add_device.html'
+    success_url = reverse_lazy('dashboard')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        device = self.object
+        selected = self.request.POST.getlist('sensors')
+        discovery_run = self.request.POST.get('discovery_run') == 'true'
+
+        if discovery_run:
+            from .services import DeviceDiscoveryService
+            created_count = DeviceDiscoveryService.provision_sensors(device, selected)
+            
+            log_audit(
+                user=self.request.user,
+                action='Criar',
+                model_name='Equipamento',
+                object_repr=device.name,
+                changes=f"Novo equipamento cadastrado com auto-descoberta na criação. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
+            )
+            messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {created_count} sensor(es) criado(s).")
+            from django.shortcuts import redirect
+            return redirect('dashboard')
+
+        # Default legacy fallback if discovery wasn't run on creation page
+        # Define available sensors per device type
+        SENSOR_DEFS = {
+            'generic_ping': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+            'mikrotik': {
+                'ping':   {'type': 'ping',         'identifier': '',       'label': 'Ping',   'interval': 1},
+                'cpu':    {'type': 'mikrotik_api', 'identifier': 'cpu',    'label': 'CPU',    'interval': 1},
+                'temp':   {'type': 'mikrotik_api', 'identifier': 'temp',   'label': 'Temp',   'interval': 5},
+                'uptime': {'type': 'mikrotik_api', 'identifier': 'uptime', 'label': 'Uptime', 'interval': 15},
+            },
+            'mikrotik_snmp': {
+                'ping':   {'type': 'ping',         'identifier': '',                          'label': 'Ping',     'interval': 1},
+                'cpu':    {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.25.3.3.1.2.1', 'label': 'CPU',      'interval': 1},
+                'temp':   {'type': 'snmp_numeric',  'identifier': '1.3.6.1.4.1.14988.1.1.3.10.0', 'label': 'Temp CPU', 'interval': 5},
+                'uptime': {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.1.3.0',        'label': 'Uptime',   'interval': 15},
+            },
+            'parks_olt': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+            'generic_snmp': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+        }
+
+        defs = SENSOR_DEFS.get(device.device_type, {})
+
+        # If no sensors were selected (e.g. JS disabled), default to all
+        if not selected:
+            selected = list(defs.keys())
+
+        for key in selected:
+            if key not in defs:
+                continue
+            s = defs[key]
+            kwargs = dict(
+                device=device,
+                sensor_type=s['type'],
+                host=device.host,
+                group=device.group,
+            )
+            if s['identifier']:
+                kwargs['sensor_identifier'] = s['identifier']
+                
+            # Inherit custom intervals and alert thresholds from device
+            interval = device.check_interval
+            if s['type'] == 'snmp_numeric' and "temp" in s['label'].lower():
+                interval = max(5, device.check_interval)
+            elif s['type'] == 'mikrotik_api' and s['identifier'] == 'temp':
+                interval = max(5, device.check_interval)
+                
+            t, created = MonitorTarget.objects.get_or_create(
+                **kwargs,
+                defaults={
+                    'label': f"{device.name} - {s['label']}",
+                    'check_interval': interval,
+                    'telegram_alert_threshold': device.telegram_alert_threshold,
+                    'is_active': True,
+                }
+            )
+            if not created and not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
+
+        log_audit(
+            user=self.request.user,
+            action='Criar',
+            model_name='Equipamento',
+            object_repr=device.name,
+            changes=f"Novo equipamento cadastrado. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
+        )
+        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {len(selected)} sensor(es) criado(s). Carregando auto-descoberta...")
+        
+        # Trigger checks for all new sensors in background
+        for sensor in device.sensors.all():
+            try:
+                from .tasks import check_single_target
+                check_single_target.delay(sensor.id)
+            except Exception:
+                pass
+            
+        from django.shortcuts import redirect
+        return redirect('discover_sensors', pk=device.id)
+
+
+class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
+    model = Device
+    form_class = DeviceForm
+    template_name = 'monitor/edit_device.html'
+    success_url = reverse_lazy('dashboard')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        device = self.get_object()
+        
+        # Discover all sensors dynamically for edit page!
+        from .services import DeviceDiscoveryService
+        discovered_sensors, error = DeviceDiscoveryService.discover_interfaces(device)
+        
+        import json
+        context['discovered_sensors_json'] = json.dumps(discovered_sensors)
+        context['discovery_error'] = error
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        device = self.object
+        
+        # Propagate group and telegram threshold in bulk
+        device.sensors.all().update(
+            telegram_alert_threshold=device.telegram_alert_threshold,
+            group=device.group
+        )
+        
+        # Propagate check interval with specific limits for temperature
+        for sensor in device.sensors.all():
+            interval = device.check_interval
+            if sensor.sensor_type == 'snmp_numeric' and "temp" in (sensor.label or "").lower():
+                interval = max(5, device.check_interval)
+            elif sensor.sensor_type == 'mikrotik_api' and sensor.sensor_identifier.startswith("health:temp"):
+                interval = max(5, device.check_interval)
+            
+            sensor.check_interval = interval
+            sensor.save(update_fields=['check_interval'])
+
+        # Process selected sensors from post data
+        selected_identifiers = self.request.POST.getlist('sensors')
+        
+        def get_target_identifier(target):
+            if target.sensor_type == 'ping':
+                return 'ping'
+            elif target.sensor_type == 'snmp_traffic':
+                return f"snmp_traffic:{target.sensor_identifier}"
+            elif target.sensor_type == 'snmp_numeric':
+                return f"snmp_numeric:{target.sensor_identifier}"
+            elif target.sensor_type == 'mikrotik_api':
+                return target.sensor_identifier
+            return None
+
+        existing_targets = device.sensors.all()
+        
+        # 1. Delete sensors that are unchecked in the edit form
+        for target in existing_targets:
+            ident = get_target_identifier(target)
+            if ident and ident not in selected_identifiers:
+                target.delete()
+                
+        # 2. Add/provision newly checked sensors
+        existing_idents = {get_target_identifier(t) for t in existing_targets}
+        new_idents = [ident for ident in selected_identifiers if ident and ident not in existing_idents]
+        
+        if new_idents:
+            from .services import DeviceDiscoveryService
+            DeviceDiscoveryService.provision_sensors(device, new_idents)
+
+        log_audit(
+            user=self.request.user,
+            action='Editar',
+            model_name='Equipamento',
+            object_repr=device.name,
+            changes=f"Alterado configurações do equipamento ID {device.id} (propagado para {device.sensors.count()} sensores)"
+        )
+        messages.success(self.request, f"Equipamento '{device.name}' atualizado com sucesso!")
+        return response
+
+
+class DeleteDeviceView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        device = get_object_or_404(Device, pk=pk)
+        device_name = device.name
+        device.delete()
+        log_audit(
+            user=request.user,
+            action='Excluir',
+            model_name='Equipamento',
+            object_repr=device_name,
+            changes=f"Equipamento '{device_name}' e seus sensores foram excluídos"
+        )
+        messages.success(request, f"Equipamento '{device_name}' e todos os seus sensores associados foram excluídos com sucesso.")
+        return redirect('dashboard')
+
+
+class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        device = get_object_or_404(Device, pk=pk)
+        from .services import DeviceDiscoveryService
+        interfaces, error = DeviceDiscoveryService.discover_interfaces(device)
+
+        context = {
+            'device': device,
+            'interfaces': interfaces,
+            'error': error
+        }
+        return render(request, 'monitor/discover_sensors.html', context)
+
+    def post(self, request, pk):
+        device = get_object_or_404(Device, pk=pk)
+        selected_identifiers = request.POST.getlist('selected_interfaces')
+        
+        from .services import DeviceDiscoveryService
+        created_count = DeviceDiscoveryService.provision_sensors(device, selected_identifiers)
+
+        messages.success(request, f"Sucesso! {created_count} novos sensores de tráfego foram adicionados ao equipamento '{device.name}'.")
+        return redirect('dashboard')
+
+
+class StatusUpdateAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        targets_qs = MonitorTarget.objects.all().values(
+            'id', 'last_status', 'sensor_value', 'last_latency', 'is_active', 'sensor_type'
+        )
+        return JsonResponse({'targets': list(targets_qs)})
+
+
+class DiscoverPreviewAPIView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        device_type = request.POST.get('device_type', 'mikrotik_snmp')
+        print(f"DEBUG PREVIEW API: device_type={device_type} POST keys={list(request.POST.keys())} all={request.POST.dict()}", flush=True)
+        host = request.POST.get('host', '').strip()
+        snmp_community = request.POST.get('snmp_community', 'public').strip()
+        snmp_port = request.POST.get('snmp_port', '161')
+        api_port = request.POST.get('api_port', '8728')
+        api_username = request.POST.get('api_username', '').strip()
+        api_password = request.POST.get('api_password', '').strip()
+        
+        try:
+            snmp_port = int(snmp_port) if snmp_port else 161
+        except ValueError:
+            snmp_port = 161
+            
+        try:
+            api_port = int(api_port) if api_port else 8728
+        except ValueError:
+            api_port = 8728
+
+        # Instantiate a temporary Device
+        device = Device(
+            device_type=device_type,
+            host=host,
+            snmp_community=snmp_community,
+            snmp_port=snmp_port,
+            api_port=api_port,
+            api_username=api_username,
+            api_password=api_password
+        )
+
+        from .services import DeviceDiscoveryService
+        sensors, error = DeviceDiscoveryService.discover_interfaces(device)
+
+        return JsonResponse({
+            'success': error is None,
+            'error': error,
+            'sensors': sensors
+        })

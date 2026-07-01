@@ -3,6 +3,26 @@ from django.utils import timezone
 from datetime import timedelta
 from django.conf import settings
 
+CHECK_INTERVAL_CHOICES = [
+    (1, 'A cada 1 minuto'),
+    (5, 'A cada 5 minutos'),
+    (15, 'A cada 15 minutos'),
+    (30, 'A cada 30 minutos'),
+    (48, 'A cada 48 minutos (30 vezes por dia)'),
+    (60, 'A cada 1 hora'),
+    (120, 'A cada 2 horas'),
+    (360, 'A cada 6 horas'),
+    (720, 'A cada 12 horas'),
+    (1440, 'A cada 24 horas (1 vez por dia)'),
+]
+
+TELEGRAM_ALERT_CHOICES = [
+    (1, 'Imediatamente (1ª falha)'),
+    (2, 'Após 2 falhas consecutivas'),
+    (3, 'Após 3 falhas consecutivas'),
+    (0, 'Desativar Alertas (Não notificar)'),
+]
+
 class Group(models.Model):
     name = models.CharField(
         max_length=255, 
@@ -19,7 +39,99 @@ class Group(models.Model):
         return self.name
 
 
+class Device(models.Model):
+    DEVICE_TYPES = [
+        ('mikrotik_snmp', 'MikroTik (SNMP)'),
+        ('parks_olt', 'OLT Parks GPON'),
+        ('generic_snmp', 'Genérico (SNMP)'),
+        ('generic_ping', 'Genérico (Apenas Ping)'),
+    ]
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Nome amigável do equipamento (ex: OLT Parks, MikroTik BGP)"
+    )
+    host = models.CharField(
+        max_length=255,
+        help_text="Endereço IP ou Hostname (ex: 172.31.255.2)"
+    )
+    device_type = models.CharField(
+        max_length=50,
+        choices=DEVICE_TYPES,
+        default='mikrotik_snmp',
+        help_text="Tipo de equipamento para comunicação e coleta de dados"
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='devices',
+        help_text="Grupo ao qual este equipamento pertence"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Habilitar/Desabilitar monitoramento de todos os sensores deste dispositivo"
+    )
+    
+    # SNMP configurations
+    snmp_community = models.CharField(
+        max_length=255,
+        default='public',
+        help_text="Comunidade SNMP v2c (ex: public)"
+    )
+    snmp_port = models.IntegerField(
+        default=161,
+        help_text="Porta SNMP (padrão: 161)"
+    )
+
+    # MikroTik RouterOS API configurations
+    api_username = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Usuário da API MikroTik (opcional)"
+    )
+    api_password = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Senha da API MikroTik (opcional)"
+    )
+    api_port = models.IntegerField(
+        default=8728,
+        help_text="Porta da API MikroTik (padrão: 8728)"
+    )
+    check_interval = models.IntegerField(
+        default=60,
+        choices=CHECK_INTERVAL_CHOICES,
+        help_text="Frequência de verificação padrão para os sensores deste equipamento (em minutos)"
+    )
+    telegram_alert_threshold = models.IntegerField(
+        default=1,
+        choices=TELEGRAM_ALERT_CHOICES,
+        help_text="Regra de alerta de Telegram padrão para os sensores deste equipamento"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.host})"
+
+
 class MonitorTarget(models.Model):
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='sensors',
+        help_text="Dispositivo ao qual este sensor pertence"
+    )
     group = models.ForeignKey(
         Group,
         on_delete=models.SET_NULL,
@@ -39,7 +151,43 @@ class MonitorTarget(models.Model):
         help_text="Endereço IP ou Hostname (ex: 45.174.193.10 ou google.com)"
     )
     port = models.IntegerField(
-        help_text="Porta TCP (ex: 40001)"
+        null=True,
+        blank=True,
+        help_text="Porta TCP (ex: 40001) - Opcional para sensores não-TCP"
+    )
+    sensor_type = models.CharField(
+        max_length=50,
+        default='tcp',
+        choices=[
+            ('tcp', 'Porta TCP'),
+            ('ping', 'Ping (ICMP)'),
+            ('snmp_traffic', 'Tráfego SNMP'),
+            ('snmp_numeric', 'Valor Numérico SNMP'),
+            ('mikrotik_api', 'MikroTik API'),
+        ],
+        help_text="Tipo de monitoramento/coleta"
+    )
+    sensor_identifier = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        help_text="Identificador único do sensor (ex: OID ou nome da interface)"
+    )
+    sensor_value = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Valor formatado da última coleta"
+    )
+    last_counter_val = models.BigIntegerField(
+        blank=True,
+        null=True,
+        help_text="Último valor bruto de bytes (para tráfego)"
+    )
+    last_counter_time = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp do último valor bruto (para tráfego)"
     )
     is_active = models.BooleanField(
         default=True, 
@@ -47,18 +195,7 @@ class MonitorTarget(models.Model):
     )
     check_interval = models.IntegerField(
         default=60,
-        choices=[
-            (1, 'A cada 1 minuto'),
-            (5, 'A cada 5 minutos'),
-            (15, 'A cada 15 minutos'),
-            (30, 'A cada 30 minutos'),
-            (48, 'A cada 48 minutos (30 vezes por dia)'),
-            (60, 'A cada 1 hora'),
-            (120, 'A cada 2 horas'),
-            (360, 'A cada 6 horas'),
-            (720, 'A cada 12 horas'),
-            (1440, 'A cada 24 horas (1 vez por dia)'),
-        ],
+        choices=CHECK_INTERVAL_CHOICES,
         help_text="Frequência de verificação deste sensor (em minutos)"
     )
     last_checked = models.DateTimeField(
@@ -76,12 +213,7 @@ class MonitorTarget(models.Model):
         help_text="Último tempo de resposta em milissegundos"
     )
     telegram_alert_threshold = models.IntegerField(
-        choices=[
-            (1, 'Imediatamente (1ª falha)'),
-            (2, 'Após 2 falhas consecutivas'),
-            (3, 'Após 3 falhas consecutivas'),
-            (0, 'Não notificar'),
-        ],
+        choices=TELEGRAM_ALERT_CHOICES,
         default=1,
         help_text="Regra para disparo de alertas de falha no Telegram"
     )
@@ -93,12 +225,15 @@ class MonitorTarget(models.Model):
     )
 
     class Meta:
-        unique_together = ('host', 'port')
-        ordering = ['host', 'port']
+        ordering = ['id']
 
     def __str__(self):
         label_str = f" ({self.label})" if self.label else ""
-        return f"{self.host}:{self.port}{label_str}"
+        if self.sensor_type == 'tcp':
+            return f"{self.host}:{self.port}{label_str}"
+        else:
+            sensor_name = self.sensor_identifier or self.get_sensor_type_display()
+            return f"{self.host} - {sensor_name}{label_str}"
 
     @property
     def uptime_percentage_24h(self):
@@ -142,6 +277,11 @@ class MonitorLog(models.Model):
     )
     latency = models.FloatField(
         help_text="Tempo de resposta do socket em milissegundos"
+    )
+    metric_value = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Valor numérico bruto da métrica coletada (ex: graus, %, Mbps)"
     )
     timestamp = models.DateTimeField(
         auto_now_add=True, 
