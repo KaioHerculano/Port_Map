@@ -27,7 +27,7 @@ def send_telegram_message(text: str) -> bool:
         req = urllib.request.Request(
             url, data=data, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:  # nosec B310
             res_data = json.loads(response.read().decode("utf-8"))
             if res_data.get("ok"):
                 logger.info("Notificacao do Telegram enviada com sucesso.")

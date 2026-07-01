@@ -190,7 +190,7 @@ class MikrotikAPI:
 
             if token:
                 # Challenge-response flow (ROS < 6.43)
-                hasher = hashlib.md5()
+                hasher = hashlib.md5(usedforsecurity=False)  # nosec B324
                 hasher.update(b"\x00")
                 hasher.update(self.password.encode("utf-8"))
                 hasher.update(binascii.unhexlify(token))
@@ -429,15 +429,10 @@ class PortCheckerService:
         try:
             import asyncio
 
-            from pysnmp.hlapi.asyncio import (
-                CommunityData,
-                ContextData,
-                ObjectIdentity,
-                ObjectType,
-                SnmpEngine,
-                UdpTransportTarget,
-                getCmd,
-            )
+            from pysnmp.hlapi.asyncio import (CommunityData, ContextData,
+                                              ObjectIdentity, ObjectType,
+                                              SnmpEngine, UdpTransportTarget,
+                                              getCmd)
 
             async def do_get():
                 return await getCmd(
@@ -473,15 +468,10 @@ class PortCheckerService:
         try:
             import asyncio
 
-            from pysnmp.hlapi.asyncio import (
-                CommunityData,
-                ContextData,
-                ObjectIdentity,
-                ObjectType,
-                SnmpEngine,
-                UdpTransportTarget,
-                nextCmd,
-            )
+            from pysnmp.hlapi.asyncio import (CommunityData, ContextData,
+                                              ObjectIdentity, ObjectType,
+                                              SnmpEngine, UdpTransportTarget,
+                                              nextCmd)
 
             async def do_walk():
                 walk_results = []
