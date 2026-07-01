@@ -207,7 +207,7 @@ class MonitorTarget(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["id"]
+        ordering = ["host", "port", "id"]
 
     def __str__(self):
         label_str = f" ({self.label})" if self.label else ""
