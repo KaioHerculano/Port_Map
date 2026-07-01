@@ -6,17 +6,22 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import (HttpRequest, HttpResponse, HttpResponseRedirect,
-                         JsonResponse)
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View, generic
 
 from .forms import DeviceForm
 from .models import AuditLog, Device, Group, MonitorLog, MonitorTarget
-from .services import (DashboardService, DeviceService, GroupService,
-                       PortParserService, TargetService, TelegramService,
-                       log_audit)
+from .services import (
+    DashboardService,
+    DeviceService,
+    GroupService,
+    PortParserService,
+    TargetService,
+    TelegramService,
+    log_audit,
+)
 from .tasks import check_single_target
 
 logger = logging.getLogger(__name__)
