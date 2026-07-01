@@ -1,11 +1,13 @@
 import logging
 from typing import Any, Union
-from django.shortcuts import redirect
-from django.contrib import messages
+
 from django import forms
+from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.views.generic import FormView, CreateView, View
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.shortcuts import redirect
+from django.views.generic import CreateView, FormView, View
+
 from .services import UserService
 
 logger = logging.getLogger(__name__)
@@ -13,59 +15,60 @@ logger = logging.getLogger(__name__)
 
 class UserLoginForm(forms.Form):
     username = forms.CharField(
-        label="Usuário ou E-mail", 
-        widget=forms.TextInput(attrs={
-            'class': 'form-input',
-            'placeholder': 'Digite seu usuário ou e-mail',
-            'autocomplete': 'username'
-        })
+        label="Usuário ou E-mail",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-input",
+                "placeholder": "Digite seu usuário ou e-mail",
+                "autocomplete": "username",
+            }
+        ),
     )
     password = forms.CharField(
-        label="Senha", 
-        widget=forms.PasswordInput(attrs={
-            'class': 'form-input',
-            'placeholder': 'Digite sua senha',
-            'autocomplete': 'current-password'
-        })
+        label="Senha",
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "form-input",
+                "placeholder": "Digite sua senha",
+                "autocomplete": "current-password",
+            }
+        ),
     )
 
 
 class UserSignupForm(forms.ModelForm):
     username = forms.CharField(
-        label="Usuário", 
-        widget=forms.TextInput(attrs={
-            'class': 'form-input',
-            'placeholder': 'Escolha um nome de usuário'
-        })
+        label="Usuário",
+        widget=forms.TextInput(
+            attrs={"class": "form-input", "placeholder": "Escolha um nome de usuário"}
+        ),
     )
     email = forms.EmailField(
-        label="E-mail", 
-        widget=forms.EmailInput(attrs={
-            'class': 'form-input',
-            'placeholder': 'exemplo@email.com'
-        })
+        label="E-mail",
+        widget=forms.EmailInput(
+            attrs={"class": "form-input", "placeholder": "exemplo@email.com"}
+        ),
     )
     password = forms.CharField(
-        label="Senha", 
-        widget=forms.PasswordInput(attrs={
-            'class': 'form-input',
-            'placeholder': 'Crie uma senha'
-        })
+        label="Senha",
+        widget=forms.PasswordInput(
+            attrs={"class": "form-input", "placeholder": "Crie uma senha"}
+        ),
     )
 
     class Meta:
         model = get_user_model()
-        fields = ['username', 'email', 'password']
+        fields = ["username", "email", "password"]
 
     def clean_email(self) -> str:
-        email = self.cleaned_data.get('email', '').lower()
+        email = self.cleaned_data.get("email", "").lower()
         UserModel = get_user_model()
         if UserModel.objects.filter(email=email).exists():
             raise forms.ValidationError("Este endereço de e-mail já está em uso.")
         return email
 
     def clean_username(self) -> str:
-        username = self.cleaned_data.get('username', '')
+        username = self.cleaned_data.get("username", "")
         UserModel = get_user_model()
         if UserModel.objects.filter(username__iexact=username).exists():
             raise forms.ValidationError("Este nome de usuário já está em uso.")
@@ -80,47 +83,56 @@ class UserSignupForm(forms.ModelForm):
 
 
 class UserLoginView(FormView):
-    template_name = 'accounts/login.html'
+    template_name = "accounts/login.html"
     form_class = UserLoginForm
-    success_url = '/'
+    success_url = "/"
 
     def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         if request.user.is_authenticated:
-            return redirect('dashboard')
+            return redirect("dashboard")
         return super().dispatch(request, *args, **kwargs)
 
-    def form_valid(self, form: UserLoginForm) -> Union[HttpResponse, HttpResponseRedirect]:
-        username = form.cleaned_data.get('username')
-        password = form.cleaned_data.get('password')
-        
+    def form_valid(
+        self, form: UserLoginForm
+    ) -> Union[HttpResponse, HttpResponseRedirect]:
+        username = form.cleaned_data.get("username")
+        password = form.cleaned_data.get("password")
+
         user = UserService.authenticate_and_login(self.request, username, password)
         if user is not None:
             messages.success(self.request, f"Bem-vindo de volta, {user.username}!")
             return redirect(self.get_success_url())
         else:
-            messages.error(self.request, "Credenciais inválidas. Verifique o usuário/e-mail e a senha.")
+            messages.error(
+                self.request,
+                "Credenciais inválidas. Verifique o usuário/e-mail e a senha.",
+            )
             return self.form_invalid(form)
 
 
 class UserSignupView(CreateView):
     model = get_user_model()
     form_class = UserSignupForm
-    template_name = 'accounts/signup.html'
-    success_url = '/'
+    template_name = "accounts/signup.html"
+    success_url = "/"
 
     def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         if request.user.is_authenticated:
-            return redirect('dashboard')
+            return redirect("dashboard")
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form: UserSignupForm) -> HttpResponseRedirect:
         user = UserService.register_and_login(self.request, form)
-        messages.success(self.request, f"Conta criada com sucesso! Bem-vindo, {user.username}!")
+        messages.success(
+            self.request, f"Conta criada com sucesso! Bem-vindo, {user.username}!"
+        )
         return redirect(self.get_success_url())
 
 
 class UserLogoutView(View):
-    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
+    def post(
+        self, request: HttpRequest, *args: Any, **kwargs: Any
+    ) -> HttpResponseRedirect:
         UserService.logout_user(request)
         messages.info(request, "Você foi desconectado com sucesso.")
-        return redirect('login')
+        return redirect("login")

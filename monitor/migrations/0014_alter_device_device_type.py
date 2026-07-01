@@ -6,13 +6,23 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('monitor', '0013_alter_monitortarget_options'),
+        ("monitor", "0013_alter_monitortarget_options"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='device',
-            name='device_type',
-            field=models.CharField(choices=[('mikrotik_snmp', 'MikroTik (SNMP)'), ('parks_olt', 'OLT Parks GPON'), ('generic_snmp', 'Genérico (SNMP)'), ('generic_ping', 'Genérico (Apenas Ping)')], default='mikrotik_snmp', help_text='Tipo de equipamento para comunicação e coleta de dados', max_length=50),
+            model_name="device",
+            name="device_type",
+            field=models.CharField(
+                choices=[
+                    ("mikrotik_snmp", "MikroTik (SNMP)"),
+                    ("parks_olt", "OLT Parks GPON"),
+                    ("generic_snmp", "Genérico (SNMP)"),
+                    ("generic_ping", "Genérico (Apenas Ping)"),
+                ],
+                default="mikrotik_snmp",
+                help_text="Tipo de equipamento para comunicação e coleta de dados",
+                max_length=50,
+            ),
         ),
     ]

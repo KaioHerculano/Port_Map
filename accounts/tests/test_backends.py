@@ -1,13 +1,12 @@
+from django.contrib.auth import authenticate, get_user_model
 from django.test import TestCase
-from django.contrib.auth import get_user_model, authenticate
+
 
 class AuthenticationBackendTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="john_doe",
-            email="john@example.com",
-            password="mypassword456"
+            username="john_doe", email="john@example.com", password="mypassword456"
         )
 
     def test_authenticate_by_username(self):
@@ -28,7 +27,7 @@ class AuthenticationBackendTests(TestCase):
     def test_authenticate_wrong_password_fails(self):
         user = authenticate(username="john_doe", password="wrongpassword")
         self.assertIsNone(user)
-        
+
     def test_authenticate_nonexistent_user_fails(self):
         user = authenticate(username="ghost_user", password="somepassword")
         self.assertIsNone(user)

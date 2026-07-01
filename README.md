@@ -55,14 +55,11 @@ Ao cadastrar um equipamento, o formulário exibe **checkboxes dinâmicos** com t
 
 O projeto segue princípios **SOLID, DRY, KISS e Clean Code**:
 
-1. **Class-Based Views (CBVs) exclusivas** — Nenhuma FBV. Todo fluxo web herda das classes genéricas do Django.
-2. **Services Layer isolada** (`monitor/services.py`):
-   - `PortParserService` — Higienização, validação e expansão de lotes/ranges
-   - `PortCheckerService` — Execução dos checks por protocolo, parsing de métricas e geração de dados para gráfico
-   - `SLAReportService` — Compilação de dados SLA e geração de PDF
-3. **Prevenção de N+1** — Uso de `.select_related()` e `.prefetch_related()` estratégicos
-4. **Logging** — `logging` em vez de `print()` em toda a aplicação
-5. **Type hints** — Tipagem estrita em funções e métodos
+1. **Thin Views / Views Enxutas** — Lógica de negócio, banco de dados, cálculos e Celery encapsulados puramente em uma camada dedicada de Serviços (`services.py`).
+2. **Reorganização de Templates (Namespacing)** — Todos os templates modularizados dentro de suas respectivas apps (`accounts/` e `monitor/`) utilizando a estrutura oficial de namespacing do Django.
+3. **Prevenção de N+1** — Uso de `.select_related()` e `.prefetch_related()` estratégicos.
+4. **Logging** — Utilização de `logging` nativo do Python em toda a aplicação.
+5. **Type hints** — Tipagem estrita de parâmetros e retornos em todo o código.
 
 ---
 
@@ -72,7 +69,7 @@ O projeto segue princípios **SOLID, DRY, KISS e Clean Code**:
 |--------|-----------|
 | Linguagem | Python >= 3.12 |
 | Framework Web | Django >= 4.2 |
-| Banco de Dados | PostgreSQL (Docker) / SQLite (dev local) |
+| Banco de Dados | PostgreSQL (Docker/Produção) / SQLite (Opcional local) |
 | Gerenciador de dependências | Poetry |
 | Fila de tarefas | Celery |
 | Message Broker | Redis |
@@ -82,49 +79,84 @@ O projeto segue princípios **SOLID, DRY, KISS e Clean Code**:
 
 ---
 
+## Automação e Qualidade de Código (`Makefile`)
+
+O projeto inclui um `Makefile` configurado para automatizar tarefas comuns de desenvolvimento e garantir a qualidade do código:
+
+| Comando | Descrição |
+|---------|-----------|
+| `make install` | Instala as dependências via Poetry e configura os hooks de `pre-commit` |
+| `make format` | Formata o código automaticamente usando `black` e `isort` |
+| `make lint` | Executa validações de estilo PEP 8 com `flake8` |
+| `make test` | Roda a suíte de testes usando as configurações rápidas de teste (`app.test`) |
+| `make test-coverage` | Executa os testes e gera relatórios de cobertura do código |
+| `make pre-commit` | Roda os hooks do pre-commit manualmente em todos os arquivos |
+
+---
+
+## Qualidade e CI/CD
+
+### Git Hooks (`pre-commit`)
+Configurado para rodar automaticamente antes de cada commit. Executa verificações de segurança, sintaxe, formatação e ordenação de imports (AST, Black, Flake8 e Isort).
+
+### Análise de Segurança & Código Morto
+- **Bandit**: Executa varreduras de segurança estática no código Python.
+- **Vulture**: Detecta código morto, funções e variáveis declaradas mas não utilizadas.
+
+### Pipeline de CI (GitHub Actions)
+O pipeline está configurado no arquivo `.github/workflows/ci.yml`. A cada Pull Request para as branches `main` e `master`, o GitHub Actions executa:
+1. Validações de pre-commit.
+2. Varreduras com Bandit e Vulture.
+3. Inicialização dos containers PostgreSQL e Redis.
+4. Execução dos testes e validação da cobertura mínima com `make test-coverage`.
+
+---
+
+## Testes Automatizados
+
+O projeto possui **44 testes automatizados** rápidos e dinâmicos, que testam o comportamento real do sistema integrados ao banco de dados:
+
+- **Configurações Rápidas (`app/test.py`)**:
+  - Uso do `MD5PasswordHasher` para acelerar a criação de usuários nos testes.
+  - Inativação de migrações (`DisableMigrations`) para criar o esquema em memória instantaneamente.
+  - Silenciamento global de notificações reais de Telegram durante as execuções.
+  - Redirecionamento dinâmico do PostgreSQL: conecta-se ao container `db` ou recai para `localhost` no host de desenvolvimento.
+- **Faker integration**: Substituição de strings chumbadas e IPs estáticos por dados dinâmicos e realistas gerados por `Faker()`.
+- **Desempenho**: Suíte completa executada localmente em apenas **~2.8 segundos** (contra mais de 11 segundos no modelo convencional).
+
+Para rodar os testes:
+```bash
+# Executar testes
+make test
+
+# Executar testes com relatório de cobertura
+make test-coverage
+```
+
+---
+
 ## Instalação Local
 
 ### Pré-requisitos
 
 1. **Python** >= 3.12
-2. **Poetry** (`pip install poetry`)
-3. **Redis Server** rodando na porta `6379`
+2. **Poetry**
+3. **PostgreSQL** e **Redis Server** iniciados (pode subir apenas os serviços de dados usando docker-compose: `docker compose up -d db redis`)
 
-### Passo 1 — Instalar Dependências
-
-```bash
-poetry install
-```
-
-### Passo 2 — Aplicar Migrações
+### Configuração Passo a Passo
 
 ```bash
+# 1. Instalar dependências e hooks do git
+make install
+
+# 2. Aplicar migrações
 poetry run python manage.py migrate
-```
 
-### Passo 3 — Criar Superusuário
-
-```bash
+# 3. Criar superusuário
 poetry run python manage.py createsuperuser
-```
 
-### Passo 4 — Iniciar os Processos
-
-**Terminal 1 — Servidor Web:**
-```bash
+# 4. Rodar o servidor de desenvolvimento
 poetry run python manage.py runserver
-```
-Acesse: **http://127.0.0.1:8000/**
-
-**Terminal 2 — Celery Worker:**
-```bash
-poetry run celery -A app worker --loglevel=info -P threads
-```
-> A flag `-P threads` é recomendada no Windows para evitar problemas de `asyncio` no Celery.
-
-**Terminal 3 — Celery Beat (agendador):**
-```bash
-poetry run celery -A app beat --loglevel=info
 ```
 
 ---
@@ -139,124 +171,4 @@ O projeto está preparado para rodar em containers com Django, Celery Worker, Ce
 docker compose up --build -d
 ```
 
-Isso irá:
-1. Compilar a imagem Django baseada em `python:3.12-slim`
-2. Iniciar PostgreSQL e aguardar `service_healthy`
-3. Iniciar Redis
-4. Aplicar as migrações automaticamente
-5. Iniciar Web, Celery Worker e Celery Beat em rede interna
-
 Acesse: **http://localhost:8003/**
-
-### Criar superusuário no container
-
-```bash
-docker exec -it port_map_web poetry run python manage.py createsuperuser
-```
-
-### Parar os serviços
-
-```bash
-docker compose down
-```
-
----
-
-## Variáveis de Ambiente
-
-Configure o arquivo `.env` (ou as variáveis do Docker Compose):
-
-```env
-# Banco de dados (Docker)
-DB_NAME=portmap
-DB_USER=portmap
-DB_PASSWORD=portmap
-DB_HOST=db
-DB_PORT=5432
-
-# Telegram (opcional — deixe vazio para desativar alertas)
-TELEGRAM_BOT_TOKEN=seu_token_do_botfather
-TELEGRAM_CHAT_ID=-1001234567890
-```
-
-> Se `TELEGRAM_BOT_TOKEN` ou `TELEGRAM_CHAT_ID` estiverem vazios, o sistema desativa os alertas silenciosamente.
-
----
-
-## Integração com Telegram
-
-### Configuração de Alertas por Sensor
-
-Cada sensor pode ser configurado individualmente com a regra de disparo:
-
-| Opção | Comportamento |
-|-------|--------------|
-| Imediatamente (1ª falha) | Alerta na 1ª varredura falha |
-| Após 2 falhas consecutivas | Aguarda 2 varreduras falhas |
-| Após 3 falhas consecutivas | Aguarda 3 varreduras falhas |
-| Não notificar | Sem alertas para este sensor |
-
-> O sistema garante envio único por queda — não há spam enquanto o dispositivo estiver offline. O alerta de recuperação é enviado assim que o sensor voltar ao estado Online.
-
-### Configuração em Lote por Grupo
-
-Na tela de edição de um grupo, é possível aplicar a mesma regra de alerta para todos os sensores do grupo de uma vez.
-
-### Teste Manual
-
-Em qualquer tela de detalhe de sensor, clique em **"Testar Telegram"** para validar a configuração do bot e do Chat ID.
-
----
-
-## Observações sobre SNMP
-
-- O sistema usa **pysnmp `hlapi.asyncio`** com `asyncio.new_event_loop()` em cada chamada para garantir compatibilidade com workers Celery (que podem ter loops fechados ou ausentes).
-- OIDs de temperatura do MikroTik (`1.3.6.1.4.1.14988.1.1.3.10.0`) retornam o valor em **décimos de grau** — o sistema divide por 10 automaticamente para exibir em °C.
-- OID de uptime (`1.3.6.1.2.1.1.3.0`) retorna em **centésimos de segundo (timeticks)** — o sistema converte para dias/horas/minutos.
-
----
-
-## Testes Automatizados
-
-O projeto conta com **40 testes automatizados** cobrindo:
-
-- Autenticação por e-mail (case-insensitive) e por username
-- Parser de lotes de portas com faixas e múltiplas entradas
-- Cálculo de disponibilidade SLA
-- Ciclo completo de alertas Telegram com mocks HTTP
-- Batch update de configurações de grupo
-- Parsing e armazenamento de `metric_value` por tipo de sensor
-
-Para executar a suite completa:
-
-```bash
-# Localmente (SQLite)
-$env:DB_ENGINE="django.db.backends.sqlite3"; poetry run python manage.py test
-
-# Ou sem variável de ambiente se já configurado
-poetry run python manage.py test
-```
-
----
-
-## Estrutura de Arquivos Relevantes
-
-```
-port_map/
-├── monitor/
-│   ├── models.py          # Device, MonitorTarget, MonitorLog, Group, AuditLog
-│   ├── services.py        # PortCheckerService, PortParserService, SLAReportService
-│   ├── views.py           # CBVs: Dashboard, AddDevice, TargetDetail, SLAReport...
-│   ├── tasks.py           # Tarefas Celery: check_single_target, run_scheduled_checks
-│   ├── forms.py           # DeviceForm, BulkAddForm, GroupForm
-│   └── migrations/        # Histórico de migrações do banco
-├── templates/
-│   └── monitor/
-│       ├── dashboard.html
-│       ├── add_device.html  # Formulário com seleção de sensores por checkboxes
-│       ├── target_detail.html # Gráfico com label/unidade dinâmica por sensor
-│       └── ...
-├── docker-compose.yml
-├── Dockerfile
-└── pyproject.toml
-```

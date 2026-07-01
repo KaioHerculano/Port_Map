@@ -6,12 +6,12 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('monitor', '0012_alter_monitortarget_telegram_alert_threshold'),
+        ("monitor", "0012_alter_monitortarget_telegram_alert_threshold"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='monitortarget',
-            options={'ordering': ['id']},
+            name="monitortarget",
+            options={"ordering": ["id"]},
         ),
     ]

@@ -57,7 +57,7 @@
           {{ chart_label|lower }} ({{ chart_unit }})
         </span>
       </div>
-      
+
       <form method="get" id="chartFilterForm" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <select name="period" id="periodSelect" onchange="toggleCustomDates();" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 6px; color: white; font-size: 0.8rem; outline: none; height: 32px; font-family: inherit; cursor: pointer;">
           <option value="24h" {% if period == '24h' %}selected{% endif %}>Último dia (24h)</option>
@@ -65,19 +65,19 @@
           <option value="30d" {% if period == '30d' %}selected{% endif %}>Últimos 30 dias</option>
           <option value="custom" {% if period == 'custom' %}selected{% endif %}>Intervalo Personalizado</option>
         </select>
-        
+
         <div id="customDatesWrapper" style="display: {% if period == 'custom' %}flex{% else %}none{% endif %}; gap: 0.25rem; align-items: center;">
           <input type="date" name="start_date" value="{{ start_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
           <span style="color: var(--text-muted); font-size: 0.8rem;">até</span>
           <input type="date" name="end_date" value="{{ end_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
         </div>
-        
+
         <button type="submit" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 0.25rem; cursor: pointer;">
           Filtrar
         </button>
       </form>
     </div>
-    
+
     <div class="chart-canvas-container">
       {% if chart_timestamps %}
         <canvas id="latencyChart"></canvas>
@@ -94,7 +94,7 @@
     <h3 style="color: white; font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
       Informações Gerais
     </h3>
-    
+
     <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.9rem;">
       {% if target.group %}
       <div style="display: flex; justify-content: space-between;">
@@ -165,13 +165,13 @@
         <span class="text-muted">Criado em:</span>
         <span class="text-muted">{{ target.created_at|date:"d/m/Y H:i" }}</span>
       </div>
-      
+
       <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem; display: flex; gap: 0.5rem;">
         <!-- Delete and toggle -->
         <button class="btn btn-secondary" style="flex-grow: 1; font-size: 0.8rem; padding: 0.5rem;" onclick="toggleActive({{ target.id }})">
           {% if target.is_active %}Pausar Monitoramento{% else %}Ativar Monitoramento{% endif %}
         </button>
-        
+
         <form method="post" action="{% url 'delete_target' target.pk %}" style="display: inline;" onsubmit="return confirm('Excluir este monitoramento permanentemente?');">
           {% csrf_token %}
           <button type="submit" class="btn btn-danger" style="font-size: 0.8rem; padding: 0.5rem;">
@@ -190,7 +190,7 @@
       Histórico de Varreduras
     </h3>
   </div>
-  
+
   {% if page_obj %}
   <table class="data-table">
     <thead>
@@ -256,7 +256,7 @@
       {% endfor %}
     </tbody>
   </table>
-  
+
   <!-- Pagination -->
   {% if page_obj.has_other_pages %}
   <div class="pagination" style="display: flex; gap: 0.25rem; justify-content: center; margin-top: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
@@ -264,16 +264,16 @@
       <a href="?page=1&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">&laquo; Primeira</a>
       <a href="?page={{ page_obj.previous_page_number }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Anterior</a>
     {% endif %}
-    
+
     <span class="page-link active" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--primary); color: white; font-size: 0.85rem; background: var(--primary); font-weight: bold;">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-    
+
     {% if page_obj.has_next %}
       <a href="?page={{ page_obj.next_page_number }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Próxima</a>
       <a href="?page={{ page_obj.paginator.num_pages }}&period={{ period }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link" style="padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); color: white; text-decoration: none; font-size: 0.85rem; background: rgba(255,255,255,0.03);">Última &raquo;</a>
     {% endif %}
   </div>
   {% endif %}
-  
+
   {% else %}
   <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
     Nenhum log de conexão disponível ainda.
@@ -287,18 +287,18 @@
 <script>
   document.addEventListener("DOMContentLoaded", function() {
     const ctx = document.getElementById('latencyChart').getContext('2d');
-    
+
     const rawTimestamps = {{ chart_timestamps|safe }};
     const rawLatencies = {{ chart_latencies|safe }};
     const rawStatuses = {{ chart_statuses|safe }};
     const chartLabel = "{{ chart_label|escapejs }}";
     const chartUnit = "{{ chart_unit|escapejs }}";
-    
+
     // Gradient fill for line
     const gradient = ctx.createLinearGradient(0, 0, 0, 300);
     gradient.addColorStop(0, 'rgba(110, 68, 255, 0.4)');
     gradient.addColorStop(1, 'rgba(110, 68, 255, 0.0)');
-    
+
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -394,7 +394,7 @@
   function checkNow(id) {
     const btn = document.getElementById('btn-check-now');
     btn.disabled = true;
-    
+
     fetch(`/target/${id}/check/`, {
       method: 'POST',
       headers: {
@@ -420,12 +420,12 @@
   // Test Telegram Notification
   function testTelegramAlert() {
     if (!confirm('Enviar uma notificação de teste manual para o grupo do Telegram?')) return;
-    
+
     const btn = event.currentTarget;
     const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = 'Enviando...';
-    
+
     fetch("{% url 'send_test_telegram' target.pk %}", {
       method: 'POST',
       headers: {

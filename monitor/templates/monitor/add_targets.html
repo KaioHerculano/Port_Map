@@ -19,13 +19,13 @@
       <button class="form-tab-btn" onclick="switchTab('bulk')">Importar em Lote (Bulk)</button>
       <button class="form-tab-btn" onclick="switchTab('group')">Cadastrar Novo Grupo</button>
     </div>
-    
+
     <!-- Single Form -->
     <div id="tab-single" class="tab-content active">
       <form method="post" action="{% url 'add_targets' %}">
         {% csrf_token %}
         <input type="hidden" name="import_type" value="single">
-        
+
         <div class="form-group">
           <label for="id_group_id">Grupo (Opcional)</label>
           <select id="id_group_id" name="group_id" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
@@ -70,32 +70,32 @@
           <input type="text" id="id_label" name="label" class="form-input" placeholder="Ex: Servidor de Câmeras, Banco de Dados, etc.">
           <span class="form-help">Um nome amigável para identificar esse alvo nas listas e gráficos.</span>
         </div>
-        
+
         <div class="form-group">
           <label for="id_host">Endereço IP ou Hostname</label>
           <input type="text" id="id_host" name="host" class="form-input" placeholder="Ex: 45.174.193.10 ou gateway.loja.com" required>
           <span class="form-help">Insira o endereço IP ou domínio DNS correspondente.</span>
         </div>
-        
+
         <div class="form-group">
           <label for="id_port">Porta TCP</label>
           <input type="number" id="id_port" name="port" class="form-input" placeholder="Ex: 40001" min="1" max="65535" required>
           <span class="form-help">Insira o número da porta TCP que será testada.</span>
         </div>
-        
+
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Cadastrar e Iniciar Teste</button>
           <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
         </div>
       </form>
     </div>
-    
+
     <!-- Bulk Form -->
     <div id="tab-bulk" class="tab-content">
       <form method="post" action="{% url 'add_targets' %}">
         {% csrf_token %}
         <input type="hidden" name="import_type" value="bulk">
-        
+
         <div class="form-group">
           <label for="id_bulk_group_id">Grupo (Opcional)</label>
           <select id="id_bulk_group_id" name="group_id" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
@@ -144,7 +144,7 @@ Ex:
 google.com:443 (Google HTTPS)"></textarea>
           <span class="form-help">Copie e cole listas inteiras. Suporta faixas de portas por hífen e separação por vírgula.</span>
         </div>
-        
+
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Importar Lista Completa</button>
           <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
@@ -157,13 +157,13 @@ google.com:443 (Google HTTPS)"></textarea>
       <form method="post" action="{% url 'add_targets' %}">
         {% csrf_token %}
         <input type="hidden" name="import_type" value="group">
-        
+
         <div class="form-group">
           <label for="id_group_name">Nome do Grupo</label>
           <input type="text" id="id_group_name" name="group_name" class="form-input" placeholder="Ex: Câmeras Vigia, Banco de Dados, etc." required>
           <span class="form-help">Crie um grupo para poder associar alvos individuais ou listas completas.</span>
         </div>
-        
+
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Cadastrar Grupo</button>
           <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
@@ -177,20 +177,20 @@ google.com:443 (Google HTTPS)"></textarea>
     <h3 style="color: white; font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
       Formatos de Importação
     </h3>
-    
+
     <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 1rem;">
       <div>
         <strong style="color: white; display: block; margin-bottom: 0.25rem;">1. Faixa de Portas (Hífen):</strong>
         <p style="margin-bottom: 0.35rem;">Ideal para cadastros sequenciais. O sistema expandirá e criará um registro individual para cada porta da faixa.</p>
         <code style="display: block; padding: 0.4rem; background: rgba(0,0,0,0.3); border-radius: 6px; color: var(--primary);">45.174.193.10:40001-40048 [Loja Main]</code>
       </div>
-      
+
       <div>
         <strong style="color: white; display: block; margin-bottom: 0.25rem;">2. Múltiplas Portas (Vírgula):</strong>
         <p style="margin-bottom: 0.35rem;">Para testar portas específicas de um mesmo IP.</p>
         <code style="display: block; padding: 0.4rem; background: rgba(0,0,0,0.3); border-radius: 6px; color: var(--primary);">192.168.1.1:80,443,8080 (Web App)</code>
       </div>
-      
+
       <div>
         <strong style="color: white; display: block; margin-bottom: 0.25rem;">3. Porta Única Simples:</strong>
         <p style="margin-bottom: 0.35rem;">Apenas o IP e a porta desejada.</p>
