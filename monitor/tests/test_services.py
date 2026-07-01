@@ -6,11 +6,8 @@ from django.utils import timezone
 from faker import Faker
 
 from monitor.models import Device, Group, MonitorLog, MonitorTarget
-from monitor.services import (
-    DeviceDiscoveryService,
-    PortCheckerService,
-    PortParserService,
-)
+from monitor.services import (DeviceDiscoveryService, PortCheckerService,
+                              PortParserService)
 
 fake = Faker()
 
