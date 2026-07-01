@@ -401,7 +401,7 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
     success_url = reverse_lazy('dashboard')
 
     def form_valid(self, form):
-        response = super().form_valid(form)
+        super().form_valid(form)
         device = self.object
         selected = self.request.POST.getlist('sensors')
         discovery_run = self.request.POST.get('discovery_run') == 'true'
