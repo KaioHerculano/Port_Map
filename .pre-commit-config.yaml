@@ -1,0 +1,44 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: check-ast
+        fail_fast: true
+    -   id: check-case-conflict
+        fail_fast: true
+    -   id: check-merge-conflict
+        fail_fast: true
+    -   id: check-symlinks
+        fail_fast: true
+    -   id: debug-statements
+        fail_fast: true
+    -   id: destroyed-symlinks
+        fail_fast: true
+    -   id: detect-aws-credentials
+        fail_fast: true
+        args: ["--allow-missing-credentials"]
+    -   id: detect-private-key
+        fail_fast: true
+    -   id: end-of-file-fixer
+        fail_fast: true
+    -   id: trailing-whitespace
+        fail_fast: true
+
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+    -   id: black
+        fail_fast: true
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+    -   id: flake8
+        fail_fast: true
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+    -   id: isort
+        fail_fast: true
+        args: ["--profile", "black", "--filter-files"]
