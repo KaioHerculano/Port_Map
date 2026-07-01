@@ -77,7 +77,7 @@ class MonitorViewTests(TestCase):
         # Test GET request
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'monitor/edit_group.html')
+        self.assertTemplateUsed(response, 'monitor/update_group.html')
         self.assertEqual(response.context['group'], group)
         self.assertEqual(len(response.context['targets']), 2)
         

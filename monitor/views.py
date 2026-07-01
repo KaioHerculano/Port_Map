@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Any, Dict, List, Optional, Tuple, Union
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -8,71 +9,48 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.urls import reverse_lazy
-from django.utils import timezone
-from datetime import timedelta
 
 from .models import MonitorTarget, MonitorLog, Group, AuditLog, Device
 from .forms import DeviceForm
-from .services import PortParserService, log_audit
-from .tasks import check_single_target, check_all_targets
+from .services import (
+    PortParserService, PortCheckerService, DashboardService, 
+    TargetService, GroupService, DeviceService, TelegramService, log_audit
+)
+from .tasks import check_single_target
 
 logger = logging.getLogger(__name__)
 
 
 class DashboardView(LoginRequiredMixin, generic.ListView):
-    """Class-Based View to display targets dashboard with filters and stats."""
     model = MonitorTarget
     template_name = 'monitor/dashboard.html'
     context_object_name = 'targets'
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('group').filter(device__isnull=True)
         search_query = self.request.GET.get('q', '').strip()
         status_filter = self.request.GET.get('status', '').strip()
         group_id = self.request.GET.get('group', '').strip()
-
-        if search_query:
-            queryset = queryset.filter(
-                Q(host__icontains=search_query) | 
-                Q(label__icontains=search_query) | 
-                Q(port__icontains=search_query) |
-                Q(group__name__icontains=search_query)
-            )
-
-        if status_filter == 'online':
-            queryset = queryset.filter(last_status=True, is_active=True)
-        elif status_filter == 'offline':
-            queryset = queryset.filter(last_status=False, is_active=True)
-        elif status_filter == 'inactive':
-            queryset = queryset.filter(is_active=False)
-
-        if group_id:
-            queryset = queryset.filter(group_id=group_id)
-
-        return queryset
+        return DashboardService.get_filtered_queryset(search_query, status_filter, group_id)
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        all_targets = MonitorTarget.objects.filter(device__isnull=True)
-        
         group_id = self.request.GET.get('group', '').strip()
+        
+        DashboardService.auto_correct_sensor_labels()
+
+        stats = DashboardService.get_dashboard_stats(group_id)
+        context.update(stats)
+
         if group_id:
-            all_targets = all_targets.filter(group_id=group_id)
             context['selected_group'] = get_object_or_404(Group, pk=group_id)
         else:
             context['selected_group'] = None
-
-        context['total_count'] = all_targets.count()
-        context['online_count'] = all_targets.filter(last_status=True, is_active=True).count()
-        context['offline_count'] = all_targets.filter(last_status=False, is_active=True).count()
-        context['inactive_count'] = all_targets.filter(is_active=False).count()
 
         context['search_query'] = self.request.GET.get('q', '')
         context['status_filter'] = self.request.GET.get('status', '')
         context['group_id'] = group_id
 
-        # Fetch groups annotated with counts of standalone targets
         context['groups'] = Group.objects.annotate(
             total_count=Count('targets', filter=Q(targets__device__isnull=True)),
             online_count=Count('targets', filter=Q(targets__last_status=True, targets__is_active=True, targets__device__isnull=True)),
@@ -80,37 +58,13 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
             inactive_count=Count('targets', filter=Q(targets__is_active=False, targets__device__isnull=True))
         )
         
-        # Auto-correct labels of active snmp_numeric sensors that have raw OID labels
-        health_labels = {
-            '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
-            '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
-            '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
-            '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
-            '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
-            '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
-            '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
-            '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
-            '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
-            '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
-            '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
-        }
-        for sensor in MonitorTarget.objects.filter(sensor_type='snmp_numeric', label__icontains='métrica 1.3.6.1.4.1.14988.1.1.3.'):
-            oid_key = sensor.sensor_identifier
-            if oid_key in health_labels:
-                device_prefix = f"{sensor.device.name} - " if sensor.device else ""
-                sensor.label = f"{device_prefix}{health_labels[oid_key]}"
-                sensor.save(update_fields=['label'])
-
-        # Fetch devices (annotated or with their prefetch sensors)
         devices_qs = Device.objects.all().prefetch_related('sensors')
         if group_id:
             devices_qs = devices_qs.filter(group_id=group_id)
         context['devices'] = devices_qs
         
-        # Optimize query: select_related for related target model to avoid N+1
         context['recent_logs'] = MonitorLog.objects.select_related('target', 'target__group').order_by('-timestamp')[:15]
         
-        # Fetch recent audit logs if user is superuser
         if self.request.user.is_superuser:
             context['recent_audit_logs'] = AuditLog.objects.select_related('user').order_by('-timestamp')[:100]
         else:
@@ -120,7 +74,6 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
 
 
 class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
-    """Class-Based View for target registration (individual or bulk)."""
     template_name = 'monitor/add_targets.html'
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
@@ -137,35 +90,25 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                 messages.error(request, "O nome do grupo é obrigatório.")
                 return redirect('add_targets')
             
-            group, created = Group.objects.get_or_create(name=group_name)
+            group, created = GroupService.create_group(group_name, request.user)
             if created:
-                log_audit(
-                    user=request.user,
-                    action='Criar',
-                    model_name='Grupo',
-                    object_repr=group_name,
-                    changes=f"Novo grupo '{group_name}' cadastrado"
-                )
                 messages.success(request, f"Grupo '{group_name}' cadastrado com sucesso!")
             else:
                 messages.info(request, f"O grupo '{group_name}' já existe.")
             return redirect('add_targets')
 
-        # Retrieve check_interval
         check_interval_str = request.POST.get('check_interval', '60').strip()
         try:
             check_interval = int(check_interval_str)
         except ValueError:
             check_interval = 60
 
-        # Retrieve telegram_alert_threshold
         telegram_alert_threshold_str = request.POST.get('telegram_alert_threshold', '1').strip()
         try:
             telegram_alert_threshold = int(telegram_alert_threshold_str)
         except ValueError:
             telegram_alert_threshold = 1
 
-        # Retrieve optional group selected in the dropdown
         group_id = request.POST.get('group_id', '').strip()
         group = None
         if group_id:
@@ -211,10 +154,7 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                     changes=f"IP: {t.host}, Porta: {t.port}, Frequência: {t.check_interval}m, Regra de Alerta: {t.telegram_alert_threshold} falha(s), Grupo: {t.group.name if t.group else 'Nenhum'}"
                 )
                 check_single_target.delay(t.id)
-                messages.success(
-                    request, 
-                    f"Alvo {t.host}:{t.port} cadastrado com sucesso!"
-                )
+                messages.success(request, f"Alvo {t.host}:{t.port} cadastrado com sucesso!")
             if errors:
                 messages.error(request, errors[0])
 
@@ -241,10 +181,7 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
                         changes=f"IP: {target.host}, Porta: {target.port}, Frequência: {target.check_interval}m, Regra de Alerta: {target.telegram_alert_threshold} falha(s), Grupo: {target.group.name if target.group else 'Nenhum'} (lote)"
                     )
                     check_single_target.delay(target.id)
-                messages.success(
-                    request, 
-                    f"{len(created_targets)} alvos cadastrados/atualizados com sucesso!"
-                )
+                messages.success(request, f"{len(created_targets)} alvos cadastrados/atualizados com sucesso!")
 
             if errors:
                 for error in errors:
@@ -254,7 +191,6 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
 
 
 class TargetDetailView(LoginRequiredMixin, generic.DetailView):
-    """Class-Based View to display full stats, latency graph, and check history."""
     model = MonitorTarget
     template_name = 'monitor/target_detail.html'
     context_object_name = 'target'
@@ -263,28 +199,8 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         context = super().get_context_data(**kwargs)
         target = self.object
 
-        # Auto-correct raw OID labels in the database to clean friendly names
-        if "métrica 1.3.6.1.4.1.14988.1.1.3." in (target.label or "").lower():
-            oid_key = target.sensor_identifier
-            health_labels = {
-                '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
-                '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
-                '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
-                '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
-                '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
-                '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
-                '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
-                '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
-                '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
-                '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
-                '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
-            }
-            if oid_key in health_labels:
-                device_prefix = f"{target.device.name} - " if target.device else ""
-                target.label = f"{device_prefix}{health_labels[oid_key]}"
-                target.save(update_fields=['label'])
+        TargetService.auto_correct_target_label(target)
 
-        # Retrieve connection history
         logs_list = target.logs.all().order_by('-timestamp')
         paginator = Paginator(logs_list, 30)
         page_number = self.request.GET.get('page')
@@ -301,7 +217,6 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
         context['uptime_24h'] = target.uptime_percentage_24h
         context['avg_latency'] = target.average_latency_24h
 
-        # Determine chart label and unit
         sensor_type = target.sensor_type
         label_lower = (target.label or "").lower()
         ident_lower = (target.sensor_identifier or "").lower()
@@ -343,101 +258,43 @@ class TargetDetailView(LoginRequiredMixin, generic.DetailView):
 
 
 class ToggleTargetView(LoginRequiredMixin, View):
-    """Class-Based View to dynamically enable/disable monitoring of a target."""
-
     def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> JsonResponse:
         target = get_object_or_404(MonitorTarget, pk=pk)
-        target.is_active = not target.is_active
-        target.save(update_fields=['is_active'])
-        logger.info("Estado do monitoramento alterado para %s:%d (Ativo: %s)", target.host, target.port, target.is_active)
-
-        status_label = "ativado" if target.is_active else "desativado"
-        log_audit(
-            user=request.user,
-            action='Ativar' if target.is_active else 'Desativar',
-            model_name='Dispositivo',
-            object_repr=f"{target.label or target.host}:{target.port}",
-            changes=f"Alterado estado de atividade para: {status_label.capitalize()}"
-        )
-
+        is_active, message = TargetService.toggle_target(target, request.user)
         return JsonResponse({
             'status': 'success',
-            'is_active': target.is_active,
-            'message': f"O monitoramento do alvo foi {status_label}."
+            'is_active': is_active,
+            'message': message
         })
 
 
 class DeleteTargetView(LoginRequiredMixin, View):
-    """Class-Based View to remove target monitoring logs and metrics."""
-
     def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> Union[JsonResponse, HttpResponseRedirect]:
         target = get_object_or_404(MonitorTarget, pk=pk)
-        host_port = f"{target.host}:{target.port}"
-        label_repr = f"{target.label or target.host}:{target.port}"
-        group_name = target.group.name if target.group else 'Nenhum'
-        target.delete()
-        logger.info("Alvo de monitoramento excluido com sucesso: %s", host_port)
-
-        log_audit(
-            user=request.user,
-            action='Excluir',
-            model_name='Dispositivo',
-            object_repr=label_repr,
-            changes=f"Excluído monitoramento de {host_port}. Grupo: {group_name}"
-        )
-
+        host_port = TargetService.delete_target(target, request.user)
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({
                 'status': 'success',
                 'message': f"Alvo {host_port} excluído com sucesso."
             })
-
         messages.success(request, f"Alvo {host_port} excluído com sucesso.")
         return redirect('dashboard')
 
 
 class TriggerCheckView(LoginRequiredMixin, View):
-    """Class-Based View to trigger manual Celery check executions."""
-
     def post(self, request: HttpRequest, pk: Optional[int] = None, *args: Any, **kwargs: Any) -> JsonResponse:
-        from .services import PortCheckerService
-        if pk:
-            target = get_object_or_404(MonitorTarget, pk=pk)
-            try:
-                PortCheckerService.check_target(target.id)
-            except Exception as e:
-                logger.error("Erro na checagem síncrona manual do alvo %d: %s", target.id, str(e))
-                
-            try:
-                check_single_target.delay(target.id)
-            except Exception:
-                pass
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Teste de porta concluído com sucesso.'
-            })
-        else:
-            active_targets = MonitorTarget.objects.filter(is_active=True)
-            for t in active_targets:
-                try:
-                    PortCheckerService.check_target(t.id)
-                except Exception as e:
-                    logger.error("Erro na checagem síncrona manual global do alvo %d: %s", t.id, str(e))
-            try:
-                check_all_targets.delay()
-            except Exception:
-                pass
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Teste global de portas concluído com sucesso.'
-            })
+        TargetService.trigger_manual_check(pk)
+        message = 'Teste de porta concluído com sucesso.' if pk else 'Teste global de portas concluído com sucesso.'
+        return JsonResponse({
+            'status': 'success',
+            'message': message
+        })
 
 
 class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
-    """Class-Based View to update target configurations."""
     model = MonitorTarget
     context_object_name = 'target'
-    template_name = 'monitor/edit_target.html'
+    template_name = 'monitor/update_target.html'
     fields = ['group', 'label', 'host', 'port', 'check_interval', 'telegram_alert_threshold']
     success_url = reverse_lazy('dashboard')
 
@@ -445,61 +302,17 @@ class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
         host = form.cleaned_data.get('host')
         port = form.cleaned_data.get('port')
         
-        # Check if another target already has this host and port
         if MonitorTarget.objects.filter(host=host, port=port).exclude(pk=self.object.pk).exists():
             form.add_error('port', 'Este par de Host e Porta já está cadastrado.')
             return self.form_invalid(form)
 
-        # Get old values
         target = self.get_object()
-        old_host = target.host
-        old_port = target.port
-        old_label = target.label
-        old_interval = target.check_interval
-        old_threshold = target.telegram_alert_threshold
-        old_group = target.group.name if target.group else "Nenhum"
-
-        response = super().form_valid(form)
-        
-        # Get new values
-        target.refresh_from_db()
-        new_host = target.host
-        new_port = target.port
-        new_label = target.label
-        new_interval = target.check_interval
-        new_threshold = target.telegram_alert_threshold
-        new_group = target.group.name if target.group else "Nenhum"
-
-        changes = []
-        if old_host != new_host:
-            changes.append(f"IP: {old_host} -> {new_host}")
-        if old_port != new_port:
-            changes.append(f"Porta: {old_port} -> {new_port}")
-        if old_label != new_label:
-            changes.append(f"Nome/Rótulo: {old_label or 'Vazio'} -> {new_label or 'Vazio'}")
-        if old_interval != new_interval:
-            changes.append(f"Frequência: {old_interval}m -> {new_interval}m")
-        if old_threshold != new_threshold:
-            changes.append(f"Regra de Alerta: {old_threshold} falha(s) -> {new_threshold} falha(s)")
-        if old_group != new_group:
-            changes.append(f"Grupo: {old_group} -> {new_group}")
-
-        if changes:
-            log_audit(
-                user=self.request.user,
-                action='Editar',
-                model_name='Dispositivo',
-                object_repr=f"{target.label or target.host}:{target.port}",
-                changes="Alterações: " + ", ".join(changes)
-            )
-
+        self.object, changes = TargetService.update_target(target, form.cleaned_data, self.request.user)
         messages.success(self.request, f"Alvo {self.object.host}:{self.object.port} updated successfully!")
-        return response
+        return HttpResponseRedirect(self.get_success_url())
 
 
 class GroupReportPDFView(LoginRequiredMixin, View):
-    """Class-Based View to generate a PDF report of target availability over the last 30 days."""
-    
     def get(self, request: HttpRequest, group_id: int, *args: Any, **kwargs: Any) -> HttpResponse:
         group = get_object_or_404(Group, pk=group_id)
         start_date_str = request.GET.get('start_date', '').strip()
@@ -517,13 +330,9 @@ class GroupReportPDFView(LoginRequiredMixin, View):
 
 
 class UpdateGroupView(LoginRequiredMixin, View):
-    """Class-Based View to update the group name and batch-edit check intervals of its targets."""
-    
     def get(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> HttpResponse:
         group = get_object_or_404(Group, pk=pk)
         targets = group.targets.all().order_by('label', 'host')
-        
-        # Get choices from MonitorTarget model field
         check_interval_choices = MonitorTarget._meta.get_field('check_interval').choices
         telegram_alert_threshold_choices = MonitorTarget._meta.get_field('telegram_alert_threshold').choices
         
@@ -533,7 +342,7 @@ class UpdateGroupView(LoginRequiredMixin, View):
             'check_interval_choices': check_interval_choices,
             'telegram_alert_threshold_choices': telegram_alert_threshold_choices,
         }
-        return render(request, 'monitor/edit_group.html', context)
+        return render(request, 'monitor/update_group.html', context)
         
     def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
         group = get_object_or_404(Group, pk=pk)
@@ -547,7 +356,6 @@ class UpdateGroupView(LoginRequiredMixin, View):
             messages.error(request, f"Já existe um grupo com o nome '{new_name}'.")
             return redirect('edit_group', pk=group.id)
             
-        # Batch update check intervals and telegram alert thresholds
         check_interval = request.POST.get('check_interval', '').strip()
         telegram_alert_threshold = request.POST.get('telegram_alert_threshold', '').strip()
         selected_targets = request.POST.getlist('selected_targets')
@@ -562,66 +370,26 @@ class UpdateGroupView(LoginRequiredMixin, View):
 
 
 class DeleteGroupView(LoginRequiredMixin, View):
-    """Class-Based View to delete a group."""
-    
     def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
         group = get_object_or_404(Group, pk=pk)
-        group_name = group.name
-        group.delete()
-        log_audit(
-            user=request.user,
-            action='Excluir',
-            model_name='Grupo',
-            object_repr=group_name,
-            changes=f"Grupo '{group_name}' excluído (dispositivos foram desassociados)"
-        )
-        messages.success(request, f"Grupo '{group_name}' excluído com sucesso.")
+        GroupService.delete_group(group, request.user)
+        messages.success(request, f"Grupo '{group.name}' excluído com sucesso.")
         return redirect('dashboard')
 
 
 class SendTestTelegramView(LoginRequiredMixin, View):
-    """View to send a manual test Telegram message for a specific target."""
-    
     def post(self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any) -> JsonResponse:
-        from django.conf import settings
-        from django.utils import timezone
-        
         target = get_object_or_404(MonitorTarget, pk=pk)
-        
-        # Check if Telegram is configured
-        token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
-        chat_id = getattr(settings, 'TELEGRAM_CHAT_ID', '')
-        
-        if not token or not chat_id:
-            return JsonResponse({'success': False, 'error': 'Telegram não está configurado no arquivo .env.'})
-            
-        label = target.label or "Sem identificação"
-        group_name = target.group.name if target.group else "Sem grupo"
-        local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
-        message = (
-            f"<b>Teste de Notificação Manual</b>\n\n"
-            f"<b>Dispositivo:</b> {label}\n"
-            f"<b>IP:</b> <code>{target.host}</code>\n"
-            f"<b>Porta:</b> <code>{target.port}</code>\n"
-            f"<b>Grupo:</b> {group_name}\n"
-            f"<b>Horário:</b> {local_time}"
-        )
-        
-        from .utils import send_telegram_message
-        success = send_telegram_message(message)
-        
+        success, error_msg = TelegramService.send_test_message(target)
         if success:
             return JsonResponse({'success': True})
         else:
-            return JsonResponse({'success': False, 'error': 'Falha ao entregar a mensagem no Telegram. Verifique o Token e o Chat ID.'})
+            return JsonResponse({'success': False, 'error': error_msg})
 
 
 class TriggerMonthlyReportView(LoginRequiredMixin, View):
-    """View to manually trigger the monthly SLA report Celery task."""
-    
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
         from .tasks import send_monthly_telegram_report
-        # Trigger task asynchronously in Celery
         result = send_monthly_telegram_report.delay()
         return JsonResponse({'status': 'success', 'task_id': result.id})
 
@@ -629,7 +397,7 @@ class TriggerMonthlyReportView(LoginRequiredMixin, View):
 class AddDeviceView(LoginRequiredMixin, generic.CreateView):
     model = Device
     form_class = DeviceForm
-    template_name = 'monitor/add_device.html'
+    template_name = 'monitor/create_device.html'
     success_url = reverse_lazy('dashboard')
 
     def form_valid(self, form):
@@ -638,96 +406,16 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
         selected = self.request.POST.getlist('sensors')
         discovery_run = self.request.POST.get('discovery_run') == 'true'
 
-        if discovery_run:
-            from .services import DeviceDiscoveryService
-            created_count = DeviceDiscoveryService.provision_sensors(device, selected)
-            
-            log_audit(
-                user=self.request.user,
-                action='Criar',
-                model_name='Equipamento',
-                object_repr=device.name,
-                changes=f"Novo equipamento cadastrado com auto-descoberta na criação. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
-            )
+        created_count, is_discovery = DeviceService.create_device_with_sensors(
+            device, selected, discovery_run, self.request.user
+        )
+        
+        if is_discovery:
             messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {created_count} sensor(es) criado(s).")
-            from django.shortcuts import redirect
             return redirect('dashboard')
 
-        # Default legacy fallback if discovery wasn't run on creation page
-        # Define available sensors per device type
-        SENSOR_DEFS = {
-            'generic_ping': {
-                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
-            },
-            'mikrotik': {
-                'ping':   {'type': 'ping',         'identifier': '',       'label': 'Ping',   'interval': 1},
-                'cpu':    {'type': 'mikrotik_api', 'identifier': 'cpu',    'label': 'CPU',    'interval': 1},
-                'temp':   {'type': 'mikrotik_api', 'identifier': 'temp',   'label': 'Temp',   'interval': 5},
-                'uptime': {'type': 'mikrotik_api', 'identifier': 'uptime', 'label': 'Uptime', 'interval': 15},
-            },
-            'mikrotik_snmp': {
-                'ping':   {'type': 'ping',         'identifier': '',                          'label': 'Ping',     'interval': 1},
-                'cpu':    {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.25.3.3.1.2.1', 'label': 'CPU',      'interval': 1},
-                'temp':   {'type': 'snmp_numeric',  'identifier': '1.3.6.1.4.1.14988.1.1.3.10.0', 'label': 'Temp CPU', 'interval': 5},
-                'uptime': {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.1.3.0',        'label': 'Uptime',   'interval': 15},
-            },
-            'parks_olt': {
-                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
-            },
-            'generic_snmp': {
-                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
-            },
-        }
-
-        defs = SENSOR_DEFS.get(device.device_type, {})
-
-        # If no sensors were selected (e.g. JS disabled), default to all
-        if not selected:
-            selected = list(defs.keys())
-
-        for key in selected:
-            if key not in defs:
-                continue
-            s = defs[key]
-            kwargs = dict(
-                device=device,
-                sensor_type=s['type'],
-                host=device.host,
-                group=device.group,
-            )
-            if s['identifier']:
-                kwargs['sensor_identifier'] = s['identifier']
-                
-            # Inherit custom intervals and alert thresholds from device
-            interval = device.check_interval
-            if s['type'] == 'snmp_numeric' and "temp" in s['label'].lower():
-                interval = max(5, device.check_interval)
-            elif s['type'] == 'mikrotik_api' and s['identifier'] == 'temp':
-                interval = max(5, device.check_interval)
-                
-            t, created = MonitorTarget.objects.get_or_create(
-                **kwargs,
-                defaults={
-                    'label': f"{device.name} - {s['label']}",
-                    'check_interval': interval,
-                    'telegram_alert_threshold': device.telegram_alert_threshold,
-                    'is_active': True,
-                }
-            )
-            if not created and not t.is_active:
-                t.is_active = True
-                t.save(update_fields=['is_active'])
-
-        log_audit(
-            user=self.request.user,
-            action='Criar',
-            model_name='Equipamento',
-            object_repr=device.name,
-            changes=f"Novo equipamento cadastrado. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
-        )
-        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {len(selected)} sensor(es) criado(s). Carregando auto-descoberta...")
+        messages.success(self.request, f"Equipamento '{device.name}' cadastrado com sucesso! {created_count} sensor(es) criado(s). Carregando auto-descoberta...")
         
-        # Trigger checks for all new sensors in background
         for sensor in device.sensors.all():
             try:
                 from .tasks import check_single_target
@@ -735,25 +423,22 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
             except Exception:
                 pass
             
-        from django.shortcuts import redirect
         return redirect('discover_sensors', pk=device.id)
 
 
 class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
     model = Device
     form_class = DeviceForm
-    template_name = 'monitor/edit_device.html'
+    template_name = 'monitor/update_device.html'
     success_url = reverse_lazy('dashboard')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         device = self.get_object()
         
-        # Discover all sensors dynamically for edit page!
         from .services import DeviceDiscoveryService
         discovered_sensors, error = DeviceDiscoveryService.discover_interfaces(device)
         
-        import json
         context['discovered_sensors_json'] = json.dumps(discovered_sensors)
         context['discovery_error'] = error
         return context
@@ -762,60 +447,9 @@ class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
         response = super().form_valid(form)
         device = self.object
         
-        # Propagate group and telegram threshold in bulk
-        device.sensors.all().update(
-            telegram_alert_threshold=device.telegram_alert_threshold,
-            group=device.group
-        )
-        
-        # Propagate check interval with specific limits for temperature
-        for sensor in device.sensors.all():
-            interval = device.check_interval
-            if sensor.sensor_type == 'snmp_numeric' and "temp" in (sensor.label or "").lower():
-                interval = max(5, device.check_interval)
-            elif sensor.sensor_type == 'mikrotik_api' and sensor.sensor_identifier.startswith("health:temp"):
-                interval = max(5, device.check_interval)
-            
-            sensor.check_interval = interval
-            sensor.save(update_fields=['check_interval'])
-
-        # Process selected sensors from post data
         selected_identifiers = self.request.POST.getlist('sensors')
+        DeviceService.update_device_settings_and_sensors(device, selected_identifiers, self.request.user)
         
-        def get_target_identifier(target):
-            if target.sensor_type == 'ping':
-                return 'ping'
-            elif target.sensor_type == 'snmp_traffic':
-                return f"snmp_traffic:{target.sensor_identifier}"
-            elif target.sensor_type == 'snmp_numeric':
-                return f"snmp_numeric:{target.sensor_identifier}"
-            elif target.sensor_type == 'mikrotik_api':
-                return target.sensor_identifier
-            return None
-
-        existing_targets = device.sensors.all()
-        
-        # 1. Delete sensors that are unchecked in the edit form
-        for target in existing_targets:
-            ident = get_target_identifier(target)
-            if ident and ident not in selected_identifiers:
-                target.delete()
-                
-        # 2. Add/provision newly checked sensors
-        existing_idents = {get_target_identifier(t) for t in existing_targets}
-        new_idents = [ident for ident in selected_identifiers if ident and ident not in existing_idents]
-        
-        if new_idents:
-            from .services import DeviceDiscoveryService
-            DeviceDiscoveryService.provision_sensors(device, new_idents)
-
-        log_audit(
-            user=self.request.user,
-            action='Editar',
-            model_name='Equipamento',
-            object_repr=device.name,
-            changes=f"Alterado configurações do equipamento ID {device.id} (propagado para {device.sensors.count()} sensores)"
-        )
         messages.success(self.request, f"Equipamento '{device.name}' atualizado com sucesso!")
         return response
 
@@ -823,16 +457,8 @@ class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
 class DeleteDeviceView(LoginRequiredMixin, View):
     def post(self, request, pk):
         device = get_object_or_404(Device, pk=pk)
-        device_name = device.name
-        device.delete()
-        log_audit(
-            user=request.user,
-            action='Excluir',
-            model_name='Equipamento',
-            object_repr=device_name,
-            changes=f"Equipamento '{device_name}' e seus sensores foram excluídos"
-        )
-        messages.success(request, f"Equipamento '{device_name}' e todos os seus sensores associados foram excluídos com sucesso.")
+        DeviceService.delete_device(device, request.user)
+        messages.success(request, f"Equipamento '{device.name}' e todos os seus sensores associados foram excluídos com sucesso.")
         return redirect('dashboard')
 
 
@@ -871,7 +497,6 @@ class StatusUpdateAPIView(LoginRequiredMixin, View):
 class DiscoverPreviewAPIView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         device_type = request.POST.get('device_type', 'mikrotik_snmp')
-        print(f"DEBUG PREVIEW API: device_type={device_type} POST keys={list(request.POST.keys())} all={request.POST.dict()}", flush=True)
         host = request.POST.get('host', '').strip()
         snmp_community = request.POST.get('snmp_community', 'public').strip()
         snmp_port = request.POST.get('snmp_port', '161')
@@ -888,8 +513,7 @@ class DiscoverPreviewAPIView(LoginRequiredMixin, View):
             api_port = int(api_port) if api_port else 8728
         except ValueError:
             api_port = 8728
-
-        # Instantiate a temporary Device
+ 
         device = Device(
             device_type=device_type,
             host=host,
@@ -899,10 +523,10 @@ class DiscoverPreviewAPIView(LoginRequiredMixin, View):
             api_username=api_username,
             api_password=api_password
         )
-
+ 
         from .services import DeviceDiscoveryService
         sensors, error = DeviceDiscoveryService.discover_interfaces(device)
-
+ 
         return JsonResponse({
             'success': error is None,
             'error': error,
