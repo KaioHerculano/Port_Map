@@ -4,6 +4,7 @@ import time
 import logging
 from typing import List, Tuple, Optional, Any
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from .models import MonitorTarget, MonitorLog, Group, AuditLog, Device
 
@@ -1565,4 +1566,381 @@ class DeviceDiscoveryService:
                         pass
 
         return created_count
+
+
+class DashboardService:
+    @staticmethod
+    def get_filtered_queryset(search_query: str, status_filter: str, group_id: str):
+        queryset = MonitorTarget.objects.select_related('group').filter(device__isnull=True)
+        if search_query:
+            queryset = queryset.filter(
+                Q(host__icontains=search_query) | 
+                Q(label__icontains=search_query) | 
+                Q(port__icontains=search_query) |
+                Q(group__name__icontains=search_query)
+            )
+        if status_filter == 'online':
+            queryset = queryset.filter(last_status=True, is_active=True)
+        elif status_filter == 'offline':
+            queryset = queryset.filter(last_status=False, is_active=True)
+        elif status_filter == 'inactive':
+            queryset = queryset.filter(is_active=False)
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+        return queryset
+
+    @staticmethod
+    def get_dashboard_stats(group_id: str = ""):
+        all_targets = MonitorTarget.objects.filter(device__isnull=True)
+        if group_id:
+            all_targets = all_targets.filter(group_id=group_id)
+        return {
+            'total_count': all_targets.count(),
+            'online_count': all_targets.filter(last_status=True, is_active=True).count(),
+            'offline_count': all_targets.filter(last_status=False, is_active=True).count(),
+            'inactive_count': all_targets.filter(is_active=False).count(),
+        }
+
+    @staticmethod
+    def auto_correct_sensor_labels():
+        health_labels = {
+            '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+            '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+            '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+            '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+            '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+            '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+            '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+            '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
+            '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
+            '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+            '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+        }
+        for sensor in MonitorTarget.objects.filter(sensor_type='snmp_numeric', label__icontains='métrica 1.3.6.1.4.1.14988.1.1.3.'):
+            oid_key = sensor.sensor_identifier
+            if oid_key in health_labels:
+                device_prefix = f"{sensor.device.name} - " if sensor.device else ""
+                sensor.label = f"{device_prefix}{health_labels[oid_key]}"
+                sensor.save(update_fields=['label'])
+
+
+class TargetService:
+    @staticmethod
+    def auto_correct_target_label(target: MonitorTarget):
+        if "métrica 1.3.6.1.4.1.14988.1.1.3." in (target.label or "").lower():
+            oid_key = target.sensor_identifier
+            health_labels = {
+                '1.3.6.1.4.1.14988.1.1.3.8.0': 'Voltagem',
+                '1.3.6.1.4.1.14988.1.1.3.9.0': 'Temperatura da Placa',
+                '1.3.6.1.4.1.14988.1.1.3.10.0': 'Temperatura da CPU',
+                '1.3.6.1.4.1.14988.1.1.3.11.0': 'Temperatura da CPU',
+                '1.3.6.1.4.1.14988.1.1.3.12.0': 'Consumo de Energia',
+                '1.3.6.1.4.1.14988.1.1.3.13.0': 'Corrente',
+                '1.3.6.1.4.1.14988.1.1.3.14.0': 'Consumo de Energia',
+                '1.3.6.1.4.1.14988.1.1.3.15.0': 'Estado da PSU 1',
+                '1.3.6.1.4.1.14988.1.1.3.16.0': 'Estado da PSU 2',
+                '1.3.6.1.4.1.14988.1.1.3.17.0': 'Cooler 1 Speed',
+                '1.3.6.1.4.1.14988.1.1.3.18.0': 'Cooler 2 Speed',
+            }
+            if oid_key in health_labels:
+                device_prefix = f"{target.device.name} - " if target.device else ""
+                target.label = f"{device_prefix}{health_labels[oid_key]}"
+                target.save(update_fields=['label'])
+
+    @staticmethod
+    def toggle_target(target: MonitorTarget, user: Any) -> Tuple[bool, str]:
+        target.is_active = not target.is_active
+        target.save(update_fields=['is_active'])
+        status_label = "ativado" if target.is_active else "desativado"
+        log_audit(
+            user=user,
+            action='Ativar' if target.is_active else 'Desativar',
+            model_name='Dispositivo',
+            object_repr=f"{target.label or target.host}:{target.port}",
+            changes=f"Alterado estado de atividade para: {status_label.capitalize()}"
+        )
+        return target.is_active, f"O monitoramento do alvo foi {status_label}."
+
+    @staticmethod
+    def delete_target(target: MonitorTarget, user: Any) -> str:
+        host_port = f"{target.host}:{target.port}"
+        label_repr = f"{target.label or target.host}:{target.port}"
+        group_name = target.group.name if target.group else 'Nenhum'
+        target.delete()
+        log_audit(
+            user=user,
+            action='Excluir',
+            model_name='Dispositivo',
+            object_repr=label_repr,
+            changes=f"Excluído monitoramento de {host_port}. Grupo: {group_name}"
+        )
+        return host_port
+
+    @staticmethod
+    def trigger_manual_check(target_id: Optional[int]):
+        from .tasks import check_single_target, check_all_targets
+        if target_id:
+            try:
+                PortCheckerService.check_target(target_id)
+            except Exception as e:
+                logger.error("Erro na checagem síncrona manual do alvo %d: %s", target_id, str(e))
+            try:
+                check_single_target.delay(target_id)
+            except Exception:
+                pass
+        else:
+            active_targets = MonitorTarget.objects.filter(is_active=True)
+            for t in active_targets:
+                try:
+                    PortCheckerService.check_target(t.id)
+                except Exception as e:
+                    logger.error("Erro na checagem síncrona manual global do alvo %d: %s", t.id, str(e))
+            try:
+                check_all_targets.delay()
+            except Exception:
+                pass
+
+    @staticmethod
+    def update_target(target: MonitorTarget, cleaned_data: dict, user: Any) -> Tuple[MonitorTarget, List[str]]:
+        old_host = target.host
+        old_port = target.port
+        old_label = target.label
+        old_interval = target.check_interval
+        old_threshold = target.telegram_alert_threshold
+        old_group = target.group.name if target.group else "Nenhum"
+
+        for field, value in cleaned_data.items():
+            setattr(target, field, value)
+        target.save()
+
+        target.refresh_from_db()
+        new_host = target.host
+        new_port = target.port
+        new_label = target.label
+        new_interval = target.check_interval
+        new_threshold = target.telegram_alert_threshold
+        new_group = target.group.name if target.group else "Nenhum"
+
+        changes = []
+        if old_host != new_host:
+            changes.append(f"IP: {old_host} -> {new_host}")
+        if old_port != new_port:
+            changes.append(f"Porta: {old_port} -> {new_port}")
+        if old_label != new_label:
+            changes.append(f"Nome/Rótulo: {old_label or 'Vazio'} -> {new_label or 'Vazio'}")
+        if old_interval != new_interval:
+            changes.append(f"Frequência: {old_interval}m -> {new_interval}m")
+        if old_threshold != new_threshold:
+            changes.append(f"Regra de Alerta: {old_threshold} falha(s) -> {new_threshold} falha(s)")
+        if old_group != new_group:
+            changes.append(f"Grupo: {old_group} -> {new_group}")
+
+        if changes:
+            log_audit(
+                user=user,
+                action='Editar',
+                model_name='Dispositivo',
+                object_repr=f"{target.label or target.host}:{target.port}",
+                changes="Alterações: " + ", ".join(changes)
+            )
+        return target, changes
+
+
+class GroupService:
+    @staticmethod
+    def create_group(name: str, user: Any) -> Tuple[Group, bool]:
+        group, created = Group.objects.get_or_create(name=name)
+        if created:
+            log_audit(
+                user=user,
+                action='Criar',
+                model_name='Grupo',
+                object_repr=name,
+                changes=f"Novo grupo '{name}' cadastrado"
+            )
+        return group, created
+
+    @staticmethod
+    def delete_group(group: Group, user: Any):
+        group_name = group.name
+        group.delete()
+        log_audit(
+            user=user,
+            action='Excluir',
+            model_name='Grupo',
+            object_repr=group_name,
+            changes=f"Grupo '{group_name}' excluído (dispositivos foram desassociados)"
+        )
+
+
+class DeviceService:
+    @staticmethod
+    def create_device_with_sensors(device: Device, selected: List[str], discovery_run: bool, user: Any) -> Tuple[int, bool]:
+        if discovery_run:
+            created_count = DeviceDiscoveryService.provision_sensors(device, selected)
+            log_audit(
+                user=user,
+                action='Criar',
+                model_name='Equipamento',
+                object_repr=device.name,
+                changes=f"Novo equipamento cadastrado com auto-descoberta na criação. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
+            )
+            return created_count, True
+
+        SENSOR_DEFS = {
+            'generic_ping': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+            'mikrotik': {
+                'ping':   {'type': 'ping',         'identifier': '',       'label': 'Ping',   'interval': 1},
+                'cpu':    {'type': 'mikrotik_api', 'identifier': 'cpu',    'label': 'CPU',    'interval': 1},
+                'temp':   {'type': 'mikrotik_api', 'identifier': 'temp',   'label': 'Temp',   'interval': 5},
+                'uptime': {'type': 'mikrotik_api', 'identifier': 'uptime', 'label': 'Uptime', 'interval': 15},
+            },
+            'mikrotik_snmp': {
+                'ping':   {'type': 'ping',         'identifier': '',                          'label': 'Ping',     'interval': 1},
+                'cpu':    {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.25.3.3.1.2.1', 'label': 'CPU',      'interval': 1},
+                'temp':   {'type': 'snmp_numeric',  'identifier': '1.3.6.1.4.1.14988.1.1.3.10.0', 'label': 'Temp CPU', 'interval': 5},
+                'uptime': {'type': 'snmp_numeric',  'identifier': '1.3.6.1.2.1.1.3.0',        'label': 'Uptime',   'interval': 15},
+            },
+            'parks_olt': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+            'generic_snmp': {
+                'ping': {'type': 'ping', 'identifier': '', 'label': 'Ping', 'interval': 1},
+            },
+        }
+
+        defs = SENSOR_DEFS.get(device.device_type, {})
+        if not selected:
+            selected = list(defs.keys())
+
+        created_count = 0
+        for key in selected:
+            if key not in defs:
+                continue
+            s = defs[key]
+            kwargs = dict(
+                device=device,
+                sensor_type=s['type'],
+                host=device.host,
+                group=device.group,
+            )
+            if s['identifier']:
+                kwargs['sensor_identifier'] = s['identifier']
+                
+            interval = device.check_interval
+            if s['type'] == 'snmp_numeric' and "temp" in s['label'].lower():
+                interval = max(5, device.check_interval)
+            elif s['type'] == 'mikrotik_api' and s['identifier'] == 'temp':
+                interval = max(5, device.check_interval)
+                
+            t, created = MonitorTarget.objects.get_or_create(
+                **kwargs,
+                defaults={
+                    'label': f"{device.name} - {s['label']}",
+                    'check_interval': interval,
+                    'telegram_alert_threshold': device.telegram_alert_threshold,
+                    'is_active': True,
+                }
+            )
+            if created:
+                created_count += 1
+            elif not t.is_active:
+                t.is_active = True
+                t.save(update_fields=['is_active'])
+
+        log_audit(
+            user=user,
+            action='Criar',
+            model_name='Equipamento',
+            object_repr=device.name,
+            changes=f"Novo equipamento cadastrado. Nome: {device.name}, Tipo: {device.device_type}, IP: {device.host}. Sensores: {', '.join(selected)}"
+        )
+        return created_count, False
+
+    @staticmethod
+    def update_device_settings_and_sensors(device: Device, selected_identifiers: List[str], user: Any):
+        device.sensors.all().update(
+            telegram_alert_threshold=device.telegram_alert_threshold,
+            group=device.group
+        )
+        
+        for sensor in device.sensors.all():
+            interval = device.check_interval
+            if sensor.sensor_type == 'snmp_numeric' and "temp" in (sensor.label or "").lower():
+                interval = max(5, device.check_interval)
+            elif sensor.sensor_type == 'mikrotik_api' and sensor.sensor_identifier.startswith("health:temp"):
+                interval = max(5, device.check_interval)
+            sensor.check_interval = interval
+            sensor.save(update_fields=['check_interval'])
+
+        def get_target_identifier(target):
+            if target.sensor_type == 'ping':
+                return 'ping'
+            elif target.sensor_type == 'snmp_traffic':
+                return f"snmp_traffic:{target.sensor_identifier}"
+            elif target.sensor_type == 'snmp_numeric':
+                return f"snmp_numeric:{target.sensor_identifier}"
+            elif target.sensor_type == 'mikrotik_api':
+                return target.sensor_identifier
+            return None
+
+        existing_targets = device.sensors.all()
+        for target in existing_targets:
+            ident = get_target_identifier(target)
+            if ident and ident not in selected_identifiers:
+                target.delete()
+                
+        existing_idents = {get_target_identifier(t) for t in existing_targets}
+        new_idents = [ident for ident in selected_identifiers if ident and ident not in existing_idents]
+        if new_idents:
+            DeviceDiscoveryService.provision_sensors(device, new_idents)
+
+        log_audit(
+            user=user,
+            action='Editar',
+            model_name='Equipamento',
+            object_repr=device.name,
+            changes=f"Alterado configurações do equipamento ID {device.id} (propagado para {device.sensors.count()} sensores)"
+        )
+
+    @staticmethod
+    def delete_device(device: Device, user: Any):
+        device_name = device.name
+        device.delete()
+        log_audit(
+            user=user,
+            action='Excluir',
+            model_name='Equipamento',
+            object_repr=device_name,
+            changes=f"Equipamento '{device_name}' e seus sensores foram excluídos"
+        )
+
+
+class TelegramService:
+    @staticmethod
+    def send_test_message(target: MonitorTarget) -> Tuple[bool, Optional[str]]:
+        from django.conf import settings
+        from django.utils import timezone
+        from .utils import send_telegram_message
+
+        token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+        chat_id = getattr(settings, 'TELEGRAM_CHAT_ID', '')
+        if not token or not chat_id:
+            return False, 'Telegram não está configurado no arquivo .env.'
+
+        label = target.label or "Sem identificação"
+        group_name = target.group.name if target.group else "Sem grupo"
+        local_time = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+        message = (
+            f"<b>Teste de Notificação Manual</b>\n\n"
+            f"<b>Dispositivo:</b> {label}\n"
+            f"<b>IP:</b> <code>{target.host}</code>\n"
+            f"<b>Porta:</b> <code>{target.port}</code>\n"
+            f"<b>Grupo:</b> {group_name}\n"
+            f"<b>Horário:</b> {local_time}"
+        )
+        success = send_telegram_message(message)
+        return success, None if success else 'Falha ao entregar a mensagem no Telegram. Verifique o Token e o Chat ID.'
 

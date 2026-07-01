@@ -1,16 +1,16 @@
 import logging
-from django.shortcuts import render, redirect
-from django.contrib.auth import login, logout, authenticate
+from typing import Any, Union
+from django.shortcuts import redirect
 from django.contrib import messages
 from django import forms
 from django.contrib.auth import get_user_model
 from django.views.generic import FormView, CreateView, View
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
-from typing import Any, Dict, Union
+from .services import UserService
 
 logger = logging.getLogger(__name__)
 
-# Form Definitions
+
 class UserLoginForm(forms.Form):
     username = forms.CharField(
         label="Usuário ou E-mail", 
@@ -79,7 +79,6 @@ class UserSignupForm(forms.ModelForm):
         return user
 
 
-# Class-Based View (CBV) Definitions
 class UserLoginView(FormView):
     template_name = 'accounts/login.html'
     form_class = UserLoginForm
@@ -94,16 +93,12 @@ class UserLoginView(FormView):
         username = form.cleaned_data.get('username')
         password = form.cleaned_data.get('password')
         
-        user = authenticate(self.request, username=username, password=password)
-        
+        user = UserService.authenticate_and_login(self.request, username, password)
         if user is not None:
-            login(self.request, user)
             messages.success(self.request, f"Bem-vindo de volta, {user.username}!")
-            logger.info("Usuario %s fez login com sucesso.", user.username)
             return redirect(self.get_success_url())
         else:
             messages.error(self.request, "Credenciais inválidas. Verifique o usuário/e-mail e a senha.")
-            logger.warning("Tentativa de login malsucedida para o usuario: %s", username)
             return self.form_invalid(form)
 
 
@@ -119,17 +114,13 @@ class UserSignupView(CreateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form: UserSignupForm) -> HttpResponseRedirect:
-        self.object = form.save()
-        login(self.request, self.object, backend='accounts.backends.EmailOrUsernameModelBackend')
-        messages.success(self.request, f"Conta criada com sucesso! Bem-vindo, {self.object.username}!")
-        logger.info("Novo usuario registrado: %s", self.object.username)
+        user = UserService.register_and_login(self.request, form)
+        messages.success(self.request, f"Conta criada com sucesso! Bem-vindo, {user.username}!")
         return redirect(self.get_success_url())
 
 
 class UserLogoutView(View):
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
-        username = request.user.username if request.user.is_authenticated else "anonimo"
-        logout(request)
+        UserService.logout_user(request)
         messages.info(request, "Você foi desconectado com sucesso.")
-        logger.info("Usuario %s fez logout.", username)
         return redirect('login')
