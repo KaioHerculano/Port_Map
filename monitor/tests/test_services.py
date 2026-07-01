@@ -461,3 +461,74 @@ class MikroTikAdvancedMonitoringTests(TestCase):
         t_bgp.refresh_from_db()
         self.assertEqual(t_bgp.sensor_value, "Active")
         self.assertFalse(t_bgp.last_status)
+
+
+class GroupServiceStatsAndSettingsTests(TestCase):
+    def setUp(self):
+        self.group = Group.objects.create(name=fake.company())
+        self.device = Device.objects.create(
+            name=fake.name(),
+            host=fake.ipv4(),
+            device_type="generic_ping",
+            is_active=True,
+        )
+
+    def test_get_groups_with_stats(self):
+        from monitor.services import GroupService
+        MonitorTarget.objects.create(
+            host=fake.ipv4(),
+            port=80,
+            group=self.group,
+            is_active=True,
+            last_status=True,
+        )
+        self.device.group = self.group
+        self.device.save()
+        MonitorTarget.objects.create(
+            device=self.device,
+            sensor_type="ping",
+            host=self.device.host,
+            group=self.group,
+            is_active=True,
+            last_status=True,
+        )
+
+        groups = GroupService.get_groups_with_stats()
+        self.assertEqual(len(groups), 1)
+        g = groups[0]
+        self.assertEqual(g.total_count, 1)
+        self.assertEqual(g.online_count, 1)
+        self.assertEqual(g.devices_total, 1)
+        self.assertEqual(g.devices_online, 1)
+
+    def test_update_group_settings_devices(self):
+        from monitor.services import GroupManagerService
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.create_user(
+            username=fake.user_name(), password="password"
+        )
+
+        GroupManagerService.update_group_settings(
+            self.group,
+            self.group.name,
+            "",
+            "",
+            [],
+            [str(self.device.id)],
+            user
+        )
+        self.device.refresh_from_db()
+        self.assertEqual(self.device.group, self.group)
+
+        GroupManagerService.update_group_settings(
+            self.group,
+            self.group.name,
+            "",
+            "",
+            [],
+            [],
+            user
+        )
+        self.device.refresh_from_db()
+        self.assertIsNone(self.device.group)
