@@ -84,3 +84,72 @@ class MonitorModelTests(TestCase):
         )
         self.assertEqual(device.sensors.count(), 1)
         self.assertEqual(device.sensors.first(), sensor)
+
+    def test_string_representations_and_empty_uptime(self):
+        from django.contrib.auth import get_user_model
+
+        from monitor.models import AuditLog, DailySummary, Group
+
+        # Test Group __str__
+        group_name = fake.company()
+        group = Group.objects.create(name=group_name)
+        self.assertEqual(str(group), group_name)
+
+        # Test MonitorTarget uptime when no logs exist
+        target_status_true = MonitorTarget.objects.create(
+            host=fake.ipv4(), port=fake.random_int(1, 65535), last_status=True
+        )
+        target_status_false = MonitorTarget.objects.create(
+            host=fake.ipv4(), port=fake.random_int(1, 65535), last_status=False
+        )
+        self.assertEqual(target_status_true.uptime_percentage_24h, 100.0)
+        self.assertEqual(target_status_true.uptime_percentage_30d, 100.0)
+        self.assertEqual(target_status_false.uptime_percentage_24h, 0.0)
+        self.assertEqual(target_status_false.uptime_percentage_30d, 0.0)
+
+        # Test MonitorLog __str__
+        log_open = MonitorLog.objects.create(
+            target=target_status_true, status=True, latency=10.0
+        )
+        log_closed = MonitorLog.objects.create(
+            target=target_status_true, status=False, latency=0.0
+        )
+        self.assertIn("ABERTA", str(log_open))
+        self.assertIn("FECHADA", str(log_closed))
+
+        # Test DailySummary __str__
+        avail_percent = round(
+            fake.pyfloat(min_value=0, max_value=100, right_digits=1), 1
+        )
+        summary = DailySummary.objects.create(
+            target=target_status_true,
+            date=timezone.localdate(),
+            availability=avail_percent,
+            avg_latency=12.4,
+        )
+        self.assertIn(f"{avail_percent}%", str(summary))
+
+        # Test AuditLog __str__ (with and without user)
+        action_val = fake.word()
+        model_val = fake.word()
+        repr_val = fake.word()
+        changes_val = fake.sentence()
+        audit_system = AuditLog.objects.create(
+            action=action_val,
+            model_name=model_val,
+            object_repr=repr_val,
+            changes=changes_val,
+        )
+        self.assertIn("Sistema", str(audit_system))
+
+        User = get_user_model()
+        user_name = fake.user_name()
+        user = User.objects.create_user(username=user_name, password="password")
+        audit_user = AuditLog.objects.create(
+            user=user,
+            action=action_val,
+            model_name=model_val,
+            object_repr=repr_val,
+            changes=changes_val,
+        )
+        self.assertIn(user_name, str(audit_user))
