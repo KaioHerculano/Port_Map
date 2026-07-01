@@ -29,3 +29,13 @@ if (
     and DATABASES["default"].get("ENGINE") == "django.db.backends.postgresql"
 ):
     DATABASES["default"]["HOST"] = "localhost"
+
+# Use standard StaticFilesStorage in tests to bypass WhiteNoise manifest checks
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
