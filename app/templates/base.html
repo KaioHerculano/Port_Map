@@ -24,7 +24,7 @@
           </div>
           <span class="brand-name">PortMap</span>
         </div>
-        
+
         <nav>
           <ul class="nav-links">
             <li>
@@ -46,13 +46,13 @@
           </ul>
         </nav>
       </div>
-      
+
       <div class="user-profile-section">
         <div class="user-info">
           <span class="username">{{ user.username }}</span>
           <span class="user-email">{{ user.email }}</span>
         </div>
-        
+
         <!-- Toggle button on mobile -->
         <button type="button" class="menu-toggle" aria-label="Toggle Menu" onclick="toggleMobileMenu()">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
@@ -70,7 +70,7 @@
         </form>
       </div>
     </aside>
-    
+
     <!-- Main Content -->
     <main class="main-content">
       <!-- Flash Messages / Notifications -->
@@ -84,7 +84,7 @@
         {% endfor %}
       </div>
       {% endif %}
-      
+
       {% block content %}{% endblock %}
     </main>
   </div>

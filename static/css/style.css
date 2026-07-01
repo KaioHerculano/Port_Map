@@ -7,32 +7,32 @@
   --bg-surface: #181d26;
   --bg-surface-glass: rgba(24, 29, 38, 0.7);
   --bg-surface-glass-hover: rgba(30, 37, 48, 0.85);
-  
+
   --border-color: rgba(255, 255, 255, 0.08);
   --border-color-focus: rgba(110, 68, 255, 0.6);
-  
+
   --primary: #6e44ff;
   --primary-hover: #835eff;
   --primary-glow: rgba(110, 68, 255, 0.3);
-  
+
   --text-main: #f3f4f6;
   --text-muted: #9ca3af;
   --text-inverse: #0f131a;
-  
+
   --success: #10b981;
   --success-glow: rgba(16, 185, 129, 0.2);
   --danger: #ef4444;
   --danger-glow: rgba(239, 68, 68, 0.2);
   --warning: #f59e0b;
   --info: #3b82f6;
-  
+
   --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
-  
+
   --font-title: 'Outfit', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
-  
+
   --sidebar-width: 260px;
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1002,7 +1002,7 @@ textarea {
   .brand-section {
     margin-bottom: 0 !important;
   }
-  
+
   /* Dropdown styles for nav */
   .sidebar nav {
     display: none;
@@ -1021,7 +1021,7 @@ textarea {
   .sidebar nav.active {
     display: block;
   }
-  
+
   .nav-links {
     flex-direction: column !important;
     margin-bottom: 0 !important;
@@ -1103,7 +1103,7 @@ textarea {
   .data-table td, .td-label, .td-host {
     font-size: 1rem !important;
   }
-  
+
   /* Filter controls bar on mobile */
   .filter-bar {
     flex-direction: column;
@@ -1158,7 +1158,7 @@ textarea {
   .show-mobile {
     display: block !important;
   }
-  
+
   /* Mobile target card styles */
   .mobile-targets-list {
     display: flex;
@@ -1167,7 +1167,7 @@ textarea {
     width: 100%;
     margin-bottom: 1.5rem;
   }
-  
+
   .mobile-target-card {
     padding: 1.25rem;
     display: flex;
@@ -1175,27 +1175,27 @@ textarea {
     gap: 1rem;
     border-radius: 12px;
   }
-  
+
   .card-row-main {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
   }
-  
+
   .card-target-ident {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
     min-width: 0;
   }
-  
+
   .card-label {
     font-size: 1.15rem;
     color: white;
     font-weight: 700;
   }
-  
+
   .group-badge {
     align-self: flex-start;
     background: rgba(110, 68, 255, 0.1);
@@ -1205,13 +1205,13 @@ textarea {
     font-size: 0.75rem;
     font-weight: 600;
   }
-  
+
   .card-host {
     font-family: monospace;
     font-size: 1.05rem;
     color: var(--text-muted);
   }
-  
+
   .card-status-toggle {
     display: flex;
     flex-direction: column;
@@ -1219,7 +1219,7 @@ textarea {
     gap: 0.75rem;
     flex-shrink: 0;
   }
-  
+
   .card-row-footer {
     display: flex;
     justify-content: space-between;
@@ -1228,26 +1228,26 @@ textarea {
     padding-top: 0.85rem;
     gap: 1rem;
   }
-  
+
   .card-metrics {
     display: flex;
     align-items: center;
     gap: 0.75rem;
   }
-  
+
   .card-metric-latency {
     font-size: 0.95rem;
     font-weight: 700;
   }
-  
+
   .card-metric-latency.fast { color: var(--success); }
   .card-metric-latency.slow { color: var(--warning); }
-  
+
   .card-metric-time {
     font-size: 0.85rem;
     color: var(--text-muted);
   }
-  
+
   .card-actions {
     display: flex;
     gap: 0.35rem;

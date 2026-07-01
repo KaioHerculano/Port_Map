@@ -429,10 +429,15 @@ class PortCheckerService:
         try:
             import asyncio
 
-            from pysnmp.hlapi.asyncio import (CommunityData, ContextData,
-                                              ObjectIdentity, ObjectType,
-                                              SnmpEngine, UdpTransportTarget,
-                                              getCmd)
+            from pysnmp.hlapi.asyncio import (
+                CommunityData,
+                ContextData,
+                ObjectIdentity,
+                ObjectType,
+                SnmpEngine,
+                UdpTransportTarget,
+                getCmd,
+            )
 
             async def do_get():
                 return await getCmd(
@@ -468,10 +473,15 @@ class PortCheckerService:
         try:
             import asyncio
 
-            from pysnmp.hlapi.asyncio import (CommunityData, ContextData,
-                                              ObjectIdentity, ObjectType,
-                                              SnmpEngine, UdpTransportTarget,
-                                              nextCmd)
+            from pysnmp.hlapi.asyncio import (
+                CommunityData,
+                ContextData,
+                ObjectIdentity,
+                ObjectType,
+                SnmpEngine,
+                UdpTransportTarget,
+                nextCmd,
+            )
 
             async def do_walk():
                 walk_results = []

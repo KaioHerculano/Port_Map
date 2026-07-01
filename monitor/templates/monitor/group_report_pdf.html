@@ -151,9 +151,9 @@
             </td>
         </tr>
     </table>
-    
+
     <div class="divider"></div>
-    
+
     <!-- Summary Info Card -->
     <div style="margin-bottom: 20px;">
         <table style="width: 100%; border-collapse: collapse; border: 1px solid #E2E8F0; background-color: #F8FAFC;">
@@ -163,13 +163,13 @@
                     <div style="font-size: 8.5pt; color: #4A5568; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">SLA Geral do Grupo</div>
                     <div style="font-size: 18pt; color: #7C3AED; font-weight: bold; margin-top: 4px;">{{ group_availability }}%</div>
                 </td>
-                
+
                 <!-- Total de Sensores -->
                 <td style="width: 33.3%; text-align: center; padding: 12px; border-right: 1px solid #E2E8F0; vertical-align: middle;">
                     <div style="font-size: 8.5pt; color: #4A5568; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">Total de Sensores</div>
                     <div style="font-size: 18pt; color: #2D3748; font-weight: bold; margin-top: 4px;">{{ target_count }}</div>
                 </td>
-                
+
                 <!-- Status do SLA -->
                 <td style="width: 33.3%; text-align: center; padding: 12px; vertical-align: middle;">
                     <div style="font-size: 8.5pt; color: #4A5568; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">Status do SLA</div>
@@ -186,10 +186,10 @@
             </tr>
         </table>
     </div>
-    
+
     <!-- SLA Details Title -->
     <div style="font-size: 12pt; font-weight: bold; color: #2D3748; margin-bottom: 10px;">Disponibilidade por Ponto / Câmera</div>
-    
+
     <!-- SLA Table -->
     <table class="sla-table" style="width: 100%; border-collapse: collapse;">
         <thead>
@@ -198,10 +198,10 @@
                 <th style="width: 20%;">Sensor (IP:Porta)</th>
                 <th style="width: 22%;">Identificação</th>
                 <th style="width: 7%; text-align: right;">SLA (30d)</th>
-                
+
                 <!-- Middle Separator -->
                 <th style="width: 2%; background-color: white; border: none; padding: 0;"></th>
-                
+
                 <!-- Right Side Headers -->
                 <th style="width: 20%;">Sensor (IP:Porta)</th>
                 <th style="width: 22%;">Identificação</th>
@@ -223,10 +223,10 @@
                     <td colspan="3" style="border: none; background: transparent;"></td>
                 {% endif %}
                 {% endwith %}
-                
+
                 <!-- Middle Separator -->
                 <td style="border: none; background: white; padding: 0;"></td>
-                
+
                 <!-- Right Target -->
                 {% with right=row.1 %}
                 {% if right %}

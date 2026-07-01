@@ -67,7 +67,7 @@
       </div>
       <div class="stat-value" id="stat-total">{{ total_count }}</div>
     </div>
-    
+
     <div class="stat-card online glass-panel">
       <div class="stat-header">
         <span>Portas Abertas</span>
@@ -77,7 +77,7 @@
       </div>
       <div class="stat-value" id="stat-online">{{ online_count }}</div>
     </div>
-    
+
     <div class="stat-card offline glass-panel">
       <div class="stat-header">
         <span>Portas Fechadas</span>
@@ -87,7 +87,7 @@
       </div>
       <div class="stat-value" id="stat-offline">{{ offline_count }}</div>
     </div>
-    
+
     <div class="stat-card inactive glass-panel">
       <div class="stat-header">
         <span>Monitoramentos Inativos</span>
@@ -178,7 +178,7 @@
       <input type="hidden" name="status" value="{{ status_filter }}">
     {% endif %}
   </form>
-  
+
   <div class="filter-options">
     <a href="?q={{ search_query }}" class="filter-tab {% if not status_filter %}active{% endif %}">Todos</a>
     <a href="?q={{ search_query }}&status=online" class="filter-tab {% if status_filter == 'online' %}active{% endif %}">Abertas</a>
@@ -262,21 +262,21 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
             </svg>
           </button>
-          
+
           <!-- Edit Target -->
           <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary btn-icon" title="Editar alvo">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
             </svg>
           </a>
-          
+
           <!-- Detailed info -->
           <a href="{% url 'target_detail' target.pk %}" class="btn btn-secondary btn-icon" title="Ver estatísticas completas">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
             </svg>
           </a>
-          
+
           <!-- Delete -->
           <button class="btn btn-danger btn-icon" title="Excluir monitoramento" onclick="deleteTarget({{ target.id }})">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
@@ -288,7 +288,7 @@
       {% endfor %}
     </tbody>
   </table>
-  
+
   <!-- Pagination -->
   {% if page_obj.has_other_pages %}
   <div class="pagination">
@@ -299,9 +299,9 @@
       <span class="page-link disabled">&laquo; Primeira</span>
       <span class="page-link disabled">Anterior</span>
     {% endif %}
-    
+
     <span class="page-link active">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-    
+
     {% if page_obj.has_next %}
       <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Próxima</a>
       <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Última &raquo;</a>
@@ -311,7 +311,7 @@
     {% endif %}
   </div>
   {% endif %}
-  
+
   {% else %}
   <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--border-color);">
@@ -323,7 +323,7 @@
   </div>
   {% endif %}
 </div>
-  
+
   <!-- Mobile Targets List (shown on mobile, hidden on desktop) -->
   {% if page_obj %}
   <div class="mobile-targets-list show-mobile">
@@ -345,7 +345,7 @@
             <span class="card-host">{{ target.host }}:<strong>{{ target.port }}</strong></span>
           </a>
         </div>
-        
+
         <div class="card-status-toggle">
           <div id="status-card-cell-{{ target.id }}">
             {% if not target.is_active %}
@@ -364,7 +364,7 @@
           </label>
         </div>
       </div>
-      
+
       <div class="card-row-footer">
         <div class="card-metrics">
           <span id="latency-card-cell-{{ target.id }}" class="card-metric-latency {% if target.last_latency is not None %}{% if target.last_latency < 150 %}fast{% else %}slow{% endif %}{% endif %}">
@@ -378,7 +378,7 @@
             {% endif %}
           </span>
         </div>
-        
+
         <div class="card-actions">
           <!-- Manual trigger check -->
           <button class="btn btn-secondary btn-icon" title="Testar porta agora" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
@@ -386,21 +386,21 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
             </svg>
           </button>
-          
+
           <!-- Edit Target -->
           <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary btn-icon" title="Editar alvo">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
             </svg>
           </a>
-          
+
           <!-- Detailed info -->
           <a href="{% url 'target_detail' target.pk %}" class="btn btn-secondary btn-icon" title="Ver estatísticas completas">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
             </svg>
           </a>
-          
+
           <!-- Delete -->
           <button class="btn btn-danger btn-icon" title="Excluir monitoramento" onclick="deleteTarget({{ target.id }})">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
@@ -419,9 +419,9 @@
         <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">&laquo;</a>
         <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Ant</a>
       {% endif %}
-      
+
       <span class="page-link active" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Pág {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
-      
+
       {% if page_obj.has_next %}
         <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Próx</a>
         <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">&raquo;</a>
@@ -444,7 +444,7 @@
           {{ g.total_count }} portas
         </span>
       </div>
-      
+
       <div style="display: flex; gap: 1rem; font-size: 0.85rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem; margin-top: auto;">
         <div style="display: flex; flex-direction: column; gap: 0.15rem;">
           <span class="text-muted" style="font-size: 0.75rem;">Abertas</span>
@@ -459,7 +459,7 @@
           <strong style="color: var(--text-muted); font-size: 1rem;">{{ g.inactive_count }}</strong>
         </div>
       </div>
-      
+
       <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
         <a href="?group={{ g.id }}" class="btn btn-primary" style="width: 100%; text-align: center; justify-content: center; font-size: 0.85rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
@@ -487,7 +487,7 @@
           </button>
         </div>
       </div>
-      
+
       <!-- Action buttons: Edit and Delete -->
       <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 0.6rem; margin-top: 0.25rem; display: flex; gap: 0.75rem; justify-content: center;">
         <a href="{% url 'edit_group' g.id %}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; display: flex; align-items: center; gap: 0.25rem; border-color: rgba(255,255,255,0.1); background: transparent; cursor: pointer; text-decoration: none; color: inherit; border-radius: 8px;">
@@ -524,7 +524,7 @@
   <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
     {% for device in devices %}
     <div class="glass-panel" style="padding: 1.5rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; display: flex; flex-direction: column; gap: 1rem;">
-      
+
       <!-- Device Header -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
         <div>
@@ -539,12 +539,12 @@
             {{ device.name }}
           </h3>
           <span style="font-size: 0.8rem; color: var(--text-muted);">
-            IP: <code style="color: white; background: rgba(255,255,255,0.05); padding: 0.1rem 0.3rem; border-radius: 4px;">{{ device.host }}</code> 
+            IP: <code style="color: white; background: rgba(255,255,255,0.05); padding: 0.1rem 0.3rem; border-radius: 4px;">{{ device.host }}</code>
             | Tipo: {{ device.get_device_type_display }}
             {% if device.group %} | Grupo: <strong>{{ device.group.name }}</strong>{% endif %}
           </span>
         </div>
-        
+
         <!-- Device Actions -->
         <div style="display: flex; gap: 0.5rem; align-items: center;">
           {% if device.device_type == 'mikrotik' or device.device_type == 'parks_olt' or device.device_type == 'mikrotik_snmp' or device.device_type == 'generic_snmp' %}
@@ -572,18 +572,18 @@
           </form>
         </div>
       </div>
-      
+
       <!-- Device Sensors Grid (PRTG-style layout) -->
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 0.25rem;">
         {% for sensor in device.sensors.all %}
         <div id="sensor-card-{{ sensor.id }}" class="glass-panel" style="padding: 0.75rem; border: 1px solid {% if not sensor.is_active %}rgba(100,116,139,0.2){% elif sensor.last_status == True %}rgba(16,185,129,0.2){% elif sensor.last_status == False %}rgba(239,68,68,0.2){% else %}rgba(255,255,255,0.05){% endif %}; border-radius: 8px; display: flex; flex-direction: column; gap: 0.35rem; position: relative; background: {% if not sensor.is_active %}rgba(100,116,139,0.03){% elif sensor.last_status == True %}rgba(16,185,129,0.03){% elif sensor.last_status == False %}rgba(239,68,68,0.03){% else %}rgba(0,0,0,0.1){% endif %};">
-          
+
           <!-- Sensor Title & Detail Link -->
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.25rem;">
             <a href="{% url 'target_detail' sensor.id %}" style="color: white; font-size: 0.85rem; font-weight: 600; text-decoration: none; word-break: break-word; hover: underline; flex-grow: 1;" title="Clique para ver gráficos e SLA">
               {{ sensor.label|default:sensor.get_sensor_type_display }}
             </a>
-            
+
             <!-- Quick Refresh Button -->
             <button onclick="scanSingleTarget({{ sensor.id }}, this)" style="background: none; border: none; padding: 0; color: var(--text-muted); cursor: pointer; hover: color: white;" title="Checar Agora">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 12px; height: 12px;">
@@ -591,7 +591,7 @@
               </svg>
             </button>
           </div>
-          
+
           <!-- Sensor Value & Latency -->
           <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end;">
             <div style="display: flex; flex-direction: column;">
@@ -601,7 +601,7 @@
               <span id="sensor-latency-{{ sensor.id }}" style="display: none;">
               </span>
             </div>
-            
+
             <!-- Small status dot indicator -->
             <span id="sensor-dot-{{ sensor.id }}" style="width: 8px; height: 8px; border-radius: 50%; background: {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %}; box-shadow: 0 0 6px {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %};"></span>
           </div>
@@ -612,7 +612,7 @@
         </div>
         {% endfor %}
       </div>
-      
+
     </div>
     {% empty %}
     <div class="glass-panel" style="padding: 3rem; text-align: center; color: var(--text-muted); border-radius: 12px;">
@@ -636,7 +636,7 @@
       </svg>
       Registro de Auditoria do Sistema
     </h2>
-    
+
     <div class="table-responsive" style="overflow-x: auto;">
       <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 800px;">
         <thead>
@@ -660,8 +660,8 @@
             </td>
             <td style="padding: 0.75rem 0.5rem;">
               <span class="status-badge" style="
-                padding: 0.15rem 0.5rem; 
-                font-size: 0.7rem; 
+                padding: 0.15rem 0.5rem;
+                font-size: 0.7rem;
                 background: {% if log.action == 'Criar' or log.action == 'Ativar' %}rgba(16, 185, 129, 0.1){% elif log.action == 'Editar' or log.action == 'Lote' %}rgba(245, 158, 11, 0.1){% elif log.action == 'Excluir' or log.action == 'Desativar' %}rgba(239, 68, 68, 0.1){% else %}rgba(59, 130, 246, 0.1){% endif %};
                 color: {% if log.action == 'Criar' or log.action == 'Ativar' %}#10b981{% elif log.action == 'Editar' or log.action == 'Lote' %}#f59e0b{% elif log.action == 'Excluir' or log.action == 'Desativar' %}#ef4444{% else %}#3b82f6{% endif %};
                 border: 1px solid {% if log.action == 'Criar' or log.action == 'Ativar' %}rgba(16, 185, 129, 0.2){% elif log.action == 'Editar' or log.action == 'Lote' %}rgba(245, 158, 11, 0.2){% elif log.action == 'Excluir' or log.action == 'Desativar' %}rgba(239, 68, 68, 0.2){% else %}rgba(59, 130, 246, 0.2){% endif %};
@@ -701,7 +701,7 @@
     </svg>
     Últimas Verificações do Sistema
   </h2>
-  
+
   <div style="display: flex; flex-direction: column; gap: 0.5rem;">
     {% for log in recent_logs %}
     <div class="recent-log-item">
@@ -735,7 +735,7 @@
   // Toggle Target status (Active/Inactive)
   function toggleTarget(id, checkbox) {
     const isChecked = checkbox.checked;
-    
+
     // Sync checkboxes on both table and card views
     const allCheckboxes = document.querySelectorAll(`input[type="checkbox"][onchange*="toggleTarget(${id}"]`);
     allCheckboxes.forEach(cb => {
@@ -756,7 +756,7 @@
         const statusCell = document.getElementById(`status-cell-${id}`);
         const latencyCell = document.getElementById(`latency-cell-${id}`);
         const actionBtnTable = statusCell ? statusCell.closest('tr').querySelector('button[title="Testar porta agora"]') : null;
-        
+
         // Refresh cells/states visually on mobile card
         const statusCardCell = document.getElementById(`status-card-cell-${id}`);
         const latencyCardCell = document.getElementById(`latency-card-cell-${id}`);
@@ -782,7 +782,7 @@
 
         updateState(statusCell, latencyCell, actionBtnTable);
         updateState(statusCardCell, latencyCardCell, actionBtnCard);
-        
+
         // Update stats
         updateStats();
         showToast(data.message, 'success');
@@ -802,7 +802,7 @@
     if (!confirm('Deseja realmente excluir este alvo de monitoramento e todo o seu histórico?')) {
       return;
     }
-    
+
     fetch(`/target/${id}/delete/`, {
       method: 'POST',
       headers: {
@@ -815,7 +815,7 @@
       if (data.status === 'success') {
         const row = document.getElementById(`target-row-${id}`);
         const card = document.getElementById(`target-card-${id}`);
-        
+
         const removeElement = (el) => {
           if (!el) return;
           el.style.transition = 'all 0.5s ease';
@@ -823,19 +823,19 @@
           el.style.transform = 'translateX(-20px)';
           setTimeout(() => el.remove(), 500);
         };
-        
+
         removeElement(row);
         removeElement(card);
-        
+
         setTimeout(() => {
           updateStats();
           // If no items left, reload to show empty state
-          if (document.querySelectorAll('.mobile-target-card').length === 0 && 
+          if (document.querySelectorAll('.mobile-target-card').length === 0 &&
               document.querySelectorAll('.data-table tbody tr').length === 0) {
             window.location.reload();
           }
         }, 550);
-        
+
         showToast(data.message, 'success');
       } else {
         showToast('Erro ao excluir o alvo.', 'error');
@@ -951,7 +951,7 @@
         <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" style="opacity: 0.75;"></path>
       </svg>
     `;
-    
+
     fetch(`/target/${id}/check/`, {
       method: 'POST',
       headers: {
@@ -962,7 +962,7 @@
     .then(data => {
       if (data.status === 'success') {
         showToast('Verificação agendada.', 'info');
-        
+
         let attempts = 0;
         const intervalId = setInterval(() => {
           attempts++;
@@ -996,7 +996,7 @@
   function scanAllTargets() {
     const btn = document.getElementById('btn-scan-all');
     btn.disabled = true;
-    
+
     fetch(`/check-all/`, {
       method: 'POST',
       headers: {
@@ -1028,7 +1028,7 @@
     let online = 0;
     let offline = 0;
     let inactive = 0;
-    
+
     rows.forEach(row => {
       const badge = row.querySelector('.status-badge');
       if (badge.classList.contains('inactive') && badge.innerText.includes('Inativo')) {
@@ -1063,7 +1063,7 @@
       <button class="alert-close" onclick="this.parentElement.remove();">&times;</button>
     `;
     document.body.appendChild(alert);
-    
+
     setTimeout(() => {
       alert.style.transition = 'opacity 0.5s ease';
       alert.style.opacity = '0';
@@ -1081,7 +1081,7 @@
     const devicesBtn = document.getElementById('tab-btn-devices');
     const groupsBtn = document.getElementById('tab-btn-groups');
     const auditBtn = document.getElementById('tab-btn-audit');
-    
+
     if (!targetsView) return;
 
     // Reset all views
@@ -1208,15 +1208,15 @@
         if (originalUpdateStats) {
           originalUpdateStats();
         }
-        
+
         const newOnline = parseInt(document.getElementById('stat-online').innerText) || 0;
         const newOffline = parseInt(document.getElementById('stat-offline').innerText) || 0;
         const newInactive = parseInt(document.getElementById('stat-inactive').innerText) || 0;
-        
+
         statusChart.data.datasets[0].data = [newOnline, newOffline, newInactive];
         statusChart.update();
       };
-      
+
       // Functions to download group SLA PDF with custom period
       window.downloadGroupPDF = function(groupId) {
         const startEl = document.getElementById('pdf_start_date_' + groupId);
@@ -1225,7 +1225,7 @@
         const endDate = endEl ? endEl.value : '';
         window.open('/group/' + groupId + '/pdf/?start_date=' + startDate + '&end_date=' + endDate, '_blank');
       };
-      
+
       window.downloadSelectedGroupPDF = function(groupId) {
         const startEl = document.getElementById('pdf_start_date_selected');
         const endEl = document.getElementById('pdf_end_date_selected');
@@ -1233,15 +1233,15 @@
         const endDate = endEl ? endEl.value : '';
         window.open('/group/' + groupId + '/pdf/?start_date=' + startDate + '&end_date=' + endDate, '_blank');
       };
-      
+
       window.sendMonthlyReport = function() {
         if (!confirm('Disparar o envio do relatório mensal de SLA para o Telegram agora?')) return;
-        
+
         const btn = document.getElementById('btn-send-report');
         const originalText = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = 'Enviando...';
-        
+
         fetch(`/send-monthly-report/`, {
           method: 'POST',
           headers: {
@@ -1268,7 +1268,7 @@
       // Set default dates on load (last 30 days)
       const today = new Date().toISOString().split('T')[0];
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
+
       // Auto-populate all start date inputs
       document.querySelectorAll("[id^='pdf_start_date_']").forEach(el => {
         el.value = thirtyDaysAgo;
@@ -1315,7 +1315,7 @@
     flex: 1;
     min-width: 0;
   }
-  
+
   @media (max-width: 550px) {
     .pdf-dates-wrapper {
       flex-direction: column;
@@ -1352,7 +1352,7 @@
     height: 32px !important;
     font-size: 0.8rem !important;
   }
-  
+
   @media (max-width: 650px) {
     .group-info-bar {
       flex-direction: column;

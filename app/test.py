@@ -23,5 +23,9 @@ TELEGRAM_BOT_TOKEN = ""
 TELEGRAM_CHAT_ID = ""
 
 # Force database host to localhost for all test runs
-if DATABASES and "default" in DATABASES and DATABASES["default"].get("ENGINE") == "django.db.backends.postgresql":
+if (
+    DATABASES
+    and "default" in DATABASES
+    and DATABASES["default"].get("ENGINE") == "django.db.backends.postgresql"
+):
     DATABASES["default"]["HOST"] = "localhost"
