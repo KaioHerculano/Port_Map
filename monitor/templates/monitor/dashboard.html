@@ -55,7 +55,8 @@
 </div>
 
 <!-- Overview Layout: Cards + Status Chart -->
-<div class="dashboard-overview">
+<!-- Overview Layout: Ports Overview -->
+<div class="dashboard-overview" id="overview-ports">
   <!-- Statistics Cards -->
   <div class="stat-grid">
     <div class="stat-card glass-panel">
@@ -111,6 +112,67 @@
     </h3>
     <div style="position: relative; width: 100%; max-width: 220px; height: 220px; margin: auto;">
       <canvas id="systemStatusChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Overview Layout: Devices Overview -->
+<div class="dashboard-overview" id="overview-devices" style="display: none;">
+  <!-- Statistics Cards -->
+  <div class="stat-grid">
+    <div class="stat-card glass-panel">
+      <div class="stat-header">
+        <span>Total Equipamentos</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
+        </svg>
+      </div>
+      <div class="stat-value" id="device-stat-total">{{ devices_total }}</div>
+    </div>
+
+    <div class="stat-card online glass-panel">
+      <div class="stat-header">
+        <span>Equipamentos Online</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="stat-value" id="device-stat-online">{{ devices_online }}</div>
+    </div>
+
+    <div class="stat-card offline glass-panel">
+      <div class="stat-header">
+        <span>Equipamentos Offline</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="stat-value" id="device-stat-offline">{{ devices_offline }}</div>
+    </div>
+
+    <div class="stat-card inactive glass-panel">
+      <div class="stat-header">
+        <span>Equipamentos Inativos</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.5 1.5 0 00-1.93 1.93l12.928 12.928a1.5 1.5 0 001.93-1.93L10.05 4.575z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75l16.5 16.5" />
+        </svg>
+      </div>
+      <div class="stat-value" id="device-stat-inactive">{{ devices_inactive }}</div>
+    </div>
+  </div>
+
+  <!-- Status Distribution Chart -->
+  <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
+    <h3 style="color: white; font-size: 1rem; margin: 0 0 1rem 0; width: 100%; text-align: left; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 18px; height: 18px; color: var(--primary);">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
+      </svg>
+      Estado dos Equipamentos
+    </h3>
+    <div style="position: relative; width: 100%; max-width: 220px; height: 220px; margin: auto;">
+      <canvas id="deviceStatusChart"></canvas>
     </div>
   </div>
 </div>
@@ -440,23 +502,51 @@
     <div class="glass-panel group-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative; transition: all 0.3s; border: 1px solid rgba(255,255,255,0.03); border-radius: 12px;">
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">
         <h3 style="color: white; font-size: 1.25rem; margin: 0;">{{ g.name }}</h3>
-        <span class="status-badge" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-          {{ g.total_count }} portas
-        </span>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem;">
+          <span class="status-badge" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;">
+            {{ g.total_count }} portas
+          </span>
+          <span class="status-badge" style="background: rgba(124, 68, 255, 0.1); color: #c084fc; border: 1px solid rgba(124, 68, 255, 0.2); font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;">
+            {{ g.devices_total }} equipamentos
+          </span>
+        </div>
       </div>
 
-      <div style="display: flex; gap: 1rem; font-size: 0.85rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem; margin-top: auto;">
-        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
-          <span class="text-muted" style="font-size: 0.75rem;">Abertas</span>
-          <strong style="color: var(--success); font-size: 1rem;">{{ g.online_count }}</strong>
+      <div style="display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Portas:</span>
+          <div style="display: flex; gap: 1rem; font-size: 0.85rem;">
+            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
+              <span class="text-muted" style="font-size: 0.75rem;">Abertas</span>
+              <strong style="color: var(--success); font-size: 0.9rem;">{{ g.online_count }}</strong>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
+              <span class="text-muted" style="font-size: 0.75rem;">Fechadas</span>
+              <strong style="color: var(--danger); font-size: 0.9rem;">{{ g.offline_count }}</strong>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
+              <span class="text-muted" style="font-size: 0.75rem;">Inativas</span>
+              <strong style="color: var(--text-muted); font-size: 0.9rem;">{{ g.inactive_count }}</strong>
+            </div>
+          </div>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
-          <span class="text-muted" style="font-size: 0.75rem;">Fechadas</span>
-          <strong style="color: var(--danger); font-size: 1rem;">{{ g.offline_count }}</strong>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
-          <span class="text-muted" style="font-size: 0.75rem;">Inativas</span>
-          <strong style="color: var(--text-muted); font-size: 1rem;">{{ g.inactive_count }}</strong>
+
+        <div style="display: flex; flex-direction: column; gap: 0.25rem; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 0.5rem;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Equipamentos:</span>
+          <div style="display: flex; gap: 1rem; font-size: 0.85rem;">
+            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
+              <span class="text-muted" style="font-size: 0.75rem;">Online</span>
+              <strong style="color: var(--success); font-size: 0.9rem;">{{ g.devices_online }}</strong>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
+              <span class="text-muted" style="font-size: 0.75rem;">Offline</span>
+              <strong style="color: var(--danger); font-size: 0.9rem;">{{ g.devices_offline }}</strong>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
+              <span class="text-muted" style="font-size: 0.75rem;">Inativos</span>
+              <strong style="color: var(--text-muted); font-size: 0.9rem;">{{ g.devices_inactive }}</strong>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -732,6 +822,8 @@
 
 {% block extra_js %}
 <script>
+  const activeGroupId = "{{ group_id }}";
+
   // Toggle Target status (Active/Inactive)
   function toggleTarget(id, checkbox) {
     const isChecked = checkbox.checked;
@@ -784,7 +876,7 @@
         updateState(statusCardCell, latencyCardCell, actionBtnCard);
 
         // Update stats
-        updateStats();
+        refreshStatusData();
         showToast(data.message, 'success');
       } else {
         allCheckboxes.forEach(cb => cb.checked = !isChecked); // revert
@@ -828,7 +920,7 @@
         removeElement(card);
 
         setTimeout(() => {
-          updateStats();
+          refreshStatusData();
           // If no items left, reload to show empty state
           if (document.querySelectorAll('.mobile-target-card').length === 0 &&
               document.querySelectorAll('.data-table tbody tr').length === 0) {
@@ -931,7 +1023,7 @@
           });
 
           // Recalculate stats counts in DOM
-          updateStats();
+          updateStats(data.targets, data.devices);
 
           if (onComplete) {
             onComplete(data.targets);
@@ -1020,30 +1112,75 @@
   }
 
   // Recalculate stats cards dynamic numbers (without full page refresh)
-  function updateStats() {
-    // We can run a quick fetch or just reload after actions.
-    // For simplicity and immediate sync, we can query targets status in DOM:
-    const rows = document.querySelectorAll('.data-table tbody tr');
-    let total = rows.length;
-    let online = 0;
-    let offline = 0;
-    let inactive = 0;
+  function updateStats(targets, devices) {
+    if (!targets) return;
 
-    rows.forEach(row => {
-      const badge = row.querySelector('.status-badge');
-      if (badge.classList.contains('inactive') && badge.innerText.includes('Inativo')) {
-        inactive++;
-      } else if (badge.classList.contains('online')) {
-        online++;
-      } else if (badge.classList.contains('offline')) {
-        offline++;
-      }
-    });
+    const filteredTargets = activeGroupId ? targets.filter(t => {
+      const gIdStr = String(t.group_id || '');
+      const devGIdStr = String(t.device__group_id || '');
+      return gIdStr === activeGroupId || devGIdStr === activeGroupId;
+    }) : targets;
 
-    document.getElementById('stat-total').innerText = total;
-    document.getElementById('stat-online').innerText = online;
-    document.getElementById('stat-offline').innerText = offline;
-    document.getElementById('stat-inactive').innerText = inactive;
+    const portTargets = filteredTargets.filter(t => t.device_id === null);
+    const portTotal = portTargets.length;
+    const portOnline = portTargets.filter(t => t.is_active && t.last_status === true).length;
+    const portOffline = portTargets.filter(t => t.is_active && t.last_status === false).length;
+    const portInactive = portTargets.filter(t => !t.is_active).length;
+
+    const statTotalEl = document.getElementById('stat-total');
+    const statOnlineEl = document.getElementById('stat-online');
+    const statOfflineEl = document.getElementById('stat-offline');
+    const statInactiveEl = document.getElementById('stat-inactive');
+
+    if (statTotalEl) statTotalEl.innerText = portTotal;
+    if (statOnlineEl) statOnlineEl.innerText = portOnline;
+    if (statOfflineEl) statOfflineEl.innerText = portOffline;
+    if (statInactiveEl) statInactiveEl.innerText = portInactive;
+
+    if (devices) {
+      const filteredDevices = activeGroupId ? devices.filter(d => String(d.group_id || '') === activeGroupId) : devices;
+
+      let devTotal = filteredDevices.length;
+      let devOnline = 0;
+      let devOffline = 0;
+      let devInactive = 0;
+
+      filteredDevices.forEach(d => {
+        if (!d.is_active) {
+          devInactive++;
+        } else {
+          const sensors = targets.filter(t => t.device_id === d.id);
+          if (sensors.length === 0) {
+            devOffline++;
+          } else {
+            const pingSensor = sensors.find(s => s.sensor_type === 'ping');
+            if (pingSensor) {
+              if (pingSensor.last_status === true) {
+                devOnline++;
+              } else {
+                devOffline++;
+              }
+            } else {
+              if (sensors.some(s => s.last_status === true)) {
+                devOnline++;
+              } else {
+                devOffline++;
+              }
+            }
+          }
+        }
+      });
+
+      const devTotalEl = document.getElementById('device-stat-total');
+      const devOnlineEl = document.getElementById('device-stat-online');
+      const devOfflineEl = document.getElementById('device-stat-offline');
+      const devInactiveEl = document.getElementById('device-stat-inactive');
+
+      if (devTotalEl) devTotalEl.innerText = devTotal;
+      if (devOnlineEl) devOnlineEl.innerText = devOnline;
+      if (devOfflineEl) devOfflineEl.innerText = devOffline;
+      if (devInactiveEl) devInactiveEl.innerText = devInactive;
+    }
   }
 
   // Toast notification helper
@@ -1082,15 +1219,19 @@
     const groupsBtn = document.getElementById('tab-btn-groups');
     const auditBtn = document.getElementById('tab-btn-audit');
 
+    const overviewPorts = document.getElementById('overview-ports');
+    const overviewDevices = document.getElementById('overview-devices');
+
     if (!targetsView) return;
 
-    // Reset all views
     targetsView.style.display = 'none';
     if (devicesView) devicesView.style.display = 'none';
     if (groupsView) groupsView.style.display = 'none';
     if (auditView) auditView.style.display = 'none';
 
-    // Reset all buttons styling
+    if (overviewPorts) overviewPorts.style.display = 'none';
+    if (overviewDevices) overviewDevices.style.display = 'none';
+
     if (targetsBtn) {
       targetsBtn.style.color = 'var(--text-muted)';
       targetsBtn.style.borderBottomColor = 'transparent';
@@ -1110,6 +1251,7 @@
 
     if (mode === 'devices') {
       if (devicesView) devicesView.style.display = 'block';
+      if (overviewDevices) overviewDevices.style.display = 'grid';
       if (devicesBtn) {
         devicesBtn.style.color = 'white';
         devicesBtn.style.borderBottomColor = 'var(--primary)';
@@ -1131,6 +1273,7 @@
       sessionStorage.setItem('active_dashboard_tab', 'audit');
     } else {
       targetsView.style.display = 'block';
+      if (overviewPorts) overviewPorts.style.display = 'grid';
       if (targetsBtn) {
         targetsBtn.style.color = 'white';
         targetsBtn.style.borderBottomColor = 'var(--primary)';
@@ -1157,23 +1300,23 @@
       }
     }
 
-    // Initialize System Status Doughnut Chart
     const ctx = document.getElementById('systemStatusChart');
+    let statusChart;
     if (ctx) {
       const onlineCount = parseInt(document.getElementById('stat-online').innerText) || 0;
       const offlineCount = parseInt(document.getElementById('stat-offline').innerText) || 0;
       const inactiveCount = parseInt(document.getElementById('stat-inactive').innerText) || 0;
 
-      const statusChart = new Chart(ctx, {
+      statusChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
           labels: ['Abertas', 'Fechadas', 'Inativos'],
           datasets: [{
             data: [onlineCount, offlineCount, inactiveCount],
             backgroundColor: [
-              '#10b981', // green for online
-              '#ef4444', // red for offline
-              '#64748b'  // slate for inactive
+              '#10b981',
+              '#ef4444',
+              '#64748b'
             ],
             borderWidth: 1,
             borderColor: 'rgba(255, 255, 255, 0.05)'
@@ -1201,21 +1344,76 @@
           cutout: '70%'
         }
       });
+    }
 
-      // Hook chart update into updateStats function for dynamic scans/toggles
-      const originalUpdateStats = window.updateStats;
-      window.updateStats = function() {
-        if (originalUpdateStats) {
-          originalUpdateStats();
+    const deviceCtx = document.getElementById('deviceStatusChart');
+    let deviceStatusChart;
+    if (deviceCtx) {
+      const devOnlineCount = parseInt(document.getElementById('device-stat-online').innerText) || 0;
+      const devOfflineCount = parseInt(document.getElementById('device-stat-offline').innerText) || 0;
+      const devInactiveCount = parseInt(document.getElementById('device-stat-inactive').innerText) || 0;
+
+      deviceStatusChart = new Chart(deviceCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Online', 'Offline', 'Inativos'],
+          datasets: [{
+            data: [devOnlineCount, devOfflineCount, devInactiveCount],
+            backgroundColor: [
+              '#10b981',
+              '#ef4444',
+              '#64748b'
+            ],
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.05)'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.parsed || 0;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                  return ` ${label}: ${value} (${percentage}%)`;
+                }
+              }
+            }
+          },
+          cutout: '70%'
         }
+      });
+    }
 
+    const originalUpdateStats = window.updateStats;
+    window.updateStats = function(targets, devices) {
+      if (originalUpdateStats) {
+        originalUpdateStats(targets, devices);
+      }
+
+      if (statusChart) {
         const newOnline = parseInt(document.getElementById('stat-online').innerText) || 0;
         const newOffline = parseInt(document.getElementById('stat-offline').innerText) || 0;
         const newInactive = parseInt(document.getElementById('stat-inactive').innerText) || 0;
-
         statusChart.data.datasets[0].data = [newOnline, newOffline, newInactive];
         statusChart.update();
-      };
+      }
+
+      if (deviceStatusChart) {
+        const newDevOnline = parseInt(document.getElementById('device-stat-online').innerText) || 0;
+        const newDevOffline = parseInt(document.getElementById('device-stat-offline').innerText) || 0;
+        const newDevInactive = parseInt(document.getElementById('device-stat-inactive').innerText) || 0;
+        deviceStatusChart.data.datasets[0].data = [newDevOnline, newDevOffline, newDevInactive];
+        deviceStatusChart.update();
+      }
+    };
 
       // Functions to download group SLA PDF with custom period
       window.downloadGroupPDF = function(groupId) {
@@ -1278,8 +1476,6 @@
         el.value = today;
       });
 
-
-    }
   });
 </script>
 

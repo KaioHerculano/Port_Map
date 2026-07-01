@@ -461,3 +461,105 @@ class MikroTikAdvancedMonitoringTests(TestCase):
         t_bgp.refresh_from_db()
         self.assertEqual(t_bgp.sensor_value, "Active")
         self.assertFalse(t_bgp.last_status)
+
+
+class GroupServiceStatsAndSettingsTests(TestCase):
+    def setUp(self):
+        self.group = Group.objects.create(name=fake.company())
+        self.device = Device.objects.create(
+            name=fake.name(),
+            host=fake.ipv4(),
+            device_type="generic_ping",
+            is_active=True,
+        )
+
+    def test_get_groups_with_stats(self):
+        from monitor.services import GroupService
+
+        MonitorTarget.objects.create(
+            host=fake.ipv4(),
+            port=80,
+            group=self.group,
+            is_active=True,
+            last_status=True,
+        )
+        self.device.group = self.group
+        self.device.save()
+        MonitorTarget.objects.create(
+            device=self.device,
+            sensor_type="ping",
+            host=self.device.host,
+            group=self.group,
+            is_active=True,
+            last_status=True,
+        )
+
+        groups = GroupService.get_groups_with_stats()
+        self.assertEqual(len(groups), 1)
+        g = groups[0]
+        self.assertEqual(g.total_count, 1)
+        self.assertEqual(g.online_count, 1)
+        self.assertEqual(g.devices_total, 1)
+        self.assertEqual(g.devices_online, 1)
+
+    def test_update_group_settings_devices(self):
+        from django.contrib.auth import get_user_model
+
+        from monitor.services import GroupManagerService
+
+        User = get_user_model()
+        user = User.objects.create_user(username=fake.user_name(), password="password")
+
+        GroupManagerService.update_group_settings(
+            self.group, self.group.name, "", "", [], [str(self.device.id)], user
+        )
+        self.device.refresh_from_db()
+        self.assertEqual(self.device.group, self.group)
+
+        GroupManagerService.update_group_settings(
+            self.group, self.group.name, "", "", [], [], user
+        )
+        self.device.refresh_from_db()
+        self.assertIsNone(self.device.group)
+
+
+class TargetDetailServiceTests(TestCase):
+    def setUp(self):
+        self.target = MonitorTarget.objects.create(
+            host=fake.ipv4(),
+            port=80,
+            is_active=True,
+        )
+
+    def test_get_chart_context_hourly_periods(self):
+        from monitor.services import TargetDetailService
+
+        for _ in range(5):
+            MonitorLog.objects.create(
+                target=self.target,
+                status=True,
+                latency=fake.random_int(1, 10),
+            )
+
+        for p in ["1h", "3h", "6h", "12h", "24h", "7d", "30d"]:
+            ctx = TargetDetailService.get_chart_context(self.target, "", "", p)
+            self.assertEqual(ctx["period"], p)
+            self.assertIn("chart_timestamps", ctx)
+            self.assertIn("chart_latencies", ctx)
+
+    def test_get_chart_context_downsampling(self):
+        from monitor.services import TargetDetailService
+
+        logs = []
+        for _ in range(120):
+            logs.append(
+                MonitorLog(
+                    target=self.target,
+                    status=True,
+                    latency=5,
+                )
+            )
+        MonitorLog.objects.bulk_create(logs)
+
+        ctx = TargetDetailService.get_chart_context(self.target, "", "", "24h")
+        self.assertTrue(len(ctx["chart_latencies"]) <= 80)

@@ -123,6 +123,7 @@ class UserSignupView(CreateView):
 
     def form_valid(self, form: UserSignupForm) -> HttpResponseRedirect:
         user = UserService.register_and_login(self.request, form)
+        self.object = user
         messages.success(
             self.request, f"Conta criada com sucesso! Bem-vindo, {user.username}!"
         )

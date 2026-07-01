@@ -41,15 +41,15 @@
       <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione uma regra caso queira sobrescrever a regra de alertas do Telegram dos dispositivos selecionados abaixo.</span>
     </div>
 
-    <div class="form-group" style="margin-bottom: 2rem;">
-      <label style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Dispositivos do Grupo (Selecione para aplicar a frequência acima)</label>
+    <div class="form-group" style="margin-bottom: 1.5rem;">
+      <label style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Portas do Grupo (Selecione para aplicar a frequência/alerta acima)</label>
 
       <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
-        <button type="button" onclick="selectAllTargets(true);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Marcar Todos</button>
-        <button type="button" onclick="selectAllTargets(false);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Desmarcar Todos</button>
+        <button type="button" onclick="selectAllTargets(true);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Marcar Todas</button>
+        <button type="button" onclick="selectAllTargets(false);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Desmarcar Todas</button>
       </div>
 
-      <div style="max-height: 250px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem;">
+      <div style="max-height: 200px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem;">
         {% for target in targets %}
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
           <input type="checkbox" name="selected_targets" value="{{ target.id }}" checked id="target_cb_{{ target.id }}" style="width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;">
@@ -60,7 +60,32 @@
         </div>
         {% empty %}
         <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem;">
-          Nenhum dispositivo associado a este grupo ainda.
+          Nenhuma porta associada a este grupo ainda.
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 2rem;">
+      <label style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Equipamentos do Grupo (Marque para associar ao grupo)</label>
+
+      <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" onclick="selectAllDevices(true);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Selecionar Todos</button>
+        <button type="button" onclick="selectAllDevices(false);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Limpar Seleção</button>
+      </div>
+
+      <div style="max-height: 200px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem;">
+        {% for device in devices %}
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
+          <input type="checkbox" name="selected_devices" value="{{ device.id }}" {% if device.group == group %}checked{% endif %} id="device_cb_{{ device.id }}" style="width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;">
+          <label for="device_cb_{{ device.id }}" style="color: white; font-size: 0.9rem; cursor: pointer; display: flex; flex-direction: column;">
+            <span><strong>{{ device.name }}</strong> ({{ device.host }})</span>
+            <span style="color: var(--text-muted); font-size: 0.75rem;">Grupo atual: {% if device.group %}{{ device.group.name }}{% else %}Nenhum{% endif %}</span>
+          </label>
+        </div>
+        {% empty %}
+        <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem;">
+          Nenhum equipamento cadastrado no sistema ainda.
         </div>
         {% endfor %}
       </div>
@@ -78,6 +103,11 @@
 <script>
   function selectAllTargets(status) {
     document.querySelectorAll("input[name='selected_targets']").forEach(cb => {
+      cb.checked = status;
+    });
+  }
+  function selectAllDevices(status) {
+    document.querySelectorAll("input[name='selected_devices']").forEach(cb => {
       cb.checked = status;
     });
   }

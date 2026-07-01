@@ -257,3 +257,38 @@ class MonitorViewTests(TestCase):
         ).first()
         self.assertIsNotNone(audit2)
         self.assertIn(f"{test_ip}:80", audit2.object_repr)
+
+    def test_status_update_api_view_returns_devices_and_groups(self):
+        from monitor.models import Device
+
+        User = get_user_model()
+        user = User.objects.create_user(
+            username=fake.user_name(), password="testpassword", email=fake.email()
+        )
+        self.client.login(username=user.username, password="testpassword")
+
+        group = Group.objects.create(name=fake.company())
+        device = Device.objects.create(
+            name=fake.name(), host=fake.ipv4(), device_type="generic_ping", group=group
+        )
+        target = MonitorTarget.objects.create(
+            host=fake.ipv4(), port=80, group=group, device=device
+        )
+
+        url = reverse("api_status_update")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("targets", data)
+        self.assertIn("devices", data)
+        self.assertTrue(len(data["targets"]) >= 1)
+        self.assertTrue(len(data["devices"]) >= 1)
+
+        t_data = next(t for t in data["targets"] if t["id"] == target.id)
+        self.assertEqual(t_data["device_id"], device.id)
+        self.assertEqual(t_data["group_id"], group.id)
+        self.assertEqual(t_data["device__group_id"], group.id)
+
+        d_data = next(d for d in data["devices"] if d["id"] == device.id)
+        self.assertEqual(d_data["group_id"], group.id)

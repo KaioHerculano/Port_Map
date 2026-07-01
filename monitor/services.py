@@ -5,7 +5,7 @@ import time
 from typing import Any, List, Optional, Tuple
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from .models import AuditLog, Device, Group, MonitorLog, MonitorTarget
@@ -1151,13 +1151,25 @@ class TargetDetailService:
         else:
             if not period:
                 period = "24h"
-            if period == "7d":
+            if period == "1h":
+                start_dt = now - timedelta(hours=1)
+                start_date_str = (now - timedelta(hours=1)).strftime("%Y-%m-%d")
+            elif period == "3h":
+                start_dt = now - timedelta(hours=3)
+                start_date_str = (now - timedelta(hours=3)).strftime("%Y-%m-%d")
+            elif period == "6h":
+                start_dt = now - timedelta(hours=6)
+                start_date_str = (now - timedelta(hours=6)).strftime("%Y-%m-%d")
+            elif period == "12h":
+                start_dt = now - timedelta(hours=12)
+                start_date_str = (now - timedelta(hours=12)).strftime("%Y-%m-%d")
+            elif period == "7d":
                 start_dt = now - timedelta(days=7)
                 start_date_str = (now - timedelta(days=7)).strftime("%Y-%m-%d")
             elif period == "30d":
                 start_dt = now - timedelta(days=30)
                 start_date_str = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-            else:  # '24h'
+            else:
                 start_dt = now - timedelta(days=1)
                 period = "24h"
                 start_date_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1169,10 +1181,10 @@ class TargetDetailService:
             timestamp__gte=start_dt, timestamp__lte=end_dt
         ).order_by("timestamp")
 
-        # Downsample if log count exceeds 300 to optimize performance
+        # Downsample if log count exceeds 80 to optimize performance
         log_count = chart_logs_query.count()
-        if log_count > 300:
-            step = log_count // 300
+        if log_count > 80:
+            step = (log_count + 79) // 80
             chart_logs = list(chart_logs_query)[::step]
         else:
             chart_logs = list(chart_logs_query)
@@ -1181,7 +1193,7 @@ class TargetDetailService:
         if (end_dt - start_dt) > timedelta(days=1):
             timestamp_format = "%d/%m %H:%M"
         else:
-            timestamp_format = "%H:%M:%S"
+            timestamp_format = "%H:%M"
 
         # Determine if we should plot metric_value instead of latency
         is_metric = target.sensor_type not in ("ping", "tcp")
@@ -1352,6 +1364,7 @@ class GroupManagerService:
         check_interval_str: str,
         telegram_alert_threshold_str: str,
         selected_targets: List[str],
+        selected_devices: List[str],
         user: Any,
     ) -> Tuple[bool, str]:
         old_name = group.name
@@ -1373,6 +1386,41 @@ class GroupManagerService:
             if old_name != new_name
             else f"Grupo '{new_name}' atualizado."
         )
+
+        try:
+            selected_device_ids = [int(x) for x in selected_devices if x]
+        except ValueError:
+            selected_device_ids = []
+
+        devices_to_remove = Device.objects.filter(group=group).exclude(
+            id__in=selected_device_ids
+        )
+        for dev in devices_to_remove:
+            dev.group = None
+            dev.save()
+            dev.sensors.all().update(group=None)
+            log_audit(
+                user=user,
+                action="Editar",
+                model_name="Equipamento",
+                object_repr=dev.name,
+                changes=f"Equipamento removido do grupo '{group.name}'",
+            )
+
+        devices_to_add = Device.objects.filter(id__in=selected_device_ids).exclude(
+            group=group
+        )
+        for dev in devices_to_add:
+            dev.group = group
+            dev.save()
+            dev.sensors.all().update(group=group)
+            log_audit(
+                user=user,
+                action="Editar",
+                model_name="Equipamento",
+                object_repr=dev.name,
+                changes=f"Equipamento associado ao grupo '{group.name}'",
+            )
 
         if selected_targets:
             changes_desc = []
@@ -1985,6 +2033,40 @@ class DashboardService:
         all_targets = MonitorTarget.objects.filter(device__isnull=True)
         if group_id:
             all_targets = all_targets.filter(group_id=group_id)
+
+        devices = Device.objects.all()
+        if group_id:
+            devices = devices.filter(group_id=group_id)
+        devices = devices.prefetch_related("sensors")
+
+        devices_total = 0
+        devices_online = 0
+        devices_offline = 0
+        devices_inactive = 0
+
+        for device in devices:
+            devices_total += 1
+            if not device.is_active:
+                devices_inactive += 1
+            else:
+                sensors = list(device.sensors.all())
+                if not sensors:
+                    devices_offline += 1
+                else:
+                    ping_sensor = next(
+                        (s for s in sensors if s.sensor_type == "ping"), None
+                    )
+                    if ping_sensor:
+                        if ping_sensor.last_status is True:
+                            devices_online += 1
+                        else:
+                            devices_offline += 1
+                    else:
+                        if any(s.last_status is True for s in sensors):
+                            devices_online += 1
+                        else:
+                            devices_offline += 1
+
         return {
             "total_count": all_targets.count(),
             "online_count": all_targets.filter(
@@ -1994,6 +2076,10 @@ class DashboardService:
                 last_status=False, is_active=True
             ).count(),
             "inactive_count": all_targets.filter(is_active=False).count(),
+            "devices_total": devices_total,
+            "devices_online": devices_online,
+            "devices_offline": devices_offline,
+            "devices_inactive": devices_inactive,
         }
 
     @staticmethod
@@ -2158,6 +2244,62 @@ class TargetService:
 
 
 class GroupService:
+    @staticmethod
+    def get_groups_with_stats():
+        groups = Group.objects.annotate(
+            total_count=Count("targets", filter=Q(targets__device__isnull=True)),
+            online_count=Count(
+                "targets",
+                filter=Q(
+                    targets__last_status=True,
+                    targets__is_active=True,
+                    targets__device__isnull=True,
+                ),
+            ),
+            offline_count=Count(
+                "targets",
+                filter=Q(
+                    targets__last_status=False,
+                    targets__is_active=True,
+                    targets__device__isnull=True,
+                ),
+            ),
+            inactive_count=Count(
+                "targets",
+                filter=Q(targets__is_active=False, targets__device__isnull=True),
+            ),
+        ).prefetch_related("devices", "devices__sensors")
+
+        for g in groups:
+            g.devices_total = 0
+            g.devices_online = 0
+            g.devices_offline = 0
+            g.devices_inactive = 0
+
+            for device in g.devices.all():
+                g.devices_total += 1
+                if not device.is_active:
+                    g.devices_inactive += 1
+                else:
+                    sensors = list(device.sensors.all())
+                    if not sensors:
+                        g.devices_offline += 1
+                    else:
+                        ping_sensor = next(
+                            (s for s in sensors if s.sensor_type == "ping"), None
+                        )
+                        if ping_sensor:
+                            if ping_sensor.last_status is True:
+                                g.devices_online += 1
+                            else:
+                                g.devices_offline += 1
+                        else:
+                            if any(s.last_status is True for s in sensors):
+                                g.devices_online += 1
+                            else:
+                                g.devices_offline += 1
+        return groups
+
     @staticmethod
     def create_group(name: str, user: Any) -> Tuple[Group, bool]:
         group, created = Group.objects.get_or_create(name=name)

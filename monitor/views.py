@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional, Union
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -59,29 +58,7 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
         context["status_filter"] = self.request.GET.get("status", "")
         context["group_id"] = group_id
 
-        context["groups"] = Group.objects.annotate(
-            total_count=Count("targets", filter=Q(targets__device__isnull=True)),
-            online_count=Count(
-                "targets",
-                filter=Q(
-                    targets__last_status=True,
-                    targets__is_active=True,
-                    targets__device__isnull=True,
-                ),
-            ),
-            offline_count=Count(
-                "targets",
-                filter=Q(
-                    targets__last_status=False,
-                    targets__is_active=True,
-                    targets__device__isnull=True,
-                ),
-            ),
-            inactive_count=Count(
-                "targets",
-                filter=Q(targets__is_active=False, targets__device__isnull=True),
-            ),
-        )
+        context["groups"] = GroupService.get_groups_with_stats()
 
         devices_qs = Device.objects.all().prefetch_related("sensors")
         if group_id:
@@ -450,7 +427,8 @@ class UpdateGroupView(LoginRequiredMixin, View):
         self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any
     ) -> HttpResponse:
         group = get_object_or_404(Group, pk=pk)
-        targets = group.targets.all().order_by("label", "host")
+        targets = group.targets.filter(device__isnull=True).order_by("label", "host")
+        devices = Device.objects.all().order_by("name")
         check_interval_choices = MonitorTarget._meta.get_field("check_interval").choices
         telegram_alert_threshold_choices = MonitorTarget._meta.get_field(
             "telegram_alert_threshold"
@@ -459,6 +437,7 @@ class UpdateGroupView(LoginRequiredMixin, View):
         context = {
             "group": group,
             "targets": targets,
+            "devices": devices,
             "check_interval_choices": check_interval_choices,
             "telegram_alert_threshold_choices": telegram_alert_threshold_choices,
         }
@@ -483,6 +462,7 @@ class UpdateGroupView(LoginRequiredMixin, View):
             "telegram_alert_threshold", ""
         ).strip()
         selected_targets = request.POST.getlist("selected_targets")
+        selected_devices = request.POST.getlist("selected_devices")
 
         from .services import GroupManagerService
 
@@ -492,6 +472,7 @@ class UpdateGroupView(LoginRequiredMixin, View):
             check_interval,
             telegram_alert_threshold,
             selected_targets,
+            selected_devices,
             request.user,
         )
 
@@ -648,8 +629,23 @@ class StatusUpdateAPIView(LoginRequiredMixin, View):
             "last_latency",
             "is_active",
             "sensor_type",
+            "device_id",
+            "group_id",
+            "device__group_id",
         )
-        return JsonResponse({"targets": list(targets_qs)})
+        devices_qs = Device.objects.all().values(
+            "id",
+            "name",
+            "host",
+            "is_active",
+            "group_id",
+        )
+        return JsonResponse(
+            {
+                "targets": list(targets_qs),
+                "devices": list(devices_qs),
+            }
+        )
 
 
 class DiscoverPreviewAPIView(LoginRequiredMixin, View):
