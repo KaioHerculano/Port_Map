@@ -1,0 +1,13 @@
+[run]
+source =
+    accounts
+    monitor
+
+omit =
+    */migrations/*
+    */tests/*
+    app/*
+    manage.py
+
+[report]
+show_missing = True
