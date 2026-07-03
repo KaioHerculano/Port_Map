@@ -22,13 +22,6 @@ class UserService:
         return None
 
     @staticmethod
-    def register_and_login(request: Any, form: Any) -> AbstractBaseUser:
-        user = form.save()
-        login(request, user, backend="accounts.backends.EmailOrUsernameModelBackend")
-        logger.info("Novo usuario registrado: %s", user.username)
-        return user
-
-    @staticmethod
     def logout_user(request: Any) -> str:
         username = (
             request.user.username if request.user.is_authenticated else "anonymous"
