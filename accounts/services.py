@@ -30,7 +30,9 @@ class UserService:
 
     @staticmethod
     def logout_user(request: Any) -> str:
-        username = request.user.username if request.user.is_authenticated else "anonimo"
+        username = (
+            request.user.username if request.user.is_authenticated else "anonymous"
+        )
         logout(request)
         logger.info("Usuario %s fez logout.", username)
         return username
