@@ -504,7 +504,12 @@ class PortCheckerService:
                     ObjectType(ObjectIdentity(oid)),
                     lexicographicMode=False,
                 )
-                async for errorIndication, errorStatus, errorIndex, varBinds in async_gen:
+                async for (
+                    errorIndication,
+                    errorStatus,
+                    errorIndex,
+                    varBinds,
+                ) in async_gen:
                     if errorIndication or errorStatus or not varBinds:
                         break
 

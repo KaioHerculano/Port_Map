@@ -34,6 +34,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Production security settings
 import sys
+
 if not DEBUG and "test" not in sys.argv:
     SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True") == "True"
     SESSION_COOKIE_SECURE = True
@@ -42,7 +43,6 @@ if not DEBUG and "test" not in sys.argv:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-
 
 
 # Application definition

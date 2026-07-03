@@ -6,14 +6,15 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+
 def validate_host(value):
     hostname_regex = re.compile(
-        r'^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])'
-        r'(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]))*$'
+        r"^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])"
+        r"(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]))*$"
     )
     ip_regex = re.compile(
-        r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}'
-        r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+        r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}"
+        r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
     )
     if not hostname_regex.match(value) and not ip_regex.match(value):
         raise ValidationError("O host/IP deve ser um IP válido ou nome de domínio.")
@@ -67,7 +68,9 @@ class Device(models.Model):
         help_text="Nome amigável do equipamento (ex: OLT Parks, MikroTik BGP)",
     )
     host = models.CharField(
-        max_length=255, validators=[validate_host], help_text="Endereço IP ou Hostname (ex: 172.31.255.2)"
+        max_length=255,
+        validators=[validate_host],
+        help_text="Endereço IP ou Hostname (ex: 172.31.255.2)",
     )
     device_type = models.CharField(
         max_length=50,
