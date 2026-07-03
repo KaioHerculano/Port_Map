@@ -168,6 +168,12 @@ class MikrotikAPI:
         self.timeout = timeout
         self.sock = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def connect(self) -> bool:
         import binascii
         import hashlib
@@ -184,6 +190,7 @@ class MikrotikAPI:
             token = None
             for word in response:
                 if word.startswith("!trap") or word.startswith("!fatal"):
+                    self.close()
                     return False
                 if word.startswith("=ret="):
                     token = word[5:]
@@ -202,6 +209,7 @@ class MikrotikAPI:
                 response = self.read_sentence()
                 for word in response:
                     if word.startswith("!trap"):
+                        self.close()
                         return False
             else:
                 # Modern plain password flow (ROS >= 6.43)
@@ -211,10 +219,12 @@ class MikrotikAPI:
                 response = self.read_sentence()
                 for word in response:
                     if word.startswith("!trap") or word.startswith("!fatal"):
+                        self.close()
                         return False
             return True
         except Exception as e:
             logger.error("MikroTik API connect failure: %s", str(e))
+            self.close()
             return False
 
     def write_word(self, word: str):
@@ -485,21 +495,22 @@ class PortCheckerService:
 
             async def do_walk():
                 walk_results = []
-                current_oid = oid
                 snmp_engine = SnmpEngine()
-                while True:
-                    errorIndication, errorStatus, errorIndex, varBinds = await nextCmd(
-                        snmp_engine,
-                        CommunityData(community, mpModel=1),
-                        UdpTransportTarget((host, port), timeout=timeout, retries=1),
-                        ContextData(),
-                        ObjectType(ObjectIdentity(current_oid)),
-                        lexicographicMode=False,
-                    )
+                async_gen = nextCmd(
+                    snmp_engine,
+                    CommunityData(community, mpModel=1),
+                    UdpTransportTarget((host, port), timeout=timeout, retries=1),
+                    ContextData(),
+                    ObjectType(ObjectIdentity(oid)),
+                    lexicographicMode=False,
+                )
+                async for errorIndication, errorStatus, errorIndex, varBinds in async_gen:
                     if errorIndication or errorStatus or not varBinds:
                         break
 
-                    varBind = varBinds[0][0]
+                    varBind = varBinds[0]
+                    if isinstance(varBind, (list, tuple)):
+                        varBind = varBind[0]
                     val_oid = str(varBind[0])
                     val_value = str(varBind[1])
 
@@ -507,7 +518,6 @@ class PortCheckerService:
                         break
 
                     walk_results.append((val_oid, val_value))
-                    current_oid = val_oid
                 return walk_results
 
             loop = asyncio.new_event_loop()
@@ -987,6 +997,7 @@ class PortCheckerService:
                 else:
                     status = False
                     sensor_value = "Erro de conexão API"
+                    api.close()
             latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
         # Logging and alerting logic (common to all sensors)
@@ -1651,6 +1662,7 @@ class DeviceDiscoveryService:
                     api.close()
             else:
                 error = "Não foi possível conectar na API MikroTik. Verifique as credenciais, porta e IP."
+                api.close()
 
         elif device.device_type == "mikrotik_snmp":
             # 1. Discover Interfaces (Traffic)
@@ -2097,7 +2109,7 @@ class DashboardService:
             "1.3.6.1.4.1.14988.1.1.3.17.0": "Cooler 1 Speed",
             "1.3.6.1.4.1.14988.1.1.3.18.0": "Cooler 2 Speed",
         }
-        for sensor in MonitorTarget.objects.filter(
+        for sensor in MonitorTarget.objects.select_related("device").filter(
             sensor_type="snmp_numeric",
             label__icontains="métrica 1.3.6.1.4.1.14988.1.1.3.",
         ):
