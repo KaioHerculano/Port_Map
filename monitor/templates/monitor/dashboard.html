@@ -1,52 +1,133 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard - Port Monitor{% endblock %}
+{% block title %}Dashboard — PortMap Monitor{% endblock %}
 
 {% block extra_head %}
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
-  .dashboard-overview {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+  /* ── Stats Cards NOC ── */
+  .noc-stat-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 1rem;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: border-color 0.2s, background 0.2s;
   }
-  @media (max-width: 992px) {
-    .dashboard-overview {
-      grid-template-columns: 1fr;
-    }
+  .noc-stat-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+  .noc-stat-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.45; }
+  .noc-stat-value { font-size: 2.25rem; font-weight: 900; line-height: 1; letter-spacing: -0.04em; }
+  .noc-stat-sub   { font-size: 0.72rem; opacity: 0.4; }
+
+  /* ── Tab active state via JS (DaisyUI already handles .tab-active) ── */
+  .view-tab-btn { cursor: pointer; }
+
+  /* ── Sensor cards ── */
+  .sensor-card {
+    border-radius: 0.75rem;
+    padding: 0.875rem;
+    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  /* ── Host link ── */
+  .host-link { color: inherit; text-decoration: none; transition: color 0.15s; }
+  .host-link:hover { color: #6366f1 !important; text-decoration: underline; }
+
+  /* ── Toggle switch DaisyUI override for xs size ── */
+  .toggle-xs { --tglbg: var(--fallback-b3, oklch(var(--b3)/1)); }
+
+  /* ── Progress bar for groups ── */
+  .group-progress-track {
+    height: 4px;
+    border-radius: 9px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+  }
+  .group-progress-fill {
+    height: 100%;
+    border-radius: 9px;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    transition: width 0.6s ease;
+  }
+
+  /* ── PDF dates ── */
+  .pdf-dates-wrapper { display: flex; gap: 0.5rem; align-items: center; width: 100%; }
+  .pdf-dates-wrapper > div { flex: 1; display: flex; align-items: center; gap: 4px; }
+  .pdf-dates-wrapper > div > input { flex: 1; min-width: 0; }
+  @media (max-width: 550px) {
+    .pdf-dates-wrapper { flex-direction: column; align-items: stretch !important; gap: 0.35rem; }
+    .pdf-dates-wrapper > div { width: 100%; }
+  }
+  .group-card .pdf-dates-wrapper { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .group-card .pdf-dates-wrapper > div { width: 100%; display: flex; align-items: center; gap: 8px; }
+  .group-card .pdf-dates-wrapper > div > span { min-width: 30px; font-size: 0.75rem; opacity: 0.45; }
+  .group-card .pdf-dates-wrapper > div > input { flex: 1; min-width: 0; }
+
+  /* ── Recent log row ── */
+  .log-row { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.75rem; border-radius: 0.6rem; transition: background 0.15s; }
+  .log-row:hover { background: rgba(255,255,255,0.03); }
+
+  /* ── Spin animation ── */
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .animate-spin-custom { animation: spin 1s linear infinite; }
+
+  /* ── Group info bar ── */
+  @media (max-width: 650px) {
+    .group-info-bar { flex-direction: column !important; gap: 0.75rem; align-items: stretch !important; text-align: center; }
+    .group-info-bar > div:last-child { flex-direction: column; align-items: stretch !important; width: 100%; }
+    .group-info-bar > div:last-child > .pdf-dates-wrapper { flex-direction: column; align-items: stretch !important; width: 100%; gap: 0.5rem !important; }
+    .group-info-bar > div:last-child > .pdf-dates-wrapper > div { width: 100%; }
+    .group-info-bar > div:last-child > .pdf-dates-wrapper > div > input { width: 100%; }
+    .group-info-bar > div:last-child > .pdf-dates-wrapper > button,
+    .group-info-bar > div:last-child > a { width: 100% !important; margin-left: 0 !important; justify-content: center; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="content-header">
-  <div class="header-title">
-    <h1>Painel de Monitoramento</h1>
-    <p>Acompanhe o estado de conectividade das portas TCP em tempo real</p>
+
+<!-- ══════════════════════════════════════════════════
+     PAGE HEADER
+══════════════════════════════════════════════════ -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-black tracking-tight text-base-content">Painel de Monitoramento</h1>
+    <p class="text-sm text-base-content/40 mt-0.5">Estado de conectividade em tempo real · atualiza a cada 10s</p>
   </div>
-  <div class="header-actions">
-    <button id="btn-send-report" class="btn btn-secondary" onclick="sendMonthlyReport()" style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+  <div class="flex flex-wrap items-center gap-2">
+    <button id="btn-send-report" onclick="sendMonthlyReport()"
+      class="btn btn-sm btn-ghost gap-1.5 text-base-content/60 hover:text-base-content border border-white/10">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
       Relatório Mensal
     </button>
-    <button id="btn-scan-all" class="btn btn-secondary" onclick="scanAllTargets()">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+    <button id="btn-scan-all" onclick="scanAllTargets()"
+      class="btn btn-sm btn-ghost gap-1.5 text-base-content/60 hover:text-base-content border border-white/10">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
       </svg>
       Testar Todos
     </button>
-    <a href="{% url 'add_targets' %}" class="btn btn-secondary">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+    <a href="{% url 'add_targets' %}"
+      class="btn btn-sm btn-ghost gap-1.5 text-base-content/60 hover:text-base-content border border-white/10">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
       Nova Porta/Grupo
     </a>
-    <a href="{% url 'add_device' %}" class="btn btn-primary">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+    <a href="{% url 'add_device' %}"
+      class="btn btn-sm btn-primary gap-1.5 shadow-lg shadow-primary/20">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
       Novo Equipamento
@@ -54,418 +135,470 @@
   </div>
 </div>
 
-<!-- Overview Layout: Cards + Status Chart -->
-<!-- Overview Layout: Ports Overview -->
-<div class="dashboard-overview" id="overview-ports">
-  <!-- Statistics Cards -->
-  <div class="stat-grid">
-    <div class="stat-card glass-panel">
-      <div class="stat-header">
-        <span>Total Monitorados</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+
+<!-- ══════════════════════════════════════════════════
+     NOC STATS — ALVOS (Ports)
+══════════════════════════════════════════════════ -->
+<div id="overview-ports">
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+
+    <!-- Total -->
+    <div class="noc-stat-card">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label">Total Alvos</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-30">
           <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
         </svg>
       </div>
-      <div class="stat-value" id="stat-total">{{ total_count }}</div>
+      <div id="stat-total" class="noc-stat-value text-base-content">{{ total_count }}</div>
+      <div class="noc-stat-sub">Monitorados</div>
     </div>
 
-    <div class="stat-card online glass-panel">
-      <div class="stat-header">
-        <span>Portas Abertas</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+    <!-- Abertas -->
+    <div class="noc-stat-card border-emerald-500/20 bg-emerald-500/5">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label text-emerald-400">Portas Abertas</span>
+        <div class="w-2 h-2 rounded-full bg-emerald-400 status-dot-pulse"></div>
       </div>
-      <div class="stat-value" id="stat-online">{{ online_count }}</div>
+      <div id="stat-online" class="noc-stat-value text-emerald-400">{{ online_count }}</div>
+      <div class="noc-stat-sub">TCP respondendo</div>
     </div>
 
-    <div class="stat-card offline glass-panel">
-      <div class="stat-header">
-        <span>Portas Fechadas</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+    <!-- Fechadas -->
+    <div class="noc-stat-card border-red-500/20 bg-red-500/5">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label text-red-400">Portas Fechadas</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-red-400/50">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
-      <div class="stat-value" id="stat-offline">{{ offline_count }}</div>
+      <div id="stat-offline" class="noc-stat-value text-red-400">{{ offline_count }}</div>
+      <div class="noc-stat-sub">Sem resposta</div>
     </div>
 
-    <div class="stat-card inactive glass-panel">
-      <div class="stat-header">
-        <span>Monitoramentos Inativos</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.5 1.5 0 00-1.93 1.93l12.928 12.928a1.5 1.5 0 001.93-1.93L10.05 4.575z" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75l16.5 16.5" />
+    <!-- Inativos + Chart -->
+    <div class="noc-stat-card border-amber-500/20 bg-amber-500/5">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label text-amber-400">Inativos</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-amber-400/50">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
         </svg>
       </div>
-      <div class="stat-value" id="stat-inactive">{{ inactive_count }}</div>
+      <div id="stat-inactive" class="noc-stat-value text-amber-400">{{ inactive_count }}</div>
+      <div class="noc-stat-sub">Desabilitados</div>
     </div>
   </div>
 
-  <!-- Status Distribution Chart -->
-  <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
-    <h3 style="color: white; font-size: 1rem; margin: 0 0 1rem 0; width: 100%; text-align: left; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 18px; height: 18px; color: var(--primary);">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
-        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
-      </svg>
-      Estado das Portas
-    </h3>
-    <div style="position: relative; width: 100%; max-width: 220px; height: 220px; margin: auto;">
+  <!-- Donut chart -->
+  <div class="glass-card rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-center gap-6">
+    <div class="relative w-36 h-36 flex-shrink-0">
       <canvas id="systemStatusChart"></canvas>
+      <!-- Center label -->
+      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <span class="text-xs text-base-content/40 font-medium">Estado</span>
+        <span class="text-sm font-black text-base-content">Portas</span>
+      </div>
+    </div>
+    <!-- Legend -->
+    <div class="flex sm:flex-col gap-4 sm:gap-2">
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
+        <span class="text-xs text-base-content/60">Abertas</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-red-400 inline-block flex-shrink-0"></span>
+        <span class="text-xs text-base-content/60">Fechadas</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-slate-500 inline-block flex-shrink-0"></span>
+        <span class="text-xs text-base-content/60">Inativos</span>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Overview Layout: Devices Overview -->
-<div class="dashboard-overview" id="overview-devices" style="display: none;">
-  <!-- Statistics Cards -->
-  <div class="stat-grid">
-    <div class="stat-card glass-panel">
-      <div class="stat-header">
-        <span>Total Equipamentos</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+
+<!-- ══════════════════════════════════════════════════
+     NOC STATS — EQUIPAMENTOS (Devices)
+══════════════════════════════════════════════════ -->
+<div id="overview-devices" style="display:none;">
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+
+    <div class="noc-stat-card">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label">Equipamentos</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-30">
           <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
         </svg>
       </div>
-      <div class="stat-value" id="device-stat-total">{{ devices_total }}</div>
+      <div id="device-stat-total" class="noc-stat-value text-base-content">{{ devices_total }}</div>
+      <div class="noc-stat-sub">Cadastrados</div>
     </div>
 
-    <div class="stat-card online glass-panel">
-      <div class="stat-header">
-        <span>Equipamentos Online</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+    <div class="noc-stat-card border-emerald-500/20 bg-emerald-500/5">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label text-emerald-400">Online</span>
+        <div class="w-2 h-2 rounded-full bg-emerald-400 status-dot-pulse"></div>
       </div>
-      <div class="stat-value" id="device-stat-online">{{ devices_online }}</div>
+      <div id="device-stat-online" class="noc-stat-value text-emerald-400">{{ devices_online }}</div>
+      <div class="noc-stat-sub">Respondendo</div>
     </div>
 
-    <div class="stat-card offline glass-panel">
-      <div class="stat-header">
-        <span>Equipamentos Offline</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+    <div class="noc-stat-card border-red-500/20 bg-red-500/5">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label text-red-400">Offline</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-red-400/50">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
-      <div class="stat-value" id="device-stat-offline">{{ devices_offline }}</div>
+      <div id="device-stat-offline" class="noc-stat-value text-red-400">{{ devices_offline }}</div>
+      <div class="noc-stat-sub">Sem contato</div>
     </div>
 
-    <div class="stat-card inactive glass-panel">
-      <div class="stat-header">
-        <span>Equipamentos Inativos</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.5 1.5 0 00-1.93 1.93l12.928 12.928a1.5 1.5 0 001.93-1.93L10.05 4.575z" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75l16.5 16.5" />
+    <div class="noc-stat-card border-amber-500/20 bg-amber-500/5">
+      <div class="flex items-center justify-between">
+        <span class="noc-stat-label text-amber-400">Inativos</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-amber-400/50">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
         </svg>
       </div>
-      <div class="stat-value" id="device-stat-inactive">{{ devices_inactive }}</div>
+      <div id="device-stat-inactive" class="noc-stat-value text-amber-400">{{ devices_inactive }}</div>
+      <div class="noc-stat-sub">Desabilitados</div>
     </div>
   </div>
 
-  <!-- Status Distribution Chart -->
-  <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
-    <h3 style="color: white; font-size: 1rem; margin: 0 0 1rem 0; width: 100%; text-align: left; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 18px; height: 18px; color: var(--primary);">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
-        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
-      </svg>
-      Estado dos Equipamentos
-    </h3>
-    <div style="position: relative; width: 100%; max-width: 220px; height: 220px; margin: auto;">
+  <!-- Donut devices -->
+  <div class="glass-card rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-center gap-6">
+    <div class="relative w-36 h-36 flex-shrink-0">
       <canvas id="deviceStatusChart"></canvas>
+      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <span class="text-xs text-base-content/40 font-medium">Estado</span>
+        <span class="text-sm font-black text-base-content">Devices</span>
+      </div>
+    </div>
+    <div class="flex sm:flex-col gap-4 sm:gap-2">
+      <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span><span class="text-xs text-base-content/60">Online</span></div>
+      <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span><span class="text-xs text-base-content/60">Offline</span></div>
+      <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-500 inline-block"></span><span class="text-xs text-base-content/60">Inativos</span></div>
     </div>
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════
+     GROUP FILTER BAR
+══════════════════════════════════════════════════ -->
 {% if selected_group %}
-<div class="group-info-bar glass-panel" style="padding: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--primary); border-radius: 12px; background: rgba(124, 58, 237, 0.05);">
+<div class="group-info-bar glass-card rounded-2xl p-4 mb-5 flex justify-between items-center gap-4 border border-indigo-500/30 bg-indigo-500/5">
   <div>
-    <span style="font-size: 0.85rem; color: var(--text-muted);">Filtrando por Grupo:</span>
-    <strong style="font-size: 1.2rem; color: white; margin-left: 0.5rem;">{{ selected_group.name }}</strong>
+    <span class="text-xs text-base-content/40 font-semibold uppercase tracking-wider">Filtrando por Grupo</span>
+    <p class="text-lg font-black text-base-content mt-0.5">{{ selected_group.name }}</p>
   </div>
-  <div style="display: flex; gap: 0.5rem; align-items: center;">
+  <div class="flex gap-2 items-center flex-wrap">
     <div class="pdf-dates-wrapper">
       <div>
-        <span style="font-size: 0.8rem; color: var(--text-muted);">De:</span>
-        <input type="date" id="pdf_start_date_selected" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; outline: none; height: 32px; font-family: inherit; width: 100%;">
+        <span>De:</span>
+        <input type="date" id="pdf_start_date_selected" class="input input-bordered input-xs bg-base-300 border-indigo-500/40 text-base-content w-full">
       </div>
       <div>
-        <span style="font-size: 0.8rem; color: var(--text-muted);">Até:</span>
-        <input type="date" id="pdf_end_date_selected" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; outline: none; height: 32px; font-family: inherit; width: 100%;">
+        <span>Até:</span>
+        <input type="date" id="pdf_end_date_selected" class="input input-bordered input-xs bg-base-300 border-indigo-500/40 text-base-content w-full">
       </div>
-      <button onclick="downloadSelectedGroupPDF({{ selected_group.id }})" class="btn btn-primary" style="border: 1px solid var(--primary); border-radius: 6px; padding: 0.4rem 0.8rem; background-color: var(--primary); color: white; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.25rem; height: 32px; margin-left: 0.25rem;">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+      <button onclick="downloadSelectedGroupPDF({{ selected_group.id }})"
+        class="btn btn-primary btn-xs gap-1 flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
         </svg>
         PDF
       </button>
     </div>
-    <a href="{% url 'dashboard' %}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.25rem;">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 14px; height: 14px;">
+    <a href="{% url 'dashboard' %}" class="btn btn-ghost btn-xs border border-white/10 gap-1">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
-      Limpar Filtro
+      Limpar
     </a>
   </div>
 </div>
 {% endif %}
 
-<!-- Main View Navigation Tabs -->
-<div class="view-tabs" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
-  <button class="view-tab-btn active" id="tab-btn-targets" onclick="switchViewTab('targets')" style="background: none; border: none; color: white; font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid var(--primary); position: relative; bottom: -9px; transition: all 0.2s;">
+
+<!-- ══════════════════════════════════════════════════
+     NAVIGATION TABS
+══════════════════════════════════════════════════ -->
+<div class="tabs tabs-boxed bg-base-200/60 p-1 rounded-xl mb-5 w-fit gap-0.5">
+  <button id="tab-btn-targets" class="view-tab-btn tab tab-active font-semibold text-sm" onclick="switchViewTab('targets')">
     Alvos
   </button>
-  <button class="view-tab-btn" id="tab-btn-devices" onclick="switchViewTab('devices')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
+  <button id="tab-btn-devices" class="view-tab-btn tab font-semibold text-sm" onclick="switchViewTab('devices')">
     Equipamentos
   </button>
-  <button class="view-tab-btn" id="tab-btn-groups" onclick="switchViewTab('groups')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
+  <button id="tab-btn-groups" class="view-tab-btn tab font-semibold text-sm" onclick="switchViewTab('groups')">
     Grupos
   </button>
   {% if user.is_superuser %}
-  <button class="view-tab-btn" id="tab-btn-audit" onclick="switchViewTab('audit')" style="background: none; border: none; color: var(--text-muted); font-size: 1.1rem; font-weight: 600; padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; position: relative; bottom: -9px; transition: all 0.2s;">
+  <button id="tab-btn-audit" class="view-tab-btn tab font-semibold text-sm" onclick="switchViewTab('audit')">
     Auditoria
   </button>
   {% endif %}
 </div>
 
+
+<!-- ══════════════════════════════════════════════════
+     VIEW: TARGETS
+══════════════════════════════════════════════════ -->
 <div id="view-targets" class="view-content">
-<!-- Filters Panel -->
-<div class="filter-bar glass-panel">
-  <form class="filter-search" method="get">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
-    </svg>
-    <input type="text" name="q" value="{{ search_query }}" placeholder="Buscar por IP, Porta ou Identificador...">
-    {% if status_filter %}
-      <input type="hidden" name="status" value="{{ status_filter }}">
-    {% endif %}
-  </form>
 
-  <div class="filter-options">
-    <a href="?q={{ search_query }}" class="filter-tab {% if not status_filter %}active{% endif %}">Todos</a>
-    <a href="?q={{ search_query }}&status=online" class="filter-tab {% if status_filter == 'online' %}active{% endif %}">Abertas</a>
-    <a href="?q={{ search_query }}&status=offline" class="filter-tab {% if status_filter == 'offline' %}active{% endif %}">Fechadas</a>
-    <a href="?q={{ search_query }}&status=inactive" class="filter-tab {% if status_filter == 'inactive' %}active{% endif %}">Inativos</a>
+  <!-- Filter bar -->
+  <div class="glass-card rounded-xl p-3 mb-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+    <form class="flex-1" method="get">
+      <div class="join w-full max-w-sm">
+        <span class="join-item btn btn-sm btn-ghost border border-white/10 px-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-base-content/40">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
+          </svg>
+        </span>
+        <input type="text" name="q" value="{{ search_query }}"
+          placeholder="Buscar IP, Porta ou Identificador..."
+          class="join-item input input-sm input-bordered border-white/10 bg-base-300 flex-1 min-w-0 focus:outline-none focus:border-indigo-500/50">
+        {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+      </div>
+    </form>
+
+    <div class="flex gap-1.5 flex-wrap">
+      <a href="?q={{ search_query }}"
+        class="btn btn-xs {% if not status_filter %}btn-primary{% else %}btn-ghost border border-white/10{% endif %}">Todos</a>
+      <a href="?q={{ search_query }}&status=online"
+        class="btn btn-xs {% if status_filter == 'online' %}btn-success{% else %}btn-ghost border border-white/10{% endif %}">Abertas</a>
+      <a href="?q={{ search_query }}&status=offline"
+        class="btn btn-xs {% if status_filter == 'offline' %}btn-error{% else %}btn-ghost border border-white/10{% endif %}">Fechadas</a>
+      <a href="?q={{ search_query }}&status=inactive"
+        class="btn btn-xs {% if status_filter == 'inactive' %}btn-warning{% else %}btn-ghost border border-white/10{% endif %}">Inativos</a>
+    </div>
   </div>
-</div>
 
-<!-- Targets Table -->
-<div class="table-container glass-panel hide-mobile">
-  {% if page_obj %}
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th style="width: 25%;">Identificação</th>
-        <th style="width: 25%;">IP/Hostname : Porta</th>
-        <th style="width: 15%;">Último Estado</th>
-        <th class="hide-mobile" style="width: 12%;">Tempo Resposta</th>
-        <th class="hide-mobile" style="width: 13%;">Último Teste</th>
-        <th style="width: 10%; text-align: center;">Ativo</th>
-        <th style="width: 10%; text-align: center;">Ações</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for target in page_obj %}
-      <tr id="target-row-{{ target.id }}">
-        <td class="td-label">
-          {% if target.label %}
-            {{ target.label }}
-          {% else %}
-            <span class="text-muted" style="font-size: 0.85rem; font-style: italic;">Sem identificação</span>
-          {% endif %}
-          {% if target.group %}
-            <div style="font-size: 0.75rem; color: var(--primary); margin-top: 0.25rem;">
-              Grupo: <strong>{{ target.group.name }}</strong>
-            </div>
-          {% endif %}
-        </td>
-        <td class="td-host">
-          <a href="{% url 'target_detail' target.pk %}" class="host-link">
-            {{ target.host }}:<strong style="color: white;">{{ target.port }}</strong>
-          </a>
-        </td>
-        <td id="status-cell-{{ target.id }}">
-          {% if not target.is_active %}
-            <span class="status-badge inactive"><span class="dot"></span>Inativo</span>
-          {% elif target.last_status == True %}
-            <span class="status-badge online"><span class="dot"></span>Aberta</span>
-          {% elif target.last_status == False %}
-            <span class="status-badge offline"><span class="dot"></span>Fechada</span>
-          {% else %}
-            <span class="status-badge inactive"><span class="dot"></span>Sem dados</span>
-          {% endif %}
-        </td>
-        <td id="latency-cell-{{ target.id }}" class="hide-mobile">
-          {% if not target.is_active or target.last_latency is None %}
-            <span class="td-latency none">-</span>
-          {% else %}
-            <span class="td-latency {% if target.last_latency < 150 %}fast{% else %}slow{% endif %}">
-              {{ target.last_latency }} ms
-            </span>
-          {% endif %}
-        </td>
-        <td id="time-cell-{{ target.id }}" class="td-time hide-mobile">
-          {% if target.last_checked %}
-            {{ target.last_checked|date:"d/m H:i:s" }}
-          {% else %}
-            Nunca testado
-          {% endif %}
-        </td>
-        <td style="text-align: center;">
-          <label class="switch">
-            <input type="checkbox" {% if target.is_active %}checked{% endif %} onchange="toggleTarget({{ target.id }}, this)">
-            <span class="slider"></span>
-          </label>
-        </td>
-        <td style="text-align: center; display: flex; gap: 0.5rem; justify-content: center;">
-          <!-- Manual trigger check -->
-          <button class="btn btn-secondary btn-icon" title="Testar porta agora" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-            </svg>
-          </button>
+  <!-- Desktop Table -->
+  <div class="glass-card rounded-2xl overflow-hidden mb-4 hidden md:block">
+    {% if page_obj %}
+    <div class="overflow-x-auto">
+      <table class="table table-sm w-full">
+        <thead>
+          <tr class="border-b border-white/5 text-xs text-base-content/40 font-semibold tracking-wider uppercase">
+            <th class="py-3 px-4 w-[28%]">Identificação</th>
+            <th class="py-3 px-4 w-[25%]">IP / Porta</th>
+            <th class="py-3 px-4 w-[14%]">Estado</th>
+            <th class="py-3 px-4 w-[12%]">Latência</th>
+            <th class="py-3 px-4 w-[12%]">Último Teste</th>
+            <th class="py-3 px-4 w-[5%] text-center">Ativo</th>
+            <th class="py-3 px-4 w-[4%] text-center">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for target in page_obj %}
+          <tr id="target-row-{{ target.id }}" class="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
 
-          <!-- Edit Target -->
-          <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary btn-icon" title="Editar alvo">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-            </svg>
-          </a>
+            <!-- Label / Group -->
+            <td class="py-2.5 px-4">
+              {% if target.label %}
+                <span class="font-semibold text-sm text-base-content">{{ target.label }}</span>
+              {% else %}
+                <span class="text-xs italic text-base-content/30">Sem identificação</span>
+              {% endif %}
+              {% if target.group %}
+                <div class="text-[10px] text-indigo-400 mt-0.5 font-medium">{{ target.group.name }}</div>
+              {% endif %}
+            </td>
 
-          <!-- Detailed info -->
-          <a href="{% url 'target_detail' target.pk %}" class="btn btn-secondary btn-icon" title="Ver estatísticas completas">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
-            </svg>
-          </a>
+            <!-- Host:Port -->
+            <td class="py-2.5 px-4">
+              <a href="{% url 'target_detail' target.pk %}" class="host-link font-mono text-xs text-base-content/70">
+                {{ target.host }}:<strong class="text-base-content font-bold">{{ target.port }}</strong>
+              </a>
+            </td>
 
-          <!-- Delete -->
-          <button class="btn btn-danger btn-icon" title="Excluir monitoramento" onclick="deleteTarget({{ target.id }})">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-            </svg>
-          </button>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+            <!-- Status -->
+            <td id="status-cell-{{ target.id }}" class="py-2.5 px-4">
+              {% if not target.is_active %}
+                <span class="badge badge-ghost badge-sm gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>Inativo
+                </span>
+              {% elif target.last_status == True %}
+                <span class="badge badge-success badge-sm gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-current inline-block status-dot-pulse"></span>Aberta
+                </span>
+              {% elif target.last_status == False %}
+                <span class="badge badge-error badge-sm gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>Fechada
+                </span>
+              {% else %}
+                <span class="badge badge-ghost badge-sm gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>Sem dados
+                </span>
+              {% endif %}
+            </td>
 
-  <!-- Pagination -->
-  {% if page_obj.has_other_pages %}
-  <div class="pagination">
-    {% if page_obj.has_previous %}
-      <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="page-link">&laquo; Primeira</a>
-      <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Anterior</a>
+            <!-- Latency -->
+            <td id="latency-cell-{{ target.id }}" class="py-2.5 px-4">
+              {% if not target.is_active or target.last_latency is None %}
+                <span class="text-xs text-base-content/25 font-mono">—</span>
+              {% else %}
+                <span class="font-mono text-xs font-bold {% if target.last_latency < 150 %}text-emerald-400{% else %}text-amber-400{% endif %}">
+                  {{ target.last_latency }}<span class="opacity-50 font-normal"> ms</span>
+                </span>
+              {% endif %}
+            </td>
+
+            <!-- Last checked -->
+            <td id="time-cell-{{ target.id }}" class="py-2.5 px-4 text-xs text-base-content/40 font-mono">
+              {% if target.last_checked %}{{ target.last_checked|date:"d/m H:i:s" }}{% else %}Nunca{% endif %}
+            </td>
+
+            <!-- Toggle -->
+            <td class="py-2.5 px-4 text-center">
+              <input type="checkbox" class="toggle toggle-success toggle-xs"
+                {% if target.is_active %}checked{% endif %}
+                onchange="toggleTarget({{ target.id }}, this)">
+            </td>
+
+            <!-- Actions -->
+            <td class="py-2.5 px-4">
+              <div class="flex items-center justify-center gap-1">
+                <div class="tooltip tooltip-left" data-tip="Testar agora">
+                  <button class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content"
+                    onclick="scanSingleTarget({{ target.id }}, this)"
+                    {% if not target.is_active %}disabled{% endif %}>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="tooltip tooltip-left" data-tip="Editar">
+                  <a href="{% url 'edit_target' target.pk %}" class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                    </svg>
+                  </a>
+                </div>
+                <div class="tooltip tooltip-left" data-tip="Detalhes">
+                  <a href="{% url 'target_detail' target.pk %}" class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-indigo-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+                    </svg>
+                  </a>
+                </div>
+                <div class="tooltip tooltip-left" data-tip="Excluir">
+                  <button class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-red-400"
+                    onclick="deleteTarget({{ target.id }})">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination desktop -->
+    {% if page_obj.has_other_pages %}
+    <div class="flex items-center justify-center gap-1 py-4 border-t border-white/5">
+      {% if page_obj.has_previous %}
+        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">‹</a>
+      {% else %}
+        <button class="btn btn-ghost btn-xs" disabled>«</button>
+        <button class="btn btn-ghost btn-xs" disabled>‹</button>
+      {% endif %}
+      <span class="btn btn-primary btn-xs pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">»</a>
+      {% else %}
+        <button class="btn btn-ghost btn-xs" disabled>›</button>
+        <button class="btn btn-ghost btn-xs" disabled>»</button>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% else %}
-      <span class="page-link disabled">&laquo; Primeira</span>
-      <span class="page-link disabled">Anterior</span>
-    {% endif %}
-
-    <span class="page-link active">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-
-    {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Próxima</a>
-      <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="page-link">Última &raquo;</a>
-    {% else %}
-      <span class="page-link disabled">Próxima</span>
-      <span class="page-link disabled">Última &raquo;</span>
+    <!-- Empty state -->
+    <div class="flex flex-col items-center justify-center py-16 text-center gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-base-content/10">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+      </svg>
+      <p class="font-bold text-base-content">Nenhum alvo encontrado</p>
+      <p class="text-sm text-base-content/40">Cadastre IPs e portas para começar a monitorar.</p>
+      <a href="{% url 'add_targets' %}" class="btn btn-primary btn-sm mt-2">Cadastrar Portas</a>
+    </div>
     {% endif %}
   </div>
-  {% endif %}
 
-  {% else %}
-  <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--border-color);">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-    </svg>
-    <p style="font-size: 1.1rem; font-weight: 600; color: white;">Nenhum alvo cadastrado ou encontrado</p>
-    <p style="font-size: 0.85rem; margin-top: 0.25rem;">Cadastre novos IPs e portas para começar a monitorar.</p>
-    <a href="{% url 'add_targets' %}" class="btn btn-primary" style="margin-top: 1.25rem;">Cadastrar Portas</a>
-  </div>
-  {% endif %}
-</div>
-
-  <!-- Mobile Targets List (shown on mobile, hidden on desktop) -->
+  <!-- Mobile Cards -->
   {% if page_obj %}
-  <div class="mobile-targets-list show-mobile">
+  <div class="md:hidden space-y-3 mb-4">
     {% for target in page_obj %}
-    <div class="mobile-target-card glass-panel" id="target-card-{{ target.id }}">
-      <div class="card-row-main">
-        <div class="card-target-ident">
-          <strong class="card-label">
-            {% if target.label %}
-              {{ target.label }}
-            {% else %}
-              <span class="text-muted" style="font-size: 0.85rem; font-style: italic;">Sem identificação</span>
-            {% endif %}
-          </strong>
+    <div id="target-card-{{ target.id }}" class="glass-card rounded-xl p-4 flex flex-col gap-3">
+
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="font-semibold text-sm text-base-content truncate">
+            {% if target.label %}{{ target.label }}{% else %}<span class="italic text-base-content/30 text-xs">Sem identificação</span>{% endif %}
+          </p>
           {% if target.group %}
-            <span class="group-badge">{{ target.group.name }}</span>
+            <span class="text-[10px] text-indigo-400 font-medium">{{ target.group.name }}</span>
           {% endif %}
-          <a href="{% url 'target_detail' target.pk %}" class="host-link" style="font-size: 0.85rem; color: var(--text-muted); display: inline-block; margin-top: 0.25rem;">
-            <span class="card-host">{{ target.host }}:<strong>{{ target.port }}</strong></span>
+          <a href="{% url 'target_detail' target.pk %}" class="host-link font-mono text-xs text-base-content/50 block mt-0.5">
+            {{ target.host }}:<strong class="text-base-content/80">{{ target.port }}</strong>
           </a>
         </div>
-
-        <div class="card-status-toggle">
+        <div class="flex items-center gap-2 flex-shrink-0">
           <div id="status-card-cell-{{ target.id }}">
             {% if not target.is_active %}
-              <span class="status-badge inactive"><span class="dot"></span>Inativo</span>
+              <span class="badge badge-ghost badge-sm">Inativo</span>
             {% elif target.last_status == True %}
-              <span class="status-badge online"><span class="dot"></span>Aberta</span>
+              <span class="badge badge-success badge-sm">Aberta</span>
             {% elif target.last_status == False %}
-              <span class="status-badge offline"><span class="dot"></span>Fechada</span>
+              <span class="badge badge-error badge-sm">Fechada</span>
             {% else %}
-              <span class="status-badge inactive"><span class="dot"></span>Sem dados</span>
+              <span class="badge badge-ghost badge-sm">Sem dados</span>
             {% endif %}
           </div>
-          <label class="switch">
-            <input type="checkbox" {% if target.is_active %}checked{% endif %} onchange="toggleTarget({{ target.id }}, this)">
-            <span class="slider"></span>
-          </label>
+          <input type="checkbox" class="toggle toggle-success toggle-xs"
+            {% if target.is_active %}checked{% endif %}
+            onchange="toggleTarget({{ target.id }}, this)">
         </div>
       </div>
 
-      <div class="card-row-footer">
-        <div class="card-metrics">
-          <span id="latency-card-cell-{{ target.id }}" class="card-metric-latency {% if target.last_latency is not None %}{% if target.last_latency < 150 %}fast{% else %}slow{% endif %}{% endif %}">
-            {% if not target.is_active or target.last_latency is None %}-{% else %}{{ target.last_latency }} ms{% endif %}
+      <div class="flex items-center justify-between pt-2 border-t border-white/5">
+        <div class="flex items-center gap-3">
+          <span id="latency-card-cell-{{ target.id }}" class="font-mono text-xs font-bold {% if target.last_latency is not None %}{% if target.last_latency < 150 %}text-emerald-400{% else %}text-amber-400{% endif %}{% else %}text-base-content/25{% endif %}">
+            {% if not target.is_active or target.last_latency is None %}—{% else %}{{ target.last_latency }} ms{% endif %}
           </span>
-          <span id="time-card-cell-{{ target.id }}" class="card-metric-time">
-            {% if target.last_checked %}
-              {{ target.last_checked|date:"d/m H:i" }}
-            {% else %}
-              Nunca testado
-            {% endif %}
+          <span id="time-card-cell-{{ target.id }}" class="text-[10px] text-base-content/30 font-mono">
+            {% if target.last_checked %}{{ target.last_checked|date:"d/m H:i" }}{% else %}Nunca{% endif %}
           </span>
         </div>
-
-        <div class="card-actions">
-          <!-- Manual trigger check -->
-          <button class="btn btn-secondary btn-icon" title="Testar porta agora" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+        <div class="flex gap-1">
+          <button class="btn btn-ghost btn-xs btn-square" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
             </svg>
           </button>
-
-          <!-- Edit Target -->
-          <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary btn-icon" title="Editar alvo">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+          <a href="{% url 'edit_target' target.pk %}" class="btn btn-ghost btn-xs btn-square">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
             </svg>
           </a>
-
-          <!-- Detailed info -->
-          <a href="{% url 'target_detail' target.pk %}" class="btn btn-secondary btn-icon" title="Ver estatísticas completas">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+          <a href="{% url 'target_detail' target.pk %}" class="btn btn-ghost btn-xs btn-square text-indigo-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
             </svg>
           </a>
-
-          <!-- Delete -->
-          <button class="btn btn-danger btn-icon" title="Excluir monitoramento" onclick="deleteTarget({{ target.id }})">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+          <button class="btn btn-ghost btn-xs btn-square text-red-400/60 hover:text-red-400" onclick="deleteTarget({{ target.id }})">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
             </svg>
           </button>
@@ -474,187 +607,196 @@
     </div>
     {% endfor %}
 
-    <!-- Pagination for Mobile -->
+    <!-- Pagination mobile -->
     {% if page_obj.has_other_pages %}
-    <div class="pagination show-mobile" style="margin-top: 1rem; margin-bottom: 2rem;">
+    <div class="flex items-center justify-center gap-1 py-2">
       {% if page_obj.has_previous %}
-        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">&laquo;</a>
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Ant</a>
+        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">‹</a>
       {% endif %}
-
-      <span class="page-link active" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Pág {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
-
+      <span class="btn btn-primary btn-xs pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">Próx</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="page-link" style="padding: 0.4rem 0.65rem; font-size: 0.8rem;">&raquo;</a>
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">»</a>
       {% endif %}
     </div>
     {% endif %}
   </div>
   {% endif %}
-</div> <!-- End of #view-targets -->
+
+</div><!-- /view-targets -->
 
 
-<!-- View Groups Content -->
-<div id="view-groups" class="view-content" style="display: none; margin-bottom: 2rem;">
-  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+<!-- ══════════════════════════════════════════════════
+     VIEW: GROUPS
+══════════════════════════════════════════════════ -->
+<div id="view-groups" class="view-content mb-6" style="display:none;">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for g in groups %}
-    <div class="glass-panel group-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative; transition: all 0.3s; border: 1px solid rgba(255,255,255,0.03); border-radius: 12px;">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <h3 style="color: white; font-size: 1.25rem; margin: 0;">{{ g.name }}</h3>
-        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem;">
-          <span class="status-badge" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;">
-            {{ g.total_count }} portas
-          </span>
-          <span class="status-badge" style="background: rgba(124, 68, 255, 0.1); color: #c084fc; border: 1px solid rgba(124, 68, 255, 0.2); font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;">
-            {{ g.devices_total }} equipamentos
-          </span>
+    <div class="group-card glass-card rounded-2xl p-5 flex flex-col gap-4">
+
+      <!-- Header -->
+      <div class="flex justify-between items-start gap-2">
+        <h3 class="font-black text-base-content text-base leading-tight">{{ g.name }}</h3>
+        <div class="flex flex-col items-end gap-1">
+          <span class="badge badge-ghost badge-xs">{{ g.total_count }} portas</span>
+          <span class="badge badge-xs" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.25);">{{ g.devices_total }} equip.</span>
         </div>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
-        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Portas:</span>
-          <div style="display: flex; gap: 1rem; font-size: 0.85rem;">
-            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
-              <span class="text-muted" style="font-size: 0.75rem;">Abertas</span>
-              <strong style="color: var(--success); font-size: 0.9rem;">{{ g.online_count }}</strong>
-            </div>
-            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
-              <span class="text-muted" style="font-size: 0.75rem;">Fechadas</span>
-              <strong style="color: var(--danger); font-size: 0.9rem;">{{ g.offline_count }}</strong>
-            </div>
-            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
-              <span class="text-muted" style="font-size: 0.75rem;">Inativas</span>
-              <strong style="color: var(--text-muted); font-size: 0.9rem;">{{ g.inactive_count }}</strong>
-            </div>
+      <!-- Ports stats -->
+      <div class="space-y-2 border-t border-white/5 pt-3">
+        <p class="text-[10px] text-base-content/30 font-bold uppercase tracking-widest">Portas</p>
+        <div class="flex gap-4">
+          <div class="text-center">
+            <p class="text-lg font-black text-emerald-400">{{ g.online_count }}</p>
+            <p class="text-[10px] text-base-content/40">Abertas</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-black text-red-400">{{ g.offline_count }}</p>
+            <p class="text-[10px] text-base-content/40">Fechadas</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-black text-base-content/30">{{ g.inactive_count }}</p>
+            <p class="text-[10px] text-base-content/40">Inativas</p>
           </div>
         </div>
+        <!-- Availability bar -->
+        {% if g.total_count > 0 %}
+        <div class="group-progress-track">
+          <div class="group-progress-fill" style="width: {% widthratio g.online_count g.total_count 100 %}%"></div>
+        </div>
+        {% endif %}
+      </div>
 
-        <div style="display: flex; flex-direction: column; gap: 0.25rem; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 0.5rem;">
-          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Equipamentos:</span>
-          <div style="display: flex; gap: 1rem; font-size: 0.85rem;">
-            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
-              <span class="text-muted" style="font-size: 0.75rem;">Online</span>
-              <strong style="color: var(--success); font-size: 0.9rem;">{{ g.devices_online }}</strong>
-            </div>
-            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
-              <span class="text-muted" style="font-size: 0.75rem;">Offline</span>
-              <strong style="color: var(--danger); font-size: 0.9rem;">{{ g.devices_offline }}</strong>
-            </div>
-            <div style="display: flex; align-items: baseline; gap: 0.25rem;">
-              <span class="text-muted" style="font-size: 0.75rem;">Inativos</span>
-              <strong style="color: var(--text-muted); font-size: 0.9rem;">{{ g.devices_inactive }}</strong>
-            </div>
+      <!-- Devices stats -->
+      <div class="space-y-2 border-t border-dashed border-white/5 pt-3">
+        <p class="text-[10px] text-base-content/30 font-bold uppercase tracking-widest">Equipamentos</p>
+        <div class="flex gap-4">
+          <div class="text-center">
+            <p class="text-base font-black text-emerald-400">{{ g.devices_online }}</p>
+            <p class="text-[10px] text-base-content/40">Online</p>
+          </div>
+          <div class="text-center">
+            <p class="text-base font-black text-red-400">{{ g.devices_offline }}</p>
+            <p class="text-[10px] text-base-content/40">Offline</p>
+          </div>
+          <div class="text-center">
+            <p class="text-base font-black text-base-content/30">{{ g.devices_inactive }}</p>
+            <p class="text-[10px] text-base-content/40">Inativos</p>
           </div>
         </div>
       </div>
 
-      <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-        <a href="?group={{ g.id }}" class="btn btn-primary" style="width: 100%; text-align: center; justify-content: center; font-size: 0.85rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+      <!-- Actions -->
+      <div class="flex flex-col gap-3 mt-auto">
+        <a href="?group={{ g.id }}" class="btn btn-primary btn-sm w-full gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           Ver Portas
         </a>
-        <div style="display: flex; flex-direction: column; gap: 0.25rem; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 0.5rem;">
+        <!-- PDF dates -->
+        <div class="border-t border-white/5 pt-3 space-y-2">
           <div class="pdf-dates-wrapper">
             <div>
-              <span style="font-size: 0.7rem; color: var(--text-muted);">De:</span>
-              <input type="date" id="pdf_start_date_{{ g.id }}" style="padding: 0.25rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.75rem; outline: none; font-family: inherit; width: 100%;">
+              <span>De:</span>
+              <input type="date" id="pdf_start_date_{{ g.id }}" class="input input-bordered input-xs bg-base-300 border-indigo-500/30 text-base-content w-full">
             </div>
             <div>
-              <span style="font-size: 0.7rem; color: var(--text-muted);">Até:</span>
-              <input type="date" id="pdf_end_date_{{ g.id }}" style="padding: 0.25rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.75rem; outline: none; font-family: inherit; width: 100%;">
+              <span>Até:</span>
+              <input type="date" id="pdf_end_date_{{ g.id }}" class="input input-bordered input-xs bg-base-300 border-indigo-500/30 text-base-content w-full">
             </div>
           </div>
-          <button onclick="downloadGroupPDF({{ g.id }})" class="btn btn-secondary" style="width: 100%; border: 1px solid var(--primary); border-radius: 6px; padding: 0.45rem; background: rgba(124, 58, 237, 0.1); color: white; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.25rem; margin-top: 0.25rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          <button onclick="downloadGroupPDF({{ g.id }})" class="btn btn-ghost btn-xs w-full border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
-            PDF
+            Baixar PDF SLA
           </button>
         </div>
-      </div>
-
-      <!-- Action buttons: Edit and Delete -->
-      <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 0.6rem; margin-top: 0.25rem; display: flex; gap: 0.75rem; justify-content: center;">
-        <a href="{% url 'edit_group' g.id %}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; display: flex; align-items: center; gap: 0.25rem; border-color: rgba(255,255,255,0.1); background: transparent; cursor: pointer; text-decoration: none; color: inherit; border-radius: 8px;">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-          </svg>
-          Editar
-        </a>
-        <form method="post" action="{% url 'delete_group' g.id %}" onsubmit="return confirm('Excluir o grupo &quot;{{ g.name|escapejs }}&quot; permanentemente? Os sensores nao serao excluidos, apenas perderao a associacao.');" style="display: inline;">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-danger" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; display: flex; align-items: center; gap: 0.25rem; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); cursor: pointer; border-radius: 8px;">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-            </svg>
-            Excluir
-          </button>
-        </form>
-      </div>
-    </div>
-    {% empty %}
-    <div class="glass-panel" style="grid-column: 1 / -1; padding: 3rem; text-align: center; color: var(--text-muted); border-radius: 12px;">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--border-color);">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A9 9 0 0118 12v.75m-15 0a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25m-15 0V12a9 9 0 003 6.36M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-      <p style="font-size: 1.1rem; font-weight: 600; color: white;">Nenhum grupo criado ainda</p>
-      <p style="font-size: 0.85rem; margin-top: 0.25rem;">Cadastre portas utilizando identificadores entre colchetes, ex: 45.174.193.10:40001 [Grupo Câmeras].</p>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- View Devices Content -->
-<div id="view-devices" class="view-content" style="display: none; margin-bottom: 2rem;">
-  <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
-    {% for device in devices %}
-    <div class="glass-panel" style="padding: 1.5rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; display: flex; flex-direction: column; gap: 1rem;">
-
-      <!-- Device Header -->
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
-        <div>
-          <h3 style="color: white; font-size: 1.2rem; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-            {% if device.device_type == 'mikrotik' or device.device_type == 'mikrotik_snmp' %}
-              <span style="color: #c084fc; font-weight: 800; font-family: monospace;">[MikroTik]</span>
-            {% elif device.device_type == 'parks_olt' %}
-              <span style="color: #34d399; font-weight: 800; font-family: monospace;">[Parks OLT]</span>
-            {% else %}
-              <span style="color: #94a3b8; font-weight: 800; font-family: monospace;">[Equipamento]</span>
-            {% endif %}
-            {{ device.name }}
-          </h3>
-          <span style="font-size: 0.8rem; color: var(--text-muted);">
-            IP: <code style="color: white; background: rgba(255,255,255,0.05); padding: 0.1rem 0.3rem; border-radius: 4px;">{{ device.host }}</code>
-            | Tipo: {{ device.get_device_type_display }}
-            {% if device.group %} | Grupo: <strong>{{ device.group.name }}</strong>{% endif %}
-          </span>
-        </div>
-
-        <!-- Device Actions -->
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
-          {% if device.device_type == 'mikrotik' or device.device_type == 'parks_olt' or device.device_type == 'mikrotik_snmp' or device.device_type == 'generic_snmp' %}
-            <a href="{% url 'discover_sensors' device.id %}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; display: flex; align-items: center; gap: 0.25rem; border-color: rgba(110, 68, 255, 0.4); background: rgba(110, 68, 255, 0.05); color: #c084fc;">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
-              </svg>
-              Auto-descoberta
-            </a>
-          {% endif %}
-          <a href="{% url 'edit_device' device.id %}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; display: flex; align-items: center; gap: 0.25rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+        <!-- Edit / Delete -->
+        <div class="flex gap-2 border-t border-dashed border-white/5 pt-3">
+          <a href="{% url 'edit_group' g.id %}" class="btn btn-ghost btn-xs flex-1 border border-white/10 gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
             </svg>
             Editar
           </a>
-          <form method="post" action="{% url 'delete_device' device.id %}" onsubmit="return confirm('Deseja realmente remover o equipamento &quot;{{ device.name|escapejs }}&quot; e TODOS os seus sensores?');" style="display: inline;">
+          <form method="post" action="{% url 'delete_group' g.id %}"
+            onsubmit="return confirm('Excluir o grupo &quot;{{ g.name|escapejs }}&quot; permanentemente? Os sensores não serão excluídos, apenas perderão a associação.');">
             {% csrf_token %}
-            <button type="submit" class="btn btn-danger" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; display: flex; align-items: center; gap: 0.25rem; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); color: #ef4444; cursor: pointer;">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+            <button type="submit" class="btn btn-ghost btn-xs border border-red-500/20 text-red-400/70 hover:text-red-400 hover:bg-red-500/10 gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+              Excluir
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full glass-card rounded-2xl p-12 text-center">
+      <p class="font-bold text-base-content/80 text-base mb-1">Nenhum grupo criado ainda</p>
+      <p class="text-sm text-base-content/40">Cadastre portas com identificadores entre colchetes, ex: 45.174.193.10:40001 [Câmeras].</p>
+    </div>
+    {% endfor %}
+  </div>
+</div><!-- /view-groups -->
+
+
+<!-- ══════════════════════════════════════════════════
+     VIEW: DEVICES
+══════════════════════════════════════════════════ -->
+<div id="view-devices" class="view-content mb-6" style="display:none;">
+  <div class="space-y-4">
+    {% for device in devices %}
+    <div class="glass-card rounded-2xl overflow-hidden">
+
+      <!-- Device Header -->
+      <div class="px-5 py-4 border-b border-white/5 flex flex-wrap justify-between items-start gap-3">
+        <div>
+          <div class="flex items-center gap-2 mb-1 flex-wrap">
+            {% if device.device_type == 'mikrotik' or device.device_type == 'mikrotik_snmp' %}
+              <span class="badge badge-sm font-mono font-bold" style="background:rgba(192,132,252,0.15);color:#c084fc;border-color:rgba(192,132,252,0.3);">[MikroTik]</span>
+            {% elif device.device_type == 'parks_olt' %}
+              <span class="badge badge-success badge-sm font-mono font-bold">[Parks OLT]</span>
+            {% else %}
+              <span class="badge badge-ghost badge-sm font-mono">[Equip.]</span>
+            {% endif %}
+            <h3 class="font-black text-base-content text-base">{{ device.name }}</h3>
+          </div>
+          <p class="text-xs text-base-content/40">
+            IP: <code class="text-base-content/70 bg-white/5 px-1.5 py-0.5 rounded font-mono">{{ device.host }}</code>
+            · {{ device.get_device_type_display }}
+            {% if device.group %} · Grupo: <strong class="text-base-content/60">{{ device.group.name }}</strong>{% endif %}
+          </p>
+        </div>
+
+        <div class="flex gap-2 flex-wrap">
+          {% if device.device_type == 'mikrotik' or device.device_type == 'parks_olt' or device.device_type == 'mikrotik_snmp' or device.device_type == 'generic_snmp' %}
+          <a href="{% url 'discover_sensors' device.id %}"
+            class="btn btn-xs gap-1 border font-medium"
+            style="background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.3);color:#a5b4fc;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
+            </svg>
+            Auto-descoberta
+          </a>
+          {% endif %}
+          <a href="{% url 'edit_device' device.id %}" class="btn btn-ghost btn-xs border border-white/10 gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+            </svg>
+            Editar
+          </a>
+          <form method="post" action="{% url 'delete_device' device.id %}"
+            onsubmit="return confirm('Deseja realmente remover o equipamento &quot;{{ device.name|escapejs }}&quot; e TODOS os seus sensores?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost btn-xs border border-red-500/20 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
               </svg>
               Excluir
@@ -663,117 +805,119 @@
         </div>
       </div>
 
-      <!-- Device Sensors Grid (PRTG-style layout) -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 0.25rem;">
+      <!-- Sensor Cards Grid -->
+      <div class="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
         {% for sensor in device.sensors.all %}
-        <div id="sensor-card-{{ sensor.id }}" class="glass-panel" style="padding: 0.75rem; border: 1px solid {% if not sensor.is_active %}rgba(100,116,139,0.2){% elif sensor.last_status == True %}rgba(16,185,129,0.2){% elif sensor.last_status == False %}rgba(239,68,68,0.2){% else %}rgba(255,255,255,0.05){% endif %}; border-radius: 8px; display: flex; flex-direction: column; gap: 0.35rem; position: relative; background: {% if not sensor.is_active %}rgba(100,116,139,0.03){% elif sensor.last_status == True %}rgba(16,185,129,0.03){% elif sensor.last_status == False %}rgba(239,68,68,0.03){% else %}rgba(0,0,0,0.1){% endif %};">
+        <div id="sensor-card-{{ sensor.id }}" class="sensor-card
+          {% if not sensor.is_active %}opacity-50
+          {% elif sensor.last_status == True %}border-emerald-500/20 bg-emerald-500/[0.04]
+          {% elif sensor.last_status == False %}border-red-500/20 bg-red-500/[0.04]
+          {% endif %}">
 
-          <!-- Sensor Title & Detail Link -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.25rem;">
-            <a href="{% url 'target_detail' sensor.id %}" style="color: white; font-size: 0.85rem; font-weight: 600; text-decoration: none; word-break: break-word; hover: underline; flex-grow: 1;" title="Clique para ver gráficos e SLA">
+          <!-- Sensor name + refresh -->
+          <div class="flex justify-between items-start gap-1">
+            <a href="{% url 'target_detail' sensor.id %}"
+              class="host-link text-xs font-semibold text-base-content leading-snug flex-1"
+              title="Ver gráficos e SLA">
               {{ sensor.label|default:sensor.get_sensor_type_display }}
             </a>
-
-            <!-- Quick Refresh Button -->
-            <button onclick="scanSingleTarget({{ sensor.id }}, this)" style="background: none; border: none; padding: 0; color: var(--text-muted); cursor: pointer; hover: color: white;" title="Checar Agora">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 12px; height: 12px;">
+            <button onclick="scanSingleTarget({{ sensor.id }}, this)"
+              class="btn btn-ghost btn-xs btn-square text-base-content/25 hover:text-base-content flex-shrink-0 -mr-1 -mt-1"
+              title="Checar agora">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
             </button>
           </div>
 
-          <!-- Sensor Value & Latency -->
-          <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end;">
-            <div style="display: flex; flex-direction: column;">
-              <span id="sensor-val-{{ sensor.id }}" style="font-size: 0.95rem; font-weight: 700; color: {% if not sensor.is_active %}#94a3b8{% elif sensor.last_status == True %}#34d399{% elif sensor.last_status == False %}#f87171{% else %}#94a3b8{% endif %};">
-                {{ sensor.sensor_value|default:"Sem dados" }}
-              </span>
-              <span id="sensor-latency-{{ sensor.id }}" style="display: none;">
-              </span>
+          <!-- Value -->
+          <div class="flex items-end justify-between mt-1 gap-1">
+            <span id="sensor-val-{{ sensor.id }}" class="text-sm font-black leading-tight
+              {% if not sensor.is_active %}text-base-content/25
+              {% elif sensor.last_status == True %}text-emerald-400
+              {% elif sensor.last_status == False %}text-red-400
+              {% else %}text-base-content/40{% endif %}">
+              {{ sensor.sensor_value|default:"Sem dados" }}
+            </span>
+            <!-- Status dot -->
+            <div id="sensor-dot-{{ sensor.id }}" class="w-2 h-2 rounded-full flex-shrink-0 mb-0.5
+              {% if not sensor.is_active %}bg-slate-600
+              {% elif sensor.last_status == True %}bg-emerald-400 status-dot-pulse
+              {% elif sensor.last_status == False %}bg-red-500
+              {% else %}bg-slate-600{% endif %}">
             </div>
+          </div>
 
-            <!-- Small status dot indicator -->
-            <span id="sensor-dot-{{ sensor.id }}" style="width: 8px; height: 8px; border-radius: 50%; background: {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %}; box-shadow: 0 0 6px {% if not sensor.is_active %}#64748b{% elif sensor.last_status == True %}#10b981{% elif sensor.last_status == False %}#ef4444{% else %}#64748b{% endif %};"></span>
+          <!-- Type badge + latency -->
+          <div class="flex items-center justify-between mt-0.5">
+            <span class="text-[10px] text-base-content/30 font-medium">{{ sensor.get_sensor_type_display }}</span>
+            {% if sensor.last_latency is not None %}
+            <span id="sensor-latency-{{ sensor.id }}" class="text-[10px] font-mono text-base-content/25">{{ sensor.last_latency }}ms</span>
+            {% endif %}
           </div>
         </div>
         {% empty %}
-        <div style="grid-column: 1 / -1; padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-          Nenhum sensor cadastrado neste equipamento. Clique em "Auto-descoberta" acima para gerar sensores!
+        <div class="col-span-full text-sm text-base-content/30 text-center py-4">
+          Nenhum sensor cadastrado. Clique em "Auto-descoberta" para gerar sensores.
         </div>
         {% endfor %}
       </div>
-
     </div>
     {% empty %}
-    <div class="glass-panel" style="padding: 3rem; text-align: center; color: var(--text-muted); border-radius: 12px;">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--border-color);">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-.778.099-1.533.284-2.253" />
-      </svg>
-      <p style="font-size: 1.1rem; font-weight: 600; color: white;">Nenhum equipamento cadastrado</p>
-      <p style="font-size: 0.85rem; margin-top: 0.25rem;">Clique no botão "Novo Equipamento" no topo da página para cadastrar seu primeiro roteador ou OLT.</p>
+    <div class="glass-card rounded-2xl p-12 text-center">
+      <p class="font-bold text-base-content/80 text-base mb-1">Nenhum equipamento cadastrado</p>
+      <p class="text-sm text-base-content/40">Clique em "Novo Equipamento" no topo para cadastrar seu primeiro roteador ou OLT.</p>
     </div>
     {% endfor %}
   </div>
-</div>
+</div><!-- /view-devices -->
 
+
+<!-- ══════════════════════════════════════════════════
+     VIEW: AUDIT (superuser only)
+══════════════════════════════════════════════════ -->
 {% if user.is_superuser %}
-<!-- View Audit Content -->
-<div id="view-audit" class="view-content" style="display: none; margin-bottom: 2rem;">
-  <div class="glass-panel" style="padding: 1.5rem; border: 1px solid rgba(255,255,255,0.03); border-radius: 12px;">
-    <h2 style="font-size: 1.25rem; color: white; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px; color: var(--primary);">
+<div id="view-audit" class="view-content mb-6" style="display:none;">
+  <div class="glass-card rounded-2xl overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/5 flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-indigo-400">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.03 0 1.9.693 2.166 1.638m-7.377 2.24a4.5 4.5 0 1115.002 0c0 2.74-1.364 6.57-3.75 8.25m-11.25-8.25a4.5 4.5 0 10-9 0c0 2.74 1.364 6.57 3.75 8.25m-3.75-8.25h12.75" />
       </svg>
-      Registro de Auditoria do Sistema
-    </h2>
-
-    <div class="table-responsive" style="overflow-x: auto;">
-      <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 800px;">
+      <h2 class="font-bold text-base-content text-sm">Registro de Auditoria do Sistema</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="table table-sm w-full min-w-[700px]">
         <thead>
-          <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
-            <th style="padding: 0.75rem 0.5rem;">Data/Hora</th>
-            <th style="padding: 0.75rem 0.5rem;">Usuário</th>
-            <th style="padding: 0.75rem 0.5rem;">Ação</th>
-            <th style="padding: 0.75rem 0.5rem;">Tipo</th>
-            <th style="padding: 0.75rem 0.5rem;">Objeto</th>
-            <th style="padding: 0.75rem 0.5rem;">Alterações</th>
+          <tr class="border-b border-white/5 text-xs text-base-content/40 font-semibold uppercase tracking-wider">
+            <th class="py-3 px-4">Data/Hora</th>
+            <th class="py-3 px-4">Usuário</th>
+            <th class="py-3 px-4">Ação</th>
+            <th class="py-3 px-4">Tipo</th>
+            <th class="py-3 px-4">Objeto</th>
+            <th class="py-3 px-4">Alterações</th>
           </tr>
         </thead>
         <tbody>
           {% for log in recent_audit_logs %}
-          <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.02); font-size: 0.85rem; color: #e2e8f0;">
-            <td style="padding: 0.75rem 0.5rem; white-space: nowrap; color: var(--text-muted);">
-              {{ log.timestamp|date:"d/m/Y H:i:s" }}
-            </td>
-            <td style="padding: 0.75rem 0.5rem; font-weight: 600;">
-              {{ log.user.username|default:"Sistema" }}
-            </td>
-            <td style="padding: 0.75rem 0.5rem;">
-              <span class="status-badge" style="
-                padding: 0.15rem 0.5rem;
-                font-size: 0.7rem;
-                background: {% if log.action == 'Criar' or log.action == 'Ativar' %}rgba(16, 185, 129, 0.1){% elif log.action == 'Editar' or log.action == 'Lote' %}rgba(245, 158, 11, 0.1){% elif log.action == 'Excluir' or log.action == 'Desativar' %}rgba(239, 68, 68, 0.1){% else %}rgba(59, 130, 246, 0.1){% endif %};
-                color: {% if log.action == 'Criar' or log.action == 'Ativar' %}#10b981{% elif log.action == 'Editar' or log.action == 'Lote' %}#f59e0b{% elif log.action == 'Excluir' or log.action == 'Desativar' %}#ef4444{% else %}#3b82f6{% endif %};
-                border: 1px solid {% if log.action == 'Criar' or log.action == 'Ativar' %}rgba(16, 185, 129, 0.2){% elif log.action == 'Editar' or log.action == 'Lote' %}rgba(245, 158, 11, 0.2){% elif log.action == 'Excluir' or log.action == 'Desativar' %}rgba(239, 68, 68, 0.2){% else %}rgba(59, 130, 246, 0.2){% endif %};
-              ">
+          <tr class="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors text-sm">
+            <td class="py-2.5 px-4 font-mono text-xs text-base-content/40 whitespace-nowrap">{{ log.timestamp|date:"d/m/Y H:i:s" }}</td>
+            <td class="py-2.5 px-4 font-semibold text-base-content">{{ log.user.username|default:"Sistema" }}</td>
+            <td class="py-2.5 px-4">
+              <span class="badge badge-xs font-semibold
+                {% if log.action == 'Criar' or log.action == 'Ativar' %}badge-success
+                {% elif log.action == 'Editar' or log.action == 'Lote' %}badge-warning
+                {% elif log.action == 'Excluir' or log.action == 'Desativar' %}badge-error
+                {% else %}badge-info{% endif %}">
                 {{ log.action }}
               </span>
             </td>
-            <td style="padding: 0.75rem 0.5rem; color: var(--text-muted);">
-              {{ log.model_name }}
-            </td>
-            <td style="padding: 0.75rem 0.5rem; font-weight: 500;">
-              {{ log.object_repr }}
-            </td>
-            <td style="padding: 0.75rem 0.5rem; color: var(--text-muted); max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.changes }}">
-              {{ log.changes|default:"-" }}
-            </td>
+            <td class="py-2.5 px-4 text-xs text-base-content/40">{{ log.model_name }}</td>
+            <td class="py-2.5 px-4 font-medium text-base-content/70 text-xs">{{ log.object_repr }}</td>
+            <td class="py-2.5 px-4 text-xs text-base-content/30 max-w-xs truncate" title="{{ log.changes }}">{{ log.changes|default:"—" }}</td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="6" style="padding: 3rem; text-align: center; color: var(--text-muted);">
-              Nenhuma ação registrada ainda.
-            </td>
+            <td colspan="6" class="py-8 text-center text-sm text-base-content/30">Nenhuma ação registrada ainda.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -783,282 +927,216 @@
 </div>
 {% endif %}
 
-<!-- Recent Scans / System Logs -->
-<div class="glass-panel" style="padding: 1.5rem;">
-  <h2 style="font-size: 1.2rem; color: white; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px; color: var(--primary);">
+
+<!-- ══════════════════════════════════════════════════
+     RECENT CHECKS LOG
+══════════════════════════════════════════════════ -->
+<div class="glass-card rounded-2xl p-5 mb-2">
+  <div class="flex items-center gap-2 mb-4">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-indigo-400">
       <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
     </svg>
-    Últimas Verificações do Sistema
-  </h2>
+    <h2 class="font-bold text-sm text-base-content">Últimas Verificações do Sistema</h2>
+  </div>
 
-  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+  <div class="space-y-1">
     {% for log in recent_logs %}
-    <div class="recent-log-item">
-      <div class="recent-log-left">
-        <span class="status-badge {% if log.status %}online{% else %}offline{% endif %}" style="padding: 0.15rem 0.45rem; font-size: 0.65rem;">
-          <span class="dot"></span>{% if log.status %}ABERTA{% else %}FECHADA{% endif %}
+    <div class="log-row">
+      <div class="flex items-center gap-3">
+        <span class="badge badge-xs gap-1 {% if log.status %}badge-success{% else %}badge-error{% endif %}">
+          <span class="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>
+          {% if log.status %}ABERTA{% else %}FECHADA{% endif %}
         </span>
-        <div class="recent-log-target-info">
-          <span class="recent-log-host">{{ log.target.host }}:{{ log.target.port }}</span>
-          {% if log.target.label %}
-            <span class="recent-log-label">({{ log.target.label }})</span>
-          {% endif %}
-        </div>
+        <span class="font-mono text-xs text-base-content/60">{{ log.target.host }}:{{ log.target.port }}</span>
+        {% if log.target.label %}<span class="text-xs text-base-content/30">({{ log.target.label }})</span>{% endif %}
       </div>
-      <div class="recent-log-right">
-        <span class="recent-log-latency {% if log.status %}status-online-text{% else %}status-offline-text{% endif %}">
-          {{ log.latency }} ms
-        </span>
-        <span class="recent-log-time">{{ log.timestamp|date:"H:i:s" }}</span>
+      <div class="flex items-center gap-3">
+        <span class="font-mono text-xs font-bold {% if log.status %}text-emerald-400{% else %}text-red-400{% endif %}">{{ log.latency }} ms</span>
+        <span class="font-mono text-[10px] text-base-content/25">{{ log.timestamp|date:"H:i:s" }}</span>
       </div>
     </div>
     {% empty %}
-    <span style="font-size: 0.85rem; color: var(--text-muted); text-align: center; display: block; padding: 1rem;">Nenhum teste executado ainda.</span>
+    <p class="text-sm text-base-content/30 text-center py-4">Nenhum teste executado ainda.</p>
     {% endfor %}
   </div>
 </div>
+
 {% endblock %}
+
 
 {% block extra_js %}
 <script>
   const activeGroupId = "{{ group_id }}";
 
-  // Toggle Target status (Active/Inactive)
+  // ── Toggle Target ──────────────────────────────────────────
   function toggleTarget(id, checkbox) {
     const isChecked = checkbox.checked;
-
-    // Sync checkboxes on both table and card views
     const allCheckboxes = document.querySelectorAll(`input[type="checkbox"][onchange*="toggleTarget(${id}"]`);
-    allCheckboxes.forEach(cb => {
-      cb.checked = isChecked;
-    });
+    allCheckboxes.forEach(cb => { cb.checked = isChecked; });
 
     fetch(`/target/${id}/toggle/`, {
       method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken,
-        'Content-Type': 'application/json',
-      }
+      headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' }
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
       if (data.status === 'success') {
-        // Refresh cells/states visually on table
         const statusCell = document.getElementById(`status-cell-${id}`);
         const latencyCell = document.getElementById(`latency-cell-${id}`);
-        const actionBtnTable = statusCell ? statusCell.closest('tr').querySelector('button[title="Testar porta agora"]') : null;
-
-        // Refresh cells/states visually on mobile card
+        const actionBtnTable = statusCell ? statusCell.closest('tr').querySelector('button[title]') : null;
         const statusCardCell = document.getElementById(`status-card-cell-${id}`);
         const latencyCardCell = document.getElementById(`latency-card-cell-${id}`);
-        const actionBtnCard = statusCardCell ? statusCardCell.closest('.mobile-target-card').querySelector('button[title="Testar porta agora"]') : null;
+        const actionBtnCard = statusCardCell ? statusCardCell.closest('.glass-card').querySelector('button') : null;
 
         const updateState = (statusEl, latencyEl, btnEl) => {
           if (!statusEl) return;
           if (isChecked) {
-            statusEl.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Sem dados</span>`;
+            statusEl.innerHTML = `<span class="badge badge-ghost badge-sm">Sem dados</span>`;
             if (btnEl) btnEl.disabled = false;
           } else {
-            statusEl.innerHTML = `<span class="status-badge inactive"><span class="dot"></span>Inativo</span>`;
-            if (latencyEl) {
-              if (latencyEl.tagName.toLowerCase() === 'span' && latencyEl.classList.contains('card-metric-latency')) {
-                latencyEl.innerHTML = `-`;
-              } else {
-                latencyEl.innerHTML = `<span class="td-latency none">-</span>`;
-              }
-            }
+            statusEl.innerHTML = `<span class="badge badge-ghost badge-sm">Inativo</span>`;
+            if (latencyEl) latencyEl.innerHTML = `<span class="text-xs text-base-content/25 font-mono">—</span>`;
             if (btnEl) btnEl.disabled = true;
           }
         };
 
         updateState(statusCell, latencyCell, actionBtnTable);
         updateState(statusCardCell, latencyCardCell, actionBtnCard);
-
-        // Update stats
         refreshStatusData();
         showToast(data.message, 'success');
       } else {
-        allCheckboxes.forEach(cb => cb.checked = !isChecked); // revert
+        allCheckboxes.forEach(cb => cb.checked = !isChecked);
         showToast('Erro ao atualizar status do alvo.', 'error');
       }
     })
-    .catch(err => {
-      allCheckboxes.forEach(cb => cb.checked = !isChecked); // revert
+    .catch(() => {
+      allCheckboxes.forEach(cb => cb.checked = !isChecked);
       showToast('Ocorreu um erro na requisição.', 'error');
     });
   }
 
-  // Delete target
+  // ── Delete Target ──────────────────────────────────────────
   function deleteTarget(id) {
-    if (!confirm('Deseja realmente excluir este alvo de monitoramento e todo o seu histórico?')) {
-      return;
-    }
+    if (!confirm('Deseja realmente excluir este alvo de monitoramento e todo o seu histórico?')) return;
 
     fetch(`/target/${id}/delete/`, {
       method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken,
-        'X-Requested-With': 'XMLHttpRequest'
-      }
+      headers: { 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' }
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
       if (data.status === 'success') {
-        const row = document.getElementById(`target-row-${id}`);
+        const row  = document.getElementById(`target-row-${id}`);
         const card = document.getElementById(`target-card-${id}`);
-
-        const removeElement = (el) => {
+        const removeElement = el => {
           if (!el) return;
-          el.style.transition = 'all 0.5s ease';
+          el.style.transition = 'all 0.4s ease';
           el.style.opacity = '0';
-          el.style.transform = 'translateX(-20px)';
-          setTimeout(() => el.remove(), 500);
+          el.style.transform = 'translateX(-1rem)';
+          setTimeout(() => el.remove(), 400);
         };
-
         removeElement(row);
         removeElement(card);
-
-        setTimeout(() => {
-          refreshStatusData();
-          // If no items left, reload to show empty state
-          if (document.querySelectorAll('.mobile-target-card').length === 0 &&
-              document.querySelectorAll('.data-table tbody tr').length === 0) {
-            window.location.reload();
-          }
-        }, 550);
-
+        setTimeout(() => { refreshStatusData(); }, 500);
         showToast(data.message, 'success');
       } else {
         showToast('Erro ao excluir o alvo.', 'error');
       }
     })
-    .catch(err => {
-      showToast('Ocorreu um erro de rede.', 'error');
-    });
+    .catch(() => showToast('Ocorreu um erro de rede.', 'error'));
   }
 
-  // Fetch real-time status from endpoint and update DOM
+  // ── Refresh Status Data ────────────────────────────────────
   function refreshStatusData(onComplete = null) {
     fetch('/api/status-update/')
       .then(res => res.json())
       .then(data => {
         if (data && data.targets) {
           data.targets.forEach(t => {
-            // 1. Update standalone targets list if exists
+            // Table status cell
             const statusCell = document.getElementById('status-cell-' + t.id);
             if (statusCell) {
               let badgeHTML = '';
               if (!t.is_active) {
-                badgeHTML = '<span class="status-badge inactive"><span class="dot"></span>Inativo</span>';
+                badgeHTML = '<span class="badge badge-ghost badge-sm">Inativo</span>';
               } else if (t.last_status === true) {
-                badgeHTML = '<span class="status-badge online"><span class="dot"></span>Aberta</span>';
+                badgeHTML = '<span class="badge badge-success badge-sm gap-1"><span class="w-1.5 h-1.5 rounded-full bg-current inline-block status-dot-pulse"></span>Aberta</span>';
               } else if (t.last_status === false) {
-                badgeHTML = '<span class="status-badge offline"><span class="dot"></span>Fechada</span>';
+                badgeHTML = '<span class="badge badge-error badge-sm gap-1"><span class="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>Fechada</span>';
               } else {
-                badgeHTML = '<span class="status-badge inactive"><span class="dot"></span>Sem dados</span>';
+                badgeHTML = '<span class="badge badge-ghost badge-sm">Sem dados</span>';
               }
-              if (statusCell.innerHTML !== badgeHTML) {
-                statusCell.innerHTML = badgeHTML;
-              }
+              if (statusCell.innerHTML !== badgeHTML) statusCell.innerHTML = badgeHTML;
             }
 
+            // Table latency cell
             const latencyCell = document.getElementById('latency-cell-' + t.id);
             if (latencyCell) {
-              let latencyHTML = '';
+              let html = '';
               if (!t.is_active || t.last_latency === null) {
-                latencyHTML = '<span class="td-latency none">-</span>';
+                html = '<span class="text-xs text-base-content/25 font-mono">—</span>';
               } else {
-                const speedClass = t.last_latency < 150 ? 'fast' : 'slow';
-                latencyHTML = `<span class="td-latency ${speedClass}">${t.last_latency} ms</span>`;
+                const cls = t.last_latency < 150 ? 'text-emerald-400' : 'text-amber-400';
+                html = `<span class="font-mono text-xs font-bold ${cls}">${t.last_latency}<span class="opacity-50 font-normal"> ms</span></span>`;
               }
-              if (latencyCell.innerHTML !== latencyHTML) {
-                latencyCell.innerHTML = latencyHTML;
-              }
+              if (latencyCell.innerHTML !== html) latencyCell.innerHTML = html;
             }
 
-            // 2. Update device sensors cards if exists
-            const sensorCard = document.getElementById('sensor-card-' + t.id);
-            const sensorVal = document.getElementById('sensor-val-' + t.id);
+            // Sensor card
+            const sensorCard    = document.getElementById('sensor-card-' + t.id);
+            const sensorVal     = document.getElementById('sensor-val-' + t.id);
             const sensorLatency = document.getElementById('sensor-latency-' + t.id);
-            const sensorDot = document.getElementById('sensor-dot-' + t.id);
+            const sensorDot     = document.getElementById('sensor-dot-' + t.id);
 
             if (sensorCard && sensorVal && sensorDot) {
               const displayVal = t.sensor_value || 'Sem dados';
-              if (sensorVal.innerText !== displayVal) {
-                sensorVal.innerText = displayVal;
-              }
+              if (sensorVal.innerText !== displayVal) sensorVal.innerText = displayVal;
 
-              // Update sensor colors
-              let cardBorder = 'rgba(255,255,255,0.05)';
-              let cardBg = 'rgba(0,0,0,0.1)';
-              let valColor = '#94a3b8';
-              let dotBg = '#64748b';
+              // Update colors
+              sensorCard.className = sensorCard.className
+                .replace(/border-emerald-500\/20|bg-emerald-500\/\[[\d.]+\]|border-red-500\/20|bg-red-500\/\[[\d.]+\]|opacity-50/g, '').trim();
 
               if (!t.is_active) {
-                cardBorder = 'rgba(100,116,139,0.2)';
-                cardBg = 'rgba(100,116,139,0.03)';
+                sensorCard.classList.add('opacity-50');
+                sensorVal.style.color = '';
+                sensorDot.style.background = '#475569';
               } else if (t.last_status === true) {
-                cardBorder = 'rgba(16,185,129,0.2)';
-                cardBg = 'rgba(16,185,129,0.03)';
-                valColor = '#34d399';
-                dotBg = '#10b981';
+                sensorCard.classList.add('border-emerald-500/20');
+                sensorVal.style.color = '#34d399';
+                sensorDot.style.background = '#10b981';
               } else if (t.last_status === false) {
-                cardBorder = 'rgba(239,68,68,0.2)';
-                cardBg = 'rgba(239,68,68,0.03)';
-                valColor = '#f87171';
-                dotBg = '#ef4444';
-              }
-
-              sensorCard.style.borderColor = cardBorder;
-              sensorCard.style.background = cardBg;
-              sensorVal.style.color = valColor;
-              sensorDot.style.background = dotBg;
-              sensorDot.style.boxShadow = `0 0 6.0px ${dotBg}`;
-
-              if (sensorLatency) {
-                sensorLatency.style.display = 'none';
+                sensorCard.classList.add('border-red-500/20');
+                sensorVal.style.color = '#f87171';
+                sensorDot.style.background = '#ef4444';
+              } else {
+                sensorVal.style.color = '';
+                sensorDot.style.background = '#475569';
               }
             }
           });
 
-          // Recalculate stats counts in DOM
           updateStats(data.targets, data.devices);
-
-          if (onComplete) {
-            onComplete(data.targets);
-          }
+          if (onComplete) onComplete(data.targets);
         }
       })
       .catch(err => console.error("Erro ao atualizar status:", err));
   }
 
-  // Scan a single target manually
+  // ── Scan Single Target ────────────────────────────────────
   function scanSingleTarget(id, button) {
     button.disabled = true;
     const originalContent = button.innerHTML;
-    button.innerHTML = `
-      <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 14px; height: 14px; animation: spin 1s linear infinite;">
-        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;"></circle>
-        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" style="opacity: 0.75;"></path>
-      </svg>
-    `;
+    button.innerHTML = `<svg class="animate-spin-custom" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:0.25;"></circle><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" style="opacity:0.75;"></path></svg>`;
 
-    fetch(`/target/${id}/check/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken
-      }
-    })
-    .then(response => response.json())
+    fetch(`/target/${id}/check/`, { method: 'POST', headers: { 'X-CSRFToken': csrftoken } })
+    .then(r => r.json())
     .then(data => {
       if (data.status === 'success') {
         showToast('Verificação agendada.', 'info');
-
         let attempts = 0;
         const intervalId = setInterval(() => {
           attempts++;
-          refreshStatusData((targets) => {
+          refreshStatusData(targets => {
             const currentTarget = targets.find(t => t.id === id);
             if ((currentTarget && currentTarget.sensor_value !== 'Aguardando 2ª leitura' && currentTarget.sensor_value !== 'Calculando...') || attempts >= 8) {
               clearInterval(intervalId);
@@ -1074,513 +1152,257 @@
         showToast('Erro ao disparar teste.', 'error');
       }
     })
-    .catch(err => {
-      button.disabled = false;
-      button.innerHTML = originalContent;
-      showToast('Ocorreu um erro de rede.', 'error');
-    });
+    .catch(() => { button.disabled = false; button.innerHTML = originalContent; showToast('Erro de rede.', 'error'); });
   }
 
-  // Set background polling every 10 seconds
+  // Background polling every 10s
   setInterval(refreshStatusData, 10000);
 
-  // Scan all targets manually
+  // ── Scan All Targets ──────────────────────────────────────
   function scanAllTargets() {
     const btn = document.getElementById('btn-scan-all');
     btn.disabled = true;
-
-    fetch(`/check-all/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken
-      }
-    })
-    .then(response => response.json())
+    fetch('/check-all/', { method: 'POST', headers: { 'X-CSRFToken': csrftoken } })
+    .then(r => r.json())
     .then(data => {
       if (data.status === 'success') {
-        showToast('Varredura global agendada nas tarefas Celery! Aguarde alguns segundos...', 'success');
+        showToast('Varredura global agendada! Aguarde alguns segundos...', 'success');
         setTimeout(() => window.location.reload(), 2000);
-      } else {
-        btn.disabled = false;
-        showToast('Erro ao iniciar varredura global.', 'error');
-      }
+      } else { btn.disabled = false; showToast('Erro ao iniciar varredura global.', 'error'); }
     })
-    .catch(err => {
-      btn.disabled = false;
-      showToast('Ocorreu um erro na requisição.', 'error');
-    });
+    .catch(() => { btn.disabled = false; showToast('Erro de rede.', 'error'); });
   }
 
-  // Recalculate stats cards dynamic numbers (without full page refresh)
+  // ── Update Stats Counters ─────────────────────────────────
   function updateStats(targets, devices) {
     if (!targets) return;
 
-    const filteredTargets = activeGroupId ? targets.filter(t => {
-      const gIdStr = String(t.group_id || '');
-      const devGIdStr = String(t.device__group_id || '');
-      return gIdStr === activeGroupId || devGIdStr === activeGroupId;
-    }) : targets;
+    const filteredTargets = activeGroupId
+      ? targets.filter(t => String(t.group_id||'') === activeGroupId || String(t.device__group_id||'') === activeGroupId)
+      : targets;
 
     const portTargets = filteredTargets.filter(t => t.device_id === null);
-    const portTotal = portTargets.length;
-    const portOnline = portTargets.filter(t => t.is_active && t.last_status === true).length;
+    const portTotal   = portTargets.length;
+    const portOnline  = portTargets.filter(t => t.is_active && t.last_status === true).length;
     const portOffline = portTargets.filter(t => t.is_active && t.last_status === false).length;
-    const portInactive = portTargets.filter(t => !t.is_active).length;
+    const portInactive= portTargets.filter(t => !t.is_active).length;
 
-    const statTotalEl = document.getElementById('stat-total');
-    const statOnlineEl = document.getElementById('stat-online');
-    const statOfflineEl = document.getElementById('stat-offline');
-    const statInactiveEl = document.getElementById('stat-inactive');
-
-    if (statTotalEl) statTotalEl.innerText = portTotal;
-    if (statOnlineEl) statOnlineEl.innerText = portOnline;
-    if (statOfflineEl) statOfflineEl.innerText = portOffline;
-    if (statInactiveEl) statInactiveEl.innerText = portInactive;
+    const st = document.getElementById('stat-total');
+    const so = document.getElementById('stat-online');
+    const sf = document.getElementById('stat-offline');
+    const si = document.getElementById('stat-inactive');
+    if (st) st.innerText = portTotal;
+    if (so) so.innerText = portOnline;
+    if (sf) sf.innerText = portOffline;
+    if (si) si.innerText = portInactive;
 
     if (devices) {
-      const filteredDevices = activeGroupId ? devices.filter(d => String(d.group_id || '') === activeGroupId) : devices;
+      const filteredDevices = activeGroupId
+        ? devices.filter(d => String(d.group_id||'') === activeGroupId)
+        : devices;
 
-      let devTotal = filteredDevices.length;
-      let devOnline = 0;
-      let devOffline = 0;
-      let devInactive = 0;
-
+      let devTotal = filteredDevices.length, devOnline = 0, devOffline = 0, devInactive = 0;
       filteredDevices.forEach(d => {
-        if (!d.is_active) {
-          devInactive++;
-        } else {
-          const sensors = targets.filter(t => t.device_id === d.id);
-          if (sensors.length === 0) {
-            devOffline++;
-          } else {
-            const pingSensor = sensors.find(s => s.sensor_type === 'ping');
-            if (pingSensor) {
-              if (pingSensor.last_status === true) {
-                devOnline++;
-              } else {
-                devOffline++;
-              }
-            } else {
-              if (sensors.some(s => s.last_status === true)) {
-                devOnline++;
-              } else {
-                devOffline++;
-              }
-            }
-          }
-        }
+        if (!d.is_active) { devInactive++; return; }
+        const sensors = targets.filter(t => t.device_id === d.id);
+        if (sensors.length === 0) { devOffline++; return; }
+        const pingSensor = sensors.find(s => s.sensor_type === 'ping');
+        if (pingSensor) { pingSensor.last_status === true ? devOnline++ : devOffline++; }
+        else { sensors.some(s => s.last_status === true) ? devOnline++ : devOffline++; }
       });
 
-      const devTotalEl = document.getElementById('device-stat-total');
-      const devOnlineEl = document.getElementById('device-stat-online');
-      const devOfflineEl = document.getElementById('device-stat-offline');
-      const devInactiveEl = document.getElementById('device-stat-inactive');
-
-      if (devTotalEl) devTotalEl.innerText = devTotal;
-      if (devOnlineEl) devOnlineEl.innerText = devOnline;
-      if (devOfflineEl) devOfflineEl.innerText = devOffline;
-      if (devInactiveEl) devInactiveEl.innerText = devInactive;
+      const dt = document.getElementById('device-stat-total');
+      const do_ = document.getElementById('device-stat-online');
+      const df = document.getElementById('device-stat-offline');
+      const di = document.getElementById('device-stat-inactive');
+      if (dt) dt.innerText = devTotal;
+      if (do_) do_.innerText = devOnline;
+      if (df) df.innerText = devOffline;
+      if (di) di.innerText = devInactive;
     }
   }
 
-  // Toast notification helper
+  // ── Toast Notification ────────────────────────────────────
   function showToast(message, type) {
-    // Create alert element
-    const container = document.querySelector('.main-content');
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type} glass-panel`;
-    alert.style.position = 'fixed';
-    alert.style.top = '2rem';
-    alert.style.right = '2rem';
-    alert.style.zIndex = '9999';
-    alert.style.minWidth = '300px';
-    alert.style.boxShadow = 'var(--shadow-lg)';
-    alert.innerHTML = `
-      <span>${message}</span>
-      <button class="alert-close" onclick="this.parentElement.remove();">&times;</button>
-    `;
-    document.body.appendChild(alert);
-
+    const toast = document.createElement('div');
+    const colorMap = { success:'alert-success', error:'alert-error', warning:'alert-warning', info:'alert-info' };
+    toast.className = `alert ${colorMap[type] || 'alert-info'} shadow-xl toast-slide`;
+    toast.style.cssText = 'position:fixed;top:1.5rem;right:1.5rem;z-index:9999;min-width:280px;max-width:380px;';
+    toast.innerHTML = `<span class="text-sm">${message}</span><button class="btn btn-ghost btn-xs ml-auto" onclick="this.parentElement.remove()">✕</button>`;
+    document.body.appendChild(toast);
     setTimeout(() => {
-      alert.style.transition = 'opacity 0.5s ease';
-      alert.style.opacity = '0';
-      setTimeout(() => alert.remove(), 500);
+      toast.style.transition = 'opacity 0.4s ease';
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 400);
     }, 4000);
   }
 
-  // Switch between Alvos (Targets), Equipamentos (Devices), Grupos (Groups) and Auditoria (Audit Logs) Views
+  // ── Switch View Tab ───────────────────────────────────────
   function switchViewTab(mode) {
-    const targetsView = document.getElementById('view-targets');
-    const devicesView = document.getElementById('view-devices');
-    const groupsView = document.getElementById('view-groups');
-    const auditView = document.getElementById('view-audit');
-    const targetsBtn = document.getElementById('tab-btn-targets');
-    const devicesBtn = document.getElementById('tab-btn-devices');
-    const groupsBtn = document.getElementById('tab-btn-groups');
-    const auditBtn = document.getElementById('tab-btn-audit');
-
-    const overviewPorts = document.getElementById('overview-ports');
+    const views = {
+      targets:  document.getElementById('view-targets'),
+      devices:  document.getElementById('view-devices'),
+      groups:   document.getElementById('view-groups'),
+      audit:    document.getElementById('view-audit'),
+    };
+    const overviewPorts   = document.getElementById('overview-ports');
     const overviewDevices = document.getElementById('overview-devices');
+    const tabs = {
+      targets: document.getElementById('tab-btn-targets'),
+      devices: document.getElementById('tab-btn-devices'),
+      groups:  document.getElementById('tab-btn-groups'),
+      audit:   document.getElementById('tab-btn-audit'),
+    };
 
-    if (!targetsView) return;
-
-    targetsView.style.display = 'none';
-    if (devicesView) devicesView.style.display = 'none';
-    if (groupsView) groupsView.style.display = 'none';
-    if (auditView) auditView.style.display = 'none';
-
-    if (overviewPorts) overviewPorts.style.display = 'none';
+    // Hide all
+    Object.values(views).forEach(v => { if (v) v.style.display = 'none'; });
+    if (overviewPorts)   overviewPorts.style.display   = 'none';
     if (overviewDevices) overviewDevices.style.display = 'none';
+    Object.values(tabs).forEach(t => { if (t) { t.classList.remove('tab-active'); } });
 
-    if (targetsBtn) {
-      targetsBtn.style.color = 'var(--text-muted)';
-      targetsBtn.style.borderBottomColor = 'transparent';
-    }
-    if (devicesBtn) {
-      devicesBtn.style.color = 'var(--text-muted)';
-      devicesBtn.style.borderBottomColor = 'transparent';
-    }
-    if (groupsBtn) {
-      groupsBtn.style.color = 'var(--text-muted)';
-      groupsBtn.style.borderBottomColor = 'transparent';
-    }
-    if (auditBtn) {
-      auditBtn.style.color = 'var(--text-muted)';
-      auditBtn.style.borderBottomColor = 'transparent';
+    // Show active
+    if (views[mode]) views[mode].style.display = 'block';
+    if (tabs[mode])  tabs[mode].classList.add('tab-active');
+
+    if (mode === 'targets') {
+      if (overviewPorts) overviewPorts.style.display = 'block';
+    } else if (mode === 'devices') {
+      if (overviewDevices) overviewDevices.style.display = 'block';
     }
 
-    if (mode === 'devices') {
-      if (devicesView) devicesView.style.display = 'block';
-      if (overviewDevices) overviewDevices.style.display = 'grid';
-      if (devicesBtn) {
-        devicesBtn.style.color = 'white';
-        devicesBtn.style.borderBottomColor = 'var(--primary)';
-      }
-      sessionStorage.setItem('active_dashboard_tab', 'devices');
-    } else if (mode === 'groups') {
-      if (groupsView) groupsView.style.display = 'block';
-      if (groupsBtn) {
-        groupsBtn.style.color = 'white';
-        groupsBtn.style.borderBottomColor = 'var(--primary)';
-      }
-      sessionStorage.setItem('active_dashboard_tab', 'groups');
-    } else if (mode === 'audit') {
-      if (auditView) auditView.style.display = 'block';
-      if (auditBtn) {
-        auditBtn.style.color = 'white';
-        auditBtn.style.borderBottomColor = 'var(--primary)';
-      }
-      sessionStorage.setItem('active_dashboard_tab', 'audit');
-    } else {
-      targetsView.style.display = 'block';
-      if (overviewPorts) overviewPorts.style.display = 'grid';
-      if (targetsBtn) {
-        targetsBtn.style.color = 'white';
-        targetsBtn.style.borderBottomColor = 'var(--primary)';
-      }
-      sessionStorage.setItem('active_dashboard_tab', 'targets');
-    }
+    sessionStorage.setItem('active_dashboard_tab', mode);
   }
 
-  // Restore active tab on load
+  // ── DOMContentLoaded ──────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
+
+    // Restore tab
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('group')) {
       switchViewTab('targets');
     } else {
       const savedTab = sessionStorage.getItem('active_dashboard_tab');
-      if (savedTab === 'groups') {
-        switchViewTab('groups');
-      } else if (savedTab === 'devices') {
-        switchViewTab('devices');
-      } else if (savedTab === 'audit') {
-        switchViewTab('audit');
-      } else {
-        switchViewTab('targets');
-      }
+      switchViewTab(['groups','devices','audit'].includes(savedTab) ? savedTab : 'targets');
     }
 
+    // ── Doughnut: Portas ──
     const ctx = document.getElementById('systemStatusChart');
     let statusChart;
     if (ctx) {
-      const onlineCount = parseInt(document.getElementById('stat-online').innerText) || 0;
-      const offlineCount = parseInt(document.getElementById('stat-offline').innerText) || 0;
+      const onlineCount   = parseInt(document.getElementById('stat-online').innerText)   || 0;
+      const offlineCount  = parseInt(document.getElementById('stat-offline').innerText)  || 0;
       const inactiveCount = parseInt(document.getElementById('stat-inactive').innerText) || 0;
-
       statusChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: ['Abertas', 'Fechadas', 'Inativos'],
-          datasets: [{
-            data: [onlineCount, offlineCount, inactiveCount],
-            backgroundColor: [
-              '#10b981',
-              '#ef4444',
-              '#64748b'
-            ],
-            borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.05)'
-          }]
+          labels: ['Abertas','Fechadas','Inativos'],
+          datasets: [{ data: [onlineCount, offlineCount, inactiveCount],
+            backgroundColor: ['#10b981','#ef4444','#475569'],
+            borderWidth: 2, borderColor: 'rgba(255,255,255,0.04)' }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false, cutout: '72%',
           plugins: {
-            legend: {
-              display: false
-            },
+            legend: { display: false },
             tooltip: {
               callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.parsed || 0;
-                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                  return ` ${label}: ${value} (${percentage}%)`;
+                label(ctx) {
+                  const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+                  const pct   = total > 0 ? ((ctx.parsed/total)*100).toFixed(1) : 0;
+                  return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
                 }
               }
             }
-          },
-          cutout: '70%'
+          }
         }
       });
     }
 
+    // ── Doughnut: Devices ──
     const deviceCtx = document.getElementById('deviceStatusChart');
     let deviceStatusChart;
     if (deviceCtx) {
-      const devOnlineCount = parseInt(document.getElementById('device-stat-online').innerText) || 0;
-      const devOfflineCount = parseInt(document.getElementById('device-stat-offline').innerText) || 0;
-      const devInactiveCount = parseInt(document.getElementById('device-stat-inactive').innerText) || 0;
-
+      const dOn  = parseInt(document.getElementById('device-stat-online').innerText)   || 0;
+      const dOff = parseInt(document.getElementById('device-stat-offline').innerText)  || 0;
+      const dIn  = parseInt(document.getElementById('device-stat-inactive').innerText) || 0;
       deviceStatusChart = new Chart(deviceCtx, {
         type: 'doughnut',
         data: {
-          labels: ['Online', 'Offline', 'Inativos'],
-          datasets: [{
-            data: [devOnlineCount, devOfflineCount, devInactiveCount],
-            backgroundColor: [
-              '#10b981',
-              '#ef4444',
-              '#64748b'
-            ],
-            borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.05)'
-          }]
+          labels: ['Online','Offline','Inativos'],
+          datasets: [{ data: [dOn, dOff, dIn],
+            backgroundColor: ['#10b981','#ef4444','#475569'],
+            borderWidth: 2, borderColor: 'rgba(255,255,255,0.04)' }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false, cutout: '72%',
           plugins: {
-            legend: {
-              display: false
-            },
+            legend: { display: false },
             tooltip: {
               callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.parsed || 0;
-                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                  return ` ${label}: ${value} (${percentage}%)`;
+                label(ctx) {
+                  const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+                  const pct   = total > 0 ? ((ctx.parsed/total)*100).toFixed(1) : 0;
+                  return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
                 }
               }
             }
-          },
-          cutout: '70%'
+          }
         }
       });
     }
 
-    const originalUpdateStats = window.updateStats;
+    // Patch updateStats to also refresh charts
+    const _origUpdateStats = window.updateStats || updateStats;
     window.updateStats = function(targets, devices) {
-      if (originalUpdateStats) {
-        originalUpdateStats(targets, devices);
-      }
-
+      _origUpdateStats(targets, devices);
       if (statusChart) {
-        const newOnline = parseInt(document.getElementById('stat-online').innerText) || 0;
-        const newOffline = parseInt(document.getElementById('stat-offline').innerText) || 0;
-        const newInactive = parseInt(document.getElementById('stat-inactive').innerText) || 0;
-        statusChart.data.datasets[0].data = [newOnline, newOffline, newInactive];
-        statusChart.update();
+        const newOn  = parseInt(document.getElementById('stat-online').innerText)   || 0;
+        const newOff = parseInt(document.getElementById('stat-offline').innerText)  || 0;
+        const newIn  = parseInt(document.getElementById('stat-inactive').innerText) || 0;
+        statusChart.data.datasets[0].data = [newOn, newOff, newIn];
+        statusChart.update('none');
       }
-
       if (deviceStatusChart) {
-        const newDevOnline = parseInt(document.getElementById('device-stat-online').innerText) || 0;
-        const newDevOffline = parseInt(document.getElementById('device-stat-offline').innerText) || 0;
-        const newDevInactive = parseInt(document.getElementById('device-stat-inactive').innerText) || 0;
-        deviceStatusChart.data.datasets[0].data = [newDevOnline, newDevOffline, newDevInactive];
-        deviceStatusChart.update();
+        const dO  = parseInt(document.getElementById('device-stat-online').innerText)   || 0;
+        const dOf = parseInt(document.getElementById('device-stat-offline').innerText)  || 0;
+        const dI  = parseInt(document.getElementById('device-stat-inactive').innerText) || 0;
+        deviceStatusChart.data.datasets[0].data = [dO, dOf, dI];
+        deviceStatusChart.update('none');
       }
     };
 
-      // Functions to download group SLA PDF with custom period
-      window.downloadGroupPDF = function(groupId) {
-        const startEl = document.getElementById('pdf_start_date_' + groupId);
-        const endEl = document.getElementById('pdf_end_date_' + groupId);
-        const startDate = startEl ? startEl.value : '';
-        const endDate = endEl ? endEl.value : '';
-        window.open('/group/' + groupId + '/pdf/?start_date=' + startDate + '&end_date=' + endDate, '_blank');
-      };
+    // ── PDF helpers ──
+    window.downloadGroupPDF = function(groupId) {
+      const s = document.getElementById('pdf_start_date_' + groupId);
+      const e = document.getElementById('pdf_end_date_' + groupId);
+      window.open('/group/' + groupId + '/pdf/?start_date=' + (s?s.value:'') + '&end_date=' + (e?e.value:''), '_blank');
+    };
+    window.downloadSelectedGroupPDF = function(groupId) {
+      const s = document.getElementById('pdf_start_date_selected');
+      const e = document.getElementById('pdf_end_date_selected');
+      window.open('/group/' + groupId + '/pdf/?start_date=' + (s?s.value:'') + '&end_date=' + (e?e.value:''), '_blank');
+    };
+    window.sendMonthlyReport = function() {
+      if (!confirm('Disparar o envio do relatório mensal de SLA para o Telegram agora?')) return;
+      const btn = document.getElementById('btn-send-report');
+      const orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = 'Enviando...';
+      fetch('/send-monthly-report/', { method:'POST', headers:{'X-CSRFToken': csrftoken} })
+      .then(r => r.json())
+      .then(data => {
+        btn.disabled = false; btn.innerHTML = orig;
+        if (data.status === 'success') alert('Tarefa disparada com sucesso! A mensagem será entregue no Telegram em breve.');
+        else alert('Erro ao disparar tarefa.');
+      })
+      .catch(() => { btn.disabled = false; btn.innerHTML = orig; alert('Erro de rede.'); });
+    };
 
-      window.downloadSelectedGroupPDF = function(groupId) {
-        const startEl = document.getElementById('pdf_start_date_selected');
-        const endEl = document.getElementById('pdf_end_date_selected');
-        const startDate = startEl ? startEl.value : '';
-        const endDate = endEl ? endEl.value : '';
-        window.open('/group/' + groupId + '/pdf/?start_date=' + startDate + '&end_date=' + endDate, '_blank');
-      };
-
-      window.sendMonthlyReport = function() {
-        if (!confirm('Disparar o envio do relatório mensal de SLA para o Telegram agora?')) return;
-
-        const btn = document.getElementById('btn-send-report');
-        const originalText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = 'Enviando...';
-
-        fetch(`/send-monthly-report/`, {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': csrftoken
-          }
-        })
-        .then(response => response.json())
-        .then(data => {
-          btn.disabled = false;
-          btn.innerHTML = originalText;
-          if (data.status === 'success') {
-            alert('Tarefa de relatório mensal disparada com sucesso! Em breve a mensagem será entregue no Telegram.');
-          } else {
-            alert('Erro ao disparar tarefa.');
-          }
-        })
-        .catch(err => {
-          btn.disabled = false;
-          btn.innerHTML = originalText;
-          alert('Erro de rede.');
-        });
-      };
-
-      // Set default dates on load (last 30 days)
-      const today = new Date().toISOString().split('T')[0];
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      // Auto-populate all start date inputs
-      document.querySelectorAll("[id^='pdf_start_date_']").forEach(el => {
-        el.value = thirtyDaysAgo;
-      });
-      // Auto-populate all end date inputs
-      document.querySelectorAll("[id^='pdf_end_date_']").forEach(el => {
-        el.value = today;
-      });
+    // Auto-populate PDF date inputs (last 30 days)
+    const today         = new Date().toISOString().split('T')[0];
+    const thirtyDaysAgo= new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+    document.querySelectorAll("[id^='pdf_start_date_']").forEach(el => { el.value = thirtyDaysAgo; });
+    document.querySelectorAll("[id^='pdf_end_date_']").forEach(el => { el.value = today; });
 
   });
 </script>
-
-<style>
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  .host-link {
-    color: inherit;
-    text-decoration: none;
-    transition: color 0.2s ease;
-  }
-  .host-link:hover {
-    color: var(--primary) !important;
-    text-decoration: underline;
-  }
-
-  .pdf-dates-wrapper {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    width: 100%;
-  }
-  .pdf-dates-wrapper > div {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .pdf-dates-wrapper > div > input {
-    flex: 1;
-    min-width: 0;
-  }
-
-  @media (max-width: 550px) {
-    .pdf-dates-wrapper {
-      flex-direction: column;
-      align-items: stretch !important;
-      gap: 0.35rem;
-    }
-    .pdf-dates-wrapper > div {
-      width: 100%;
-    }
-  }
-
-  /* Specifically stack the dates vertically in group cards to prevent squishing on desktop */
-  .group-card .pdf-dates-wrapper {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-  }
-  .group-card .pdf-dates-wrapper > div {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .group-card .pdf-dates-wrapper > div > span {
-    min-width: 30px;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    display: inline-block;
-  }
-  .group-card .pdf-dates-wrapper > div > input {
-    flex: 1;
-    min-width: 0;
-    padding: 0.35rem 0.5rem !important;
-    height: 32px !important;
-    font-size: 0.8rem !important;
-  }
-
-  @media (max-width: 650px) {
-    .group-info-bar {
-      flex-direction: column;
-      gap: 0.75rem;
-      align-items: stretch !important;
-      text-align: center;
-    }
-    .group-info-bar > div:last-child {
-      flex-direction: column;
-      align-items: stretch !important;
-      width: 100%;
-    }
-    .group-info-bar > div:last-child > .pdf-dates-wrapper {
-      flex-direction: column;
-      align-items: stretch !important;
-      width: 100%;
-      gap: 0.5rem !important;
-    }
-    .group-info-bar > div:last-child > .pdf-dates-wrapper > div {
-      width: 100%;
-    }
-    .group-info-bar > div:last-child > .pdf-dates-wrapper > div > input {
-      width: 100%;
-    }
-    .group-info-bar > div:last-child > .pdf-dates-wrapper > button {
-      width: 100% !important;
-      margin-left: 0 !important;
-    }
-    .group-info-bar > div:last-child > a {
-      width: 100%;
-      justify-content: center;
-    }
-  }
-</style>
 {% endblock %}
