@@ -35,10 +35,8 @@ case "$APP_ROLE" in
     echo "Coletando arquivos estáticos..."
     python manage.py collectstatic --noinput
 
-    echo "Ajustando permissões de mídia e estáticos..."
+    echo "Garantindo diretórios de mídia e estáticos..."
     mkdir -p /app/staticfiles /app/media
-    chown -R root:root /app/staticfiles /app/media || true
-    chmod -R 777 /app/staticfiles /app/media || true
 
     echo "Iniciando servidor web..."
     exec gunicorn app.wsgi:application --bind 0.0.0.0:8003
