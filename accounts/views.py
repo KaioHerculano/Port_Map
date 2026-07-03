@@ -3,7 +3,6 @@ from typing import Any, Union
 
 from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import redirect
 from django.views.generic import FormView, View
@@ -36,7 +35,6 @@ class UserLoginForm(forms.Form):
     )
 
 
-
 class UserLoginView(FormView):
     template_name = "accounts/login.html"
     form_class = UserLoginForm
@@ -63,7 +61,6 @@ class UserLoginView(FormView):
                 "Credenciais inválidas. Verifique o usuário/e-mail e a senha.",
             )
             return self.form_invalid(form)
-
 
 
 class UserLogoutView(View):
