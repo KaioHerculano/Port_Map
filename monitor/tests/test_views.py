@@ -13,16 +13,16 @@ class MonitorViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.fake = Faker()
-        cls.user_password = cls.self.fake.password()
-        cls.test_port_1 = cls.self.fake.port_number()
-        cls.test_port_2 = cls.self.fake.port_number()
+        cls.user_password = cls.fake.password()
+        cls.test_port_1 = cls.fake.port_number()
+        cls.test_port_2 = cls.fake.port_number()
 
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(
-            username=self.self.fake.user_name(),
+            username=self.fake.user_name(),
             password=self.user_password,
-            email=self.self.fake.email(),
+            email=self.fake.email(),
         )
         self.client.login(username=self.user.username, password=self.user_password)
 
