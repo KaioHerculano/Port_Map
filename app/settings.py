@@ -162,14 +162,28 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # WhiteNoise storage to compress and hash static files for long-term caching
+# Usamos o storage simples em desenvolvimento (DEBUG=True) para evitar erros de permissao (utime/chmod) no WSL/Windows.
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "file_permissions_mode": None,
+            "directory_permissions_mode": None,
+        },
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
     },
 }
+
+
+# Evita o erro de PermissionError ao dar chmod em arquivos estáticos montados via volumes docker (comum em WSL/Windows)
+FILE_UPLOAD_PERMISSIONS = None
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = None
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

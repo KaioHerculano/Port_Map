@@ -29,14 +29,14 @@ fi
 case "$APP_ROLE" in
 
   web)
+    echo "Garantindo diretórios de mídia e estáticos..."
+    mkdir -p /app/staticfiles /app/media
+
     echo "Aplicando migrations..."
     python manage.py migrate --noinput
 
     echo "Coletando arquivos estáticos..."
     python manage.py collectstatic --noinput
-
-    echo "Garantindo diretórios de mídia e estáticos..."
-    mkdir -p /app/staticfiles /app/media
 
     echo "Iniciando servidor web..."
     exec gunicorn app.wsgi:application --bind 0.0.0.0:8003
