@@ -7,6 +7,22 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
+  /* ── Pill Tabs (nav tabs + filter tabs) ── */
+  .tab-pill-active {
+    background: rgba(255,255,255,0.08);
+    color: white;
+    font-weight: 700;
+  }
+  .tab-pill-inactive {
+    background: transparent;
+    color: rgba(255,255,255,0.35);
+    font-weight: 600;
+  }
+  .tab-pill-inactive:hover {
+    color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.04);
+  }
+
   /* ── Stats Cards NOC ── */
   .noc-stat-card {
     background: rgba(255,255,255,0.03);
@@ -71,10 +87,30 @@
   .group-card .pdf-dates-wrapper > div { width: 100%; display: flex; align-items: center; gap: 8px; }
   .group-card .pdf-dates-wrapper > div > span { min-width: 30px; font-size: 0.75rem; opacity: 0.45; }
   .group-card .pdf-dates-wrapper > div > input { flex: 1; min-width: 0; }
+  .group-card .group-actions-row > form { flex: 1; min-width: 0; }
+  .group-card .group-actions-row > form > button { width: 100%; }
+  .device-actions-row > form { flex: 1; min-width: 0; }
+  .device-actions-row > form > button,
+  .device-actions-row > a { width: 100%; }
 
   /* ── Recent log row ── */
-  .log-row { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.75rem; border-radius: 0.6rem; transition: background 0.15s; }
+  .log-row { transition: background 0.15s; }
   .log-row:hover { background: rgba(255,255,255,0.03); }
+
+  /* ── Dashboard header actions ── */
+  .dashboard-action-btn {
+    width: 100%;
+    min-width: 0;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center;
+    gap: 0.375rem;
+    white-space: nowrap;
+  }
+  .dashboard-action-btn span { overflow: hidden; text-overflow: ellipsis; }
+  @media (min-width: 640px) {
+    .dashboard-action-btn { width: auto; }
+  }
 
   /* ── Spin animation ── */
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -98,39 +134,39 @@
 <!-- ══════════════════════════════════════════════════
      PAGE HEADER
 ══════════════════════════════════════════════════ -->
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-  <div>
-    <h1 class="text-2xl font-black tracking-tight text-base-content">Painel de Monitoramento</h1>
-    <p class="text-sm text-base-content/40 mt-0.5">Estado de conectividade em tempo real · atualiza a cada 10s</p>
+<div class="flex flex-col gap-4 mb-6">
+  <div class="min-w-0">
+    <h1 class="text-xl sm:text-2xl font-black tracking-tight text-base-content">Painel de Monitoramento</h1>
+    <p class="text-xs sm:text-sm text-base-content/40 mt-0.5">Estado de conectividade em tempo real · atualiza a cada 10s</p>
   </div>
-  <div class="flex flex-wrap items-center gap-2">
+  <div class="flex flex-col gap-2 w-full sm:flex-row sm:flex-wrap sm:w-auto">
     <button id="btn-send-report" onclick="sendMonthlyReport()"
-      class="btn btn-sm btn-ghost gap-1.5 text-base-content/60 hover:text-base-content border border-white/10">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+      class="dashboard-action-btn inline-flex items-center justify-center gap-1.5 h-7 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/8 transition-colors">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
-      Relatório Mensal
+      <span>Relatório Mensal</span>
     </button>
     <button id="btn-scan-all" onclick="scanAllTargets()"
-      class="btn btn-sm btn-ghost gap-1.5 text-base-content/60 hover:text-base-content border border-white/10">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+      class="dashboard-action-btn inline-flex items-center justify-center gap-1.5 h-7 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/8 transition-colors">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
       </svg>
-      Testar Todos
+      <span>Testar Todos</span>
     </button>
     <a href="{% url 'add_targets' %}"
-      class="btn btn-sm btn-ghost gap-1.5 text-base-content/60 hover:text-base-content border border-white/10">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+      class="dashboard-action-btn inline-flex items-center justify-center gap-1.5 h-7 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/8 transition-colors">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
-      Nova Porta/Grupo
+      <span>Nova Porta/Grupo</span>
     </a>
     <a href="{% url 'add_device' %}"
-      class="btn btn-sm btn-primary gap-1.5 shadow-lg shadow-primary/20">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+      class="dashboard-action-btn inline-flex items-center justify-center gap-1.5 h-7 px-3 rounded-lg bg-primary text-primary-content text-xs font-semibold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
-      Novo Equipamento
+      <span>Novo Equipamento</span>
     </a>
   </div>
 </div>
@@ -140,80 +176,84 @@
      NOC STATS — ALVOS (Ports)
 ══════════════════════════════════════════════════ -->
 <div id="overview-ports">
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-6">
 
-    <!-- Total -->
-    <div class="noc-stat-card">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label">Total Alvos</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-30">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
-        </svg>
+    <!-- Esquerda: 2×2 de cards -->
+    <div class="grid grid-cols-2 gap-3 lg:col-span-2">
+
+      <!-- Total -->
+      <div class="noc-stat-card">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label">Total Alvos</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-30">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
+          </svg>
+        </div>
+        <div id="stat-total" class="noc-stat-value text-base-content">{{ total_count }}</div>
+        <div class="noc-stat-sub">Monitorados</div>
       </div>
-      <div id="stat-total" class="noc-stat-value text-base-content">{{ total_count }}</div>
-      <div class="noc-stat-sub">Monitorados</div>
+
+      <!-- Abertas -->
+      <div class="noc-stat-card border-emerald-500/20 bg-emerald-500/5">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label text-emerald-400">Portas Abertas</span>
+          <div class="w-2 h-2 rounded-full bg-emerald-400 status-dot-pulse"></div>
+        </div>
+        <div id="stat-online" class="noc-stat-value text-emerald-400">{{ online_count }}</div>
+        <div class="noc-stat-sub">TCP respondendo</div>
+      </div>
+
+      <!-- Fechadas -->
+      <div class="noc-stat-card border-red-500/20 bg-red-500/5">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label text-red-400">Portas Fechadas</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-red-400/50">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div id="stat-offline" class="noc-stat-value text-red-400">{{ offline_count }}</div>
+        <div class="noc-stat-sub">Sem resposta</div>
+      </div>
+
+      <!-- Inativos -->
+      <div class="noc-stat-card border-amber-500/20 bg-amber-500/5">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label text-amber-400">Inativos</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-amber-400/50">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+        </div>
+        <div id="stat-inactive" class="noc-stat-value text-amber-400">{{ inactive_count }}</div>
+        <div class="noc-stat-sub">Desabilitados</div>
+      </div>
+
     </div>
 
-    <!-- Abertas -->
-    <div class="noc-stat-card border-emerald-500/20 bg-emerald-500/5">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label text-emerald-400">Portas Abertas</span>
-        <div class="w-2 h-2 rounded-full bg-emerald-400 status-dot-pulse"></div>
+    <!-- Direita: Donut chart (altura total, centralizado) -->
+    <div class="noc-stat-card flex flex-col items-center justify-center gap-5 py-6">
+      <div class="relative w-36 h-36 flex-shrink-0">
+        <canvas id="systemStatusChart"></canvas>
+        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span class="text-xs text-base-content/40 font-medium">Estado</span>
+          <span class="text-sm font-black text-base-content">Portas</span>
+        </div>
       </div>
-      <div id="stat-online" class="noc-stat-value text-emerald-400">{{ online_count }}</div>
-      <div class="noc-stat-sub">TCP respondendo</div>
+      <div class="flex flex-row gap-4">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
+          <span class="text-xs text-base-content/60">Abertas</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block flex-shrink-0"></span>
+          <span class="text-xs text-base-content/60">Fechadas</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-500 inline-block flex-shrink-0"></span>
+          <span class="text-xs text-base-content/60">Inativos</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Fechadas -->
-    <div class="noc-stat-card border-red-500/20 bg-red-500/5">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label text-red-400">Portas Fechadas</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-red-400/50">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </div>
-      <div id="stat-offline" class="noc-stat-value text-red-400">{{ offline_count }}</div>
-      <div class="noc-stat-sub">Sem resposta</div>
-    </div>
-
-    <!-- Inativos + Chart -->
-    <div class="noc-stat-card border-amber-500/20 bg-amber-500/5">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label text-amber-400">Inativos</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-amber-400/50">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-        </svg>
-      </div>
-      <div id="stat-inactive" class="noc-stat-value text-amber-400">{{ inactive_count }}</div>
-      <div class="noc-stat-sub">Desabilitados</div>
-    </div>
-  </div>
-
-  <!-- Donut chart -->
-  <div class="glass-card rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-center gap-6">
-    <div class="relative w-36 h-36 flex-shrink-0">
-      <canvas id="systemStatusChart"></canvas>
-      <!-- Center label -->
-      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span class="text-xs text-base-content/40 font-medium">Estado</span>
-        <span class="text-sm font-black text-base-content">Portas</span>
-      </div>
-    </div>
-    <!-- Legend -->
-    <div class="flex sm:flex-col gap-4 sm:gap-2">
-      <div class="flex items-center gap-2">
-        <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
-        <span class="text-xs text-base-content/60">Abertas</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="w-3 h-3 rounded-full bg-red-400 inline-block flex-shrink-0"></span>
-        <span class="text-xs text-base-content/60">Fechadas</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="w-3 h-3 rounded-full bg-slate-500 inline-block flex-shrink-0"></span>
-        <span class="text-xs text-base-content/60">Inativos</span>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -222,65 +262,71 @@
      NOC STATS — EQUIPAMENTOS (Devices)
 ══════════════════════════════════════════════════ -->
 <div id="overview-devices" style="display:none;">
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-6">
 
-    <div class="noc-stat-card">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label">Equipamentos</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-30">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
-        </svg>
+    <!-- Esquerda: 2×2 de cards -->
+    <div class="grid grid-cols-2 gap-3 lg:col-span-2">
+
+      <div class="noc-stat-card">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label">Equipamentos</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 opacity-30">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3V5.25a3 3 0 013-3h13.5a3 3 0 013 3v6a3 3 0 01-3 3m-13.5 0a3 3 0 00-3 3v2.25a3 3 0 003 3h13.5a3 3 0 003-3V17.25a3 3 0 00-3-3" />
+          </svg>
+        </div>
+        <div id="device-stat-total" class="noc-stat-value text-base-content">{{ devices_total }}</div>
+        <div class="noc-stat-sub">Cadastrados</div>
       </div>
-      <div id="device-stat-total" class="noc-stat-value text-base-content">{{ devices_total }}</div>
-      <div class="noc-stat-sub">Cadastrados</div>
+
+      <div class="noc-stat-card border-emerald-500/20 bg-emerald-500/5">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label text-emerald-400">Online</span>
+          <div class="w-2 h-2 rounded-full bg-emerald-400 status-dot-pulse"></div>
+        </div>
+        <div id="device-stat-online" class="noc-stat-value text-emerald-400">{{ devices_online }}</div>
+        <div class="noc-stat-sub">Respondendo</div>
+      </div>
+
+      <div class="noc-stat-card border-red-500/20 bg-red-500/5">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label text-red-400">Offline</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-red-400/50">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div id="device-stat-offline" class="noc-stat-value text-red-400">{{ devices_offline }}</div>
+        <div class="noc-stat-sub">Sem contato</div>
+      </div>
+
+      <div class="noc-stat-card border-amber-500/20 bg-amber-500/5">
+        <div class="flex items-center justify-between">
+          <span class="noc-stat-label text-amber-400">Inativos</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-amber-400/50">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+        </div>
+        <div id="device-stat-inactive" class="noc-stat-value text-amber-400">{{ devices_inactive }}</div>
+        <div class="noc-stat-sub">Desabilitados</div>
+      </div>
+
     </div>
 
-    <div class="noc-stat-card border-emerald-500/20 bg-emerald-500/5">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label text-emerald-400">Online</span>
-        <div class="w-2 h-2 rounded-full bg-emerald-400 status-dot-pulse"></div>
+    <!-- Direita: Donut devices (altura total, centralizado) -->
+    <div class="noc-stat-card flex flex-col items-center justify-center gap-5 py-6">
+      <div class="relative w-36 h-36 flex-shrink-0">
+        <canvas id="deviceStatusChart"></canvas>
+        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span class="text-xs text-base-content/40 font-medium">Estado</span>
+          <span class="text-sm font-black text-base-content">Devices</span>
+        </div>
       </div>
-      <div id="device-stat-online" class="noc-stat-value text-emerald-400">{{ devices_online }}</div>
-      <div class="noc-stat-sub">Respondendo</div>
+      <div class="flex flex-row gap-4">
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span><span class="text-xs text-base-content/60">Online</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block flex-shrink-0"></span><span class="text-xs text-base-content/60">Offline</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-500 inline-block flex-shrink-0"></span><span class="text-xs text-base-content/60">Inativos</span></div>
+      </div>
     </div>
 
-    <div class="noc-stat-card border-red-500/20 bg-red-500/5">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label text-red-400">Offline</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-red-400/50">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </div>
-      <div id="device-stat-offline" class="noc-stat-value text-red-400">{{ devices_offline }}</div>
-      <div class="noc-stat-sub">Sem contato</div>
-    </div>
-
-    <div class="noc-stat-card border-amber-500/20 bg-amber-500/5">
-      <div class="flex items-center justify-between">
-        <span class="noc-stat-label text-amber-400">Inativos</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-amber-400/50">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-        </svg>
-      </div>
-      <div id="device-stat-inactive" class="noc-stat-value text-amber-400">{{ devices_inactive }}</div>
-      <div class="noc-stat-sub">Desabilitados</div>
-    </div>
-  </div>
-
-  <!-- Donut devices -->
-  <div class="glass-card rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-center gap-6">
-    <div class="relative w-36 h-36 flex-shrink-0">
-      <canvas id="deviceStatusChart"></canvas>
-      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span class="text-xs text-base-content/40 font-medium">Estado</span>
-        <span class="text-sm font-black text-base-content">Devices</span>
-      </div>
-    </div>
-    <div class="flex sm:flex-col gap-4 sm:gap-2">
-      <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span><span class="text-xs text-base-content/60">Online</span></div>
-      <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span><span class="text-xs text-base-content/60">Offline</span></div>
-      <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-500 inline-block"></span><span class="text-xs text-base-content/60">Inativos</span></div>
-    </div>
   </div>
 </div>
 
@@ -289,13 +335,13 @@
      GROUP FILTER BAR
 ══════════════════════════════════════════════════ -->
 {% if selected_group %}
-<div class="group-info-bar glass-card rounded-2xl p-4 mb-5 flex justify-between items-center gap-4 border border-indigo-500/30 bg-indigo-500/5">
+<div class="group-info-bar glass-card rounded-2xl p-4 mb-5 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 border border-indigo-500/30 bg-indigo-500/5">
   <div>
     <span class="text-xs text-base-content/40 font-semibold uppercase tracking-wider">Filtrando por Grupo</span>
     <p class="text-lg font-black text-base-content mt-0.5">{{ selected_group.name }}</p>
   </div>
-  <div class="flex gap-2 items-center flex-wrap">
-    <div class="pdf-dates-wrapper">
+  <div class="flex flex-col sm:flex-row gap-3 items-stretch w-full lg:w-auto lg:max-w-xl">
+    <div class="pdf-dates-wrapper flex-1 min-w-0">
       <div>
         <span>De:</span>
         <input type="date" id="pdf_start_date_selected" class="input input-bordered input-xs bg-base-300 border-indigo-500/40 text-base-content w-full">
@@ -304,20 +350,22 @@
         <span>Até:</span>
         <input type="date" id="pdf_end_date_selected" class="input input-bordered input-xs bg-base-300 border-indigo-500/40 text-base-content w-full">
       </div>
+    </div>
+    <div class="flex gap-2 shrink-0">
       <button onclick="downloadSelectedGroupPDF({{ selected_group.id }})"
-        class="btn btn-primary btn-xs gap-1 flex-shrink-0">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+        class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity flex-1 sm:flex-none whitespace-nowrap">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 shrink-0">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
         </svg>
-        PDF
+        Baixar PDF
       </button>
+      <a href="{% url 'dashboard' %}" class="inline-flex items-center justify-center gap-2 h-8 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors whitespace-nowrap">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 shrink-0">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Limpar
+      </a>
     </div>
-    <a href="{% url 'dashboard' %}" class="btn btn-ghost btn-xs border border-white/10 gap-1">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-      </svg>
-      Limpar
-    </a>
   </div>
 </div>
 {% endif %}
@@ -326,21 +374,27 @@
 <!-- ══════════════════════════════════════════════════
      NAVIGATION TABS
 ══════════════════════════════════════════════════ -->
-<div class="tabs tabs-boxed bg-base-200/60 p-1 rounded-xl mb-5 w-fit gap-0.5">
-  <button id="tab-btn-targets" class="view-tab-btn tab tab-active font-semibold text-sm" onclick="switchViewTab('targets')">
+<div class="w-full overflow-x-auto mb-5 -mx-1 px-1">
+<div class="tabs-container inline-flex items-center gap-0.5 bg-base-200/80 p-1 rounded-xl border border-white/5 min-w-max sm:min-w-0">
+  <button id="tab-btn-targets" class="view-tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer
+    tab-pill-active" onclick="switchViewTab('targets')">
     Alvos
   </button>
-  <button id="tab-btn-devices" class="view-tab-btn tab font-semibold text-sm" onclick="switchViewTab('devices')">
+  <button id="tab-btn-devices" class="view-tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer
+    tab-pill-inactive" onclick="switchViewTab('devices')">
     Equipamentos
   </button>
-  <button id="tab-btn-groups" class="view-tab-btn tab font-semibold text-sm" onclick="switchViewTab('groups')">
+  <button id="tab-btn-groups" class="view-tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer
+    tab-pill-inactive" onclick="switchViewTab('groups')">
     Grupos
   </button>
   {% if user.is_superuser %}
-  <button id="tab-btn-audit" class="view-tab-btn tab font-semibold text-sm" onclick="switchViewTab('audit')">
+  <button id="tab-btn-audit" class="view-tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer
+    tab-pill-inactive" onclick="switchViewTab('audit')">
     Auditoria
   </button>
   {% endif %}
+</div>
 </div>
 
 
@@ -353,7 +407,7 @@
   <div class="glass-card rounded-xl p-3 mb-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
     <form class="flex-1" method="get">
       <div class="join w-full max-w-sm">
-        <span class="join-item btn btn-sm btn-ghost border border-white/10 px-2">
+        <span class="join-item inline-flex items-center justify-center w-8 h-8 border border-white/10 bg-white/5 text-base-content/40 rounded-l-lg px-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-base-content/40">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
           </svg>
@@ -365,15 +419,27 @@
       </div>
     </form>
 
-    <div class="flex gap-1.5 flex-wrap">
+    <div class="inline-flex items-center gap-0.5 bg-base-200/80 p-1 rounded-xl border border-white/5">
       <a href="?q={{ search_query }}"
-        class="btn btn-xs {% if not status_filter %}btn-primary{% else %}btn-ghost border border-white/10{% endif %}">Todos</a>
+        class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
+          {% if not status_filter %}bg-base-100 text-base-content shadow-sm{% else %}text-base-content/40 hover:text-base-content{% endif %}">
+        Todos
+      </a>
       <a href="?q={{ search_query }}&status=online"
-        class="btn btn-xs {% if status_filter == 'online' %}btn-success{% else %}btn-ghost border border-white/10{% endif %}">Abertas</a>
+        class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
+          {% if status_filter == 'online' %}bg-emerald-500/15 text-emerald-400{% else %}text-base-content/40 hover:text-base-content{% endif %}">
+        Abertas
+      </a>
       <a href="?q={{ search_query }}&status=offline"
-        class="btn btn-xs {% if status_filter == 'offline' %}btn-error{% else %}btn-ghost border border-white/10{% endif %}">Fechadas</a>
+        class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
+          {% if status_filter == 'offline' %}bg-red-500/15 text-red-400{% else %}text-base-content/40 hover:text-base-content{% endif %}">
+        Fechadas
+      </a>
       <a href="?q={{ search_query }}&status=inactive"
-        class="btn btn-xs {% if status_filter == 'inactive' %}btn-warning{% else %}btn-ghost border border-white/10{% endif %}">Inativos</a>
+        class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
+          {% if status_filter == 'inactive' %}bg-amber-500/15 text-amber-400{% else %}text-base-content/40 hover:text-base-content{% endif %}">
+        Inativos
+      </a>
     </div>
   </div>
 
@@ -390,7 +456,7 @@
             <th class="py-3 px-4 w-[12%]">Latência</th>
             <th class="py-3 px-4 w-[12%]">Último Teste</th>
             <th class="py-3 px-4 w-[5%] text-center">Ativo</th>
-            <th class="py-3 px-4 w-[4%] text-center">Ações</th>
+            <th class="py-3 px-4 w-[12%] text-center">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -464,7 +530,7 @@
             <td class="py-2.5 px-4">
               <div class="flex items-center justify-center gap-1">
                 <div class="tooltip tooltip-left" data-tip="Testar agora">
-                  <button class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content"
+                  <button class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/15 hover:border-emerald-500/30 transition-all cursor-pointer"
                     onclick="scanSingleTarget({{ target.id }}, this)"
                     {% if not target.is_active %}disabled{% endif %}>
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
@@ -473,21 +539,21 @@
                   </button>
                 </div>
                 <div class="tooltip tooltip-left" data-tip="Editar">
-                  <a href="{% url 'edit_target' target.pk %}" class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content">
+                  <a href="{% url 'edit_target' target.pk %}" class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-base-content/70 hover:text-amber-400 hover:bg-amber-500/15 hover:border-amber-500/30 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                     </svg>
                   </a>
                 </div>
                 <div class="tooltip tooltip-left" data-tip="Detalhes">
-                  <a href="{% url 'target_detail' target.pk %}" class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-indigo-400">
+                  <a href="{% url 'target_detail' target.pk %}" class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-base-content/70 hover:text-indigo-400 hover:bg-indigo-500/15 hover:border-indigo-500/30 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
                     </svg>
                   </a>
                 </div>
                 <div class="tooltip tooltip-left" data-tip="Excluir">
-                  <button class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-red-400"
+                  <button class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-base-content/70 hover:text-red-400 hover:bg-red-500/15 hover:border-red-500/30 transition-all cursor-pointer"
                     onclick="deleteTarget({{ target.id }})">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -506,19 +572,19 @@
     {% if page_obj.has_other_pages %}
     <div class="flex items-center justify-center gap-1 py-4 border-t border-white/5">
       {% if page_obj.has_previous %}
-        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">«</a>
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">‹</a>
+        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">‹</a>
       {% else %}
-        <button class="btn btn-ghost btn-xs" disabled>«</button>
-        <button class="btn btn-ghost btn-xs" disabled>‹</button>
+        <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>«</button>
+        <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>‹</button>
       {% endif %}
-      <span class="btn btn-primary btn-xs pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      <span class="inline-flex items-center justify-center h-6 px-2 rounded-md bg-primary/15 text-primary text-xs font-mono pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">›</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">»</a>
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">»</a>
       {% else %}
-        <button class="btn btn-ghost btn-xs" disabled>›</button>
-        <button class="btn btn-ghost btn-xs" disabled>»</button>
+        <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>›</button>
+        <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>»</button>
       {% endif %}
     </div>
     {% endif %}
@@ -531,7 +597,7 @@
       </svg>
       <p class="font-bold text-base-content">Nenhum alvo encontrado</p>
       <p class="text-sm text-base-content/40">Cadastre IPs e portas para começar a monitorar.</p>
-      <a href="{% url 'add_targets' %}" class="btn btn-primary btn-sm mt-2">Cadastrar Portas</a>
+      <a href="{% url 'add_targets' %}" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity mt-2">Cadastrar Portas</a>
     </div>
     {% endif %}
   </div>
@@ -582,22 +648,22 @@
           </span>
         </div>
         <div class="flex gap-1">
-          <button class="btn btn-ghost btn-xs btn-square" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
+          <button class="inline-flex items-center justify-center w-6 h-6 rounded-md text-base-content/40 hover:text-base-content hover:bg-white/8 transition-colors" onclick="scanSingleTarget({{ target.id }}, this)" {% if not target.is_active %}disabled{% endif %}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
             </svg>
           </button>
-          <a href="{% url 'edit_target' target.pk %}" class="btn btn-ghost btn-xs btn-square">
+          <a href="{% url 'edit_target' target.pk %}" class="inline-flex items-center justify-center w-6 h-6 rounded-md text-base-content/40 hover:text-base-content hover:bg-white/8 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
             </svg>
           </a>
-          <a href="{% url 'target_detail' target.pk %}" class="btn btn-ghost btn-xs btn-square text-indigo-400">
+          <a href="{% url 'target_detail' target.pk %}" class="inline-flex items-center justify-center w-6 h-6 rounded-md text-indigo-400 hover:text-indigo-300 hover:bg-white/8 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
             </svg>
           </a>
-          <button class="btn btn-ghost btn-xs btn-square text-red-400/60 hover:text-red-400" onclick="deleteTarget({{ target.id }})">
+          <button class="inline-flex items-center justify-center w-6 h-6 rounded-md text-red-400/60 hover:text-red-400 hover:bg-white/8 transition-colors" onclick="deleteTarget({{ target.id }})">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
             </svg>
@@ -611,13 +677,13 @@
     {% if page_obj.has_other_pages %}
     <div class="flex items-center justify-center gap-1 py-2">
       {% if page_obj.has_previous %}
-        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">«</a>
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">‹</a>
+        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">‹</a>
       {% endif %}
-      <span class="btn btn-primary btn-xs pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      <span class="inline-flex items-center justify-center h-6 px-2 rounded-md bg-primary/15 text-primary text-xs font-mono pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">›</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="btn btn-ghost btn-xs">»</a>
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">»</a>
       {% endif %}
     </div>
     {% endif %}
@@ -631,37 +697,36 @@
      VIEW: GROUPS
 ══════════════════════════════════════════════════ -->
 <div id="view-groups" class="view-content mb-6" style="display:none;">
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
     {% for g in groups %}
-    <div class="group-card glass-card rounded-2xl p-5 flex flex-col gap-4">
+    <div class="group-card glass-card rounded-xl p-3.5 flex flex-col gap-2.5">
 
       <!-- Header -->
       <div class="flex justify-between items-start gap-2">
-        <h3 class="font-black text-base-content text-base leading-tight">{{ g.name }}</h3>
-        <div class="flex flex-col items-end gap-1">
+        <h3 class="font-bold text-base-content text-sm leading-tight">{{ g.name }}</h3>
+        <div class="flex flex-col items-end gap-0.5">
           <span class="badge badge-ghost badge-xs">{{ g.total_count }} portas</span>
           <span class="badge badge-xs" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.25);">{{ g.devices_total }} equip.</span>
         </div>
       </div>
 
       <!-- Ports stats -->
-      <div class="space-y-2 border-t border-white/5 pt-3">
-        <p class="text-[10px] text-base-content/30 font-bold uppercase tracking-widest">Portas</p>
-        <div class="flex gap-4">
+      <div class="space-y-1.5 border-t border-white/5 pt-2">
+        <p class="text-[9px] text-base-content/30 font-bold uppercase tracking-widest">Portas</p>
+        <div class="flex gap-3">
           <div class="text-center">
-            <p class="text-lg font-black text-emerald-400">{{ g.online_count }}</p>
-            <p class="text-[10px] text-base-content/40">Abertas</p>
+            <p class="text-sm font-black text-emerald-400">{{ g.online_count }}</p>
+            <p class="text-[9px] text-base-content/40">Abertas</p>
           </div>
           <div class="text-center">
-            <p class="text-lg font-black text-red-400">{{ g.offline_count }}</p>
-            <p class="text-[10px] text-base-content/40">Fechadas</p>
+            <p class="text-sm font-black text-red-400">{{ g.offline_count }}</p>
+            <p class="text-[9px] text-base-content/40">Fechadas</p>
           </div>
           <div class="text-center">
-            <p class="text-lg font-black text-base-content/30">{{ g.inactive_count }}</p>
-            <p class="text-[10px] text-base-content/40">Inativas</p>
+            <p class="text-sm font-black text-base-content/30">{{ g.inactive_count }}</p>
+            <p class="text-[9px] text-base-content/40">Inativas</p>
           </div>
         </div>
-        <!-- Availability bar -->
         {% if g.total_count > 0 %}
         <div class="group-progress-track">
           <div class="group-progress-fill" style="width: {% widthratio g.online_count g.total_count 100 %}%"></div>
@@ -670,36 +735,37 @@
       </div>
 
       <!-- Devices stats -->
-      <div class="space-y-2 border-t border-dashed border-white/5 pt-3">
-        <p class="text-[10px] text-base-content/30 font-bold uppercase tracking-widest">Equipamentos</p>
-        <div class="flex gap-4">
+      <div class="space-y-1.5 border-t border-dashed border-white/5 pt-2">
+        <p class="text-[9px] text-base-content/30 font-bold uppercase tracking-widest">Equipamentos</p>
+        <div class="flex gap-3">
           <div class="text-center">
-            <p class="text-base font-black text-emerald-400">{{ g.devices_online }}</p>
-            <p class="text-[10px] text-base-content/40">Online</p>
+            <p class="text-sm font-black text-emerald-400">{{ g.devices_online }}</p>
+            <p class="text-[9px] text-base-content/40">Online</p>
           </div>
           <div class="text-center">
-            <p class="text-base font-black text-red-400">{{ g.devices_offline }}</p>
-            <p class="text-[10px] text-base-content/40">Offline</p>
+            <p class="text-sm font-black text-red-400">{{ g.devices_offline }}</p>
+            <p class="text-[9px] text-base-content/40">Offline</p>
           </div>
           <div class="text-center">
-            <p class="text-base font-black text-base-content/30">{{ g.devices_inactive }}</p>
-            <p class="text-[10px] text-base-content/40">Inativos</p>
+            <p class="text-sm font-black text-base-content/30">{{ g.devices_inactive }}</p>
+            <p class="text-[9px] text-base-content/40">Inativos</p>
           </div>
         </div>
       </div>
 
       <!-- Actions -->
-      <div class="flex flex-col gap-3 mt-auto">
-        <a href="?group={{ g.id }}" class="btn btn-primary btn-sm w-full gap-1.5">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+      <div class="flex flex-col gap-1.5 mt-auto w-full border-t border-white/5 pt-2">
+        <!-- Ver Portas -->
+        <a href="?group={{ g.id }}" class="inline-flex items-center justify-center gap-1.5 w-full h-7 rounded-lg bg-primary text-primary-content text-xs font-semibold hover:opacity-90 transition-opacity">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           Ver Portas
         </a>
         <!-- PDF dates -->
-        <div class="border-t border-white/5 pt-3 space-y-2">
-          <div class="pdf-dates-wrapper">
+        <div class="w-full border-t border-white/5 pt-1.5 space-y-1.5">
+          <div class="pdf-dates-wrapper w-full">
             <div>
               <span>De:</span>
               <input type="date" id="pdf_start_date_{{ g.id }}" class="input input-bordered input-xs bg-base-300 border-indigo-500/30 text-base-content w-full">
@@ -709,29 +775,29 @@
               <input type="date" id="pdf_end_date_{{ g.id }}" class="input input-bordered input-xs bg-base-300 border-indigo-500/30 text-base-content w-full">
             </div>
           </div>
-          <button onclick="downloadGroupPDF({{ g.id }})" class="btn btn-ghost btn-xs w-full border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+          <button onclick="downloadGroupPDF({{ g.id }})" class="inline-flex items-center justify-center gap-1.5 w-full h-7 rounded-lg border border-indigo-500/30 bg-indigo-500/5 text-indigo-400 text-xs hover:bg-indigo-500/15 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
-            Baixar PDF SLA
+            <span class="truncate">Baixar PDF SLA</span>
           </button>
         </div>
         <!-- Edit / Delete -->
-        <div class="flex gap-2 border-t border-dashed border-white/5 pt-3">
-          <a href="{% url 'edit_group' g.id %}" class="btn btn-ghost btn-xs flex-1 border border-white/10 gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+        <div class="flex w-full gap-2 border-t border-dashed border-white/5 pt-1.5 group-actions-row">
+          <a href="{% url 'edit_group' g.id %}" class="inline-flex items-center justify-center gap-1 flex-1 min-w-0 h-7 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 shrink-0">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
             </svg>
-            Editar
+            <span>Editar</span>
           </a>
-          <form method="post" action="{% url 'delete_group' g.id %}"
+          <form method="post" action="{% url 'delete_group' g.id %}" class="flex-1 min-w-0"
             onsubmit="return confirm('Excluir o grupo &quot;{{ g.name|escapejs }}&quot; permanentemente? Os sensores não serão excluídos, apenas perderão a associação.');">
             {% csrf_token %}
-            <button type="submit" class="btn btn-ghost btn-xs border border-red-500/20 text-red-400/70 hover:text-red-400 hover:bg-red-500/10 gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+            <button type="submit" class="inline-flex items-center justify-center gap-1 w-full h-7 rounded-lg border border-red-500/25 bg-red-500/5 text-red-400/70 text-xs hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 shrink-0">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
               </svg>
-              Excluir
+              <span>Excluir</span>
             </button>
           </form>
         </div>
@@ -756,7 +822,7 @@
     <div class="glass-card rounded-2xl overflow-hidden">
 
       <!-- Device Header -->
-      <div class="px-5 py-4 border-b border-white/5 flex flex-wrap justify-between items-start gap-3">
+      <div class="px-5 py-4 border-b border-white/5 space-y-3">
         <div>
           <div class="flex items-center gap-2 mb-1 flex-wrap">
             {% if device.device_type == 'mikrotik' or device.device_type == 'mikrotik_snmp' %}
@@ -775,33 +841,35 @@
           </p>
         </div>
 
-        <div class="flex gap-2 flex-wrap">
+        <div class="flex flex-col gap-2 w-full pt-1">
           {% if device.device_type == 'mikrotik' or device.device_type == 'parks_olt' or device.device_type == 'mikrotik_snmp' or device.device_type == 'generic_snmp' %}
           <a href="{% url 'discover_sensors' device.id %}"
-            class="btn btn-xs gap-1 border font-medium"
+            class="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-lg border font-medium text-sm transition-colors"
             style="background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.3);color:#a5b4fc;">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 shrink-0">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
             </svg>
-            Auto-descoberta
+            <span class="truncate">Auto-descoberta</span>
           </a>
           {% endif %}
-          <a href="{% url 'edit_device' device.id %}" class="btn btn-ghost btn-xs border border-white/10 gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-            </svg>
-            Editar
-          </a>
-          <form method="post" action="{% url 'delete_device' device.id %}"
-            onsubmit="return confirm('Deseja realmente remover o equipamento &quot;{{ device.name|escapejs }}&quot; e TODOS os seus sensores?');">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-ghost btn-xs border border-red-500/20 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+          <div class="flex w-full gap-3 device-actions-row">
+            <a href="{% url 'edit_device' device.id %}" class="inline-flex items-center justify-center gap-2 flex-1 min-w-0 py-2 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
               </svg>
-              Excluir
-            </button>
-          </form>
+              <span class="truncate">Editar</span>
+            </a>
+            <form method="post" action="{% url 'delete_device' device.id %}" class="flex-1 min-w-0"
+              onsubmit="return confirm('Deseja realmente remover o equipamento &quot;{{ device.name|escapejs }}&quot; e TODOS os seus sensores?');">
+              {% csrf_token %}
+              <button type="submit" class="inline-flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg border border-red-500/25 bg-red-500/5 text-red-400 text-sm hover:bg-red-500/10 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 shrink-0">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
+                <span class="truncate">Excluir</span>
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -822,7 +890,7 @@
               {{ sensor.label|default:sensor.get_sensor_type_display }}
             </a>
             <button onclick="scanSingleTarget({{ sensor.id }}, this)"
-              class="btn btn-ghost btn-xs btn-square text-base-content/25 hover:text-base-content flex-shrink-0 -mr-1 -mt-1"
+              class="inline-flex items-center justify-center w-6 h-6 rounded-md text-base-content/25 hover:text-base-content hover:bg-white/8 transition-colors flex-shrink-0 -mr-1 -mt-1"
               title="Checar agora">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -931,28 +999,30 @@
 <!-- ══════════════════════════════════════════════════
      RECENT CHECKS LOG
 ══════════════════════════════════════════════════ -->
-<div class="glass-card rounded-2xl p-5 mb-2">
+<div class="glass-card rounded-2xl p-4 sm:p-5 mb-2 overflow-hidden">
   <div class="flex items-center gap-2 mb-4">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-indigo-400">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-indigo-400 shrink-0">
       <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
     </svg>
     <h2 class="font-bold text-sm text-base-content">Últimas Verificações do Sistema</h2>
   </div>
 
-  <div class="space-y-1">
+  <div class="space-y-2">
     {% for log in recent_logs %}
-    <div class="log-row">
-      <div class="flex items-center gap-3">
-        <span class="badge badge-xs gap-1 {% if log.status %}badge-success{% else %}badge-error{% endif %}">
+    <div class="log-row flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2.5 rounded-lg border border-white/[0.03] bg-white/[0.01]">
+      <div class="flex items-start sm:items-center gap-2 min-w-0 flex-1">
+        <span class="badge badge-xs gap-1 shrink-0 mt-0.5 sm:mt-0 {% if log.status %}badge-success{% else %}badge-error{% endif %}">
           <span class="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>
           {% if log.status %}ABERTA{% else %}FECHADA{% endif %}
         </span>
-        <span class="font-mono text-xs text-base-content/60">{{ log.target.host }}:{{ log.target.port }}</span>
-        {% if log.target.label %}<span class="text-xs text-base-content/30">({{ log.target.label }})</span>{% endif %}
+        <div class="min-w-0 flex-1">
+          <span class="font-mono text-xs text-base-content/70 block truncate">{{ log.target.host }}:{{ log.target.port }}</span>
+          {% if log.target.label %}<span class="text-[10px] text-base-content/40 block truncate mt-0.5">{{ log.target.label }}</span>{% endif %}
+        </div>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 w-full sm:w-auto pl-0 sm:pl-3 border-t border-white/5 sm:border-0 pt-2 sm:pt-0">
         <span class="font-mono text-xs font-bold {% if log.status %}text-emerald-400{% else %}text-red-400{% endif %}">{{ log.latency }} ms</span>
-        <span class="font-mono text-[10px] text-base-content/25">{{ log.timestamp|date:"H:i:s" }}</span>
+        <span class="font-mono text-[10px] sm:text-xs text-base-content/40">{{ log.timestamp|date:"d/m H:i:s" }}</span>
       </div>
     </div>
     {% empty %}
@@ -1258,11 +1328,21 @@
     Object.values(views).forEach(v => { if (v) v.style.display = 'none'; });
     if (overviewPorts)   overviewPorts.style.display   = 'none';
     if (overviewDevices) overviewDevices.style.display = 'none';
-    Object.values(tabs).forEach(t => { if (t) { t.classList.remove('tab-active'); } });
 
-    // Show active
+    // Reset all tabs to inactive
+    Object.values(tabs).forEach(t => {
+      if (t) {
+        t.classList.remove('tab-pill-active');
+        t.classList.add('tab-pill-inactive');
+      }
+    });
+
+    // Show active view + activate tab
     if (views[mode]) views[mode].style.display = 'block';
-    if (tabs[mode])  tabs[mode].classList.add('tab-active');
+    if (tabs[mode]) {
+      tabs[mode].classList.remove('tab-pill-inactive');
+      tabs[mode].classList.add('tab-pill-active');
+    }
 
     if (mode === 'targets') {
       if (overviewPorts) overviewPorts.style.display = 'block';

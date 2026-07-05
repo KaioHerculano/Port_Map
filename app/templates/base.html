@@ -90,6 +90,33 @@
     #sidebar-overlay { display: none; }
     #sidebar-overlay.open { display: block; }
     #sidebar.open { transform: translateX(0) !important; }
+
+    /* ── Override legacy style.css conflicts ──
+       style.css forces margin-left + max-width on .main-content based on
+       --sidebar-width, which breaks the Tailwind flex layout. Reset all of it. */
+    .main-content {
+      margin-left: 0 !important;
+      max-width: 100% !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+      gap: 0 !important;
+      flex-grow: 1;
+    }
+
+    /* Also reset .app-container from legacy CSS if it has conflicting rules */
+    .app-container {
+      display: flex !important;
+      min-height: 100vh;
+    }
+
+    /* Corrige centralização vertical dos botões DaisyUI com font Inter.
+       O Inter tem métricas de linha diferentes das fontes de sistema,
+       forçando o conteúdo levemente abaixo do centro. */
+    .btn {
+      align-items: center !important;
+      line-height: 1 !important;
+      display: inline-flex !important;
+    }
   </style>
 
   {% block extra_head %}{% endblock %}
@@ -100,19 +127,16 @@
   {% if user.is_authenticated %}
 
   <!-- Mobile overlay -->
-  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 lg:hidden" onclick="closeSidebar()"></div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="closeSidebar()"></div>
 
-  <div class="flex h-screen overflow-hidden">
+  <div class="flex h-screen w-full overflow-hidden">
 
-    <!-- ===== SIDEBAR ===== -->
-    <aside id="sidebar" class="
-      fixed lg:static inset-y-0 left-0 z-40
-      w-64 min-h-screen flex flex-col
+    <!-- ===== SIDEBAR DESKTOP (in flex flow, hidden on mobile) ===== -->
+    <aside id="sidebar-desktop" class="
+      hidden lg:flex
+      w-64 min-h-screen flex-shrink-0 flex-col
       bg-base-200 border-r border-white/5
-      transform -translate-x-full lg:translate-x-0
-      transition-transform duration-300 ease-in-out
     ">
-
       <!-- Brand -->
       <div class="px-5 py-6 border-b border-white/5">
         <div class="flex items-center gap-3">
@@ -131,7 +155,6 @@
       <!-- Nav Links -->
       <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <p class="text-[10px] text-base-content/30 font-semibold uppercase tracking-widest px-3 mb-2">Navegação</p>
-
         <a href="{% url 'dashboard' %}"
            class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                   {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'target_detail' %}
@@ -144,7 +167,6 @@
           </svg>
           Dashboard
         </a>
-
         <a href="{% url 'add_targets' %}"
            class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                   {% if request.resolver_match.url_name == 'add_targets' %}
@@ -162,7 +184,6 @@
       <!-- User Section -->
       <div class="px-4 py-4 border-t border-white/5 mt-auto">
         <div class="flex items-center gap-3">
-          <!-- Avatar inicial -->
           <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
             {{ user.username|slice:":1"|upper }}
           </div>
@@ -170,7 +191,6 @@
             <p class="text-sm font-semibold text-base-content truncate">{{ user.username }}</p>
             <p class="text-[11px] text-base-content/40 truncate">{{ user.email }}</p>
           </div>
-          <!-- Logout -->
           <form action="{% url 'logout' %}" method="post" class="flex-shrink-0">
             {% csrf_token %}
             <button type="submit" title="Sair do sistema"
@@ -181,15 +201,81 @@
             </button>
           </form>
         </div>
+      </div>
+    </aside>
 
-        <!-- Mobile menu toggle button (visível apenas no mobile, posicionado fora do sidebar) -->
-        <button type="button" id="mobile-menu-btn" onclick="toggleSidebar()"
-          class="mt-3 w-full btn btn-ghost btn-xs text-base-content/40 hover:text-base-content lg:hidden flex items-center justify-center gap-1">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+    <!-- ===== SIDEBAR MOBILE (fixed overlay, hidden on desktop) ===== -->
+    <aside id="sidebar" class="
+      fixed inset-y-0 left-0 z-40
+      w-64 flex flex-col
+      bg-base-200 border-r border-white/5
+      -translate-x-full transition-transform duration-300 ease-in-out
+      lg:hidden
+    ">
+      <!-- Brand -->
+      <div class="px-5 py-6 border-b border-white/5">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="white" class="w-5 h-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+            </svg>
+          </div>
+          <div>
+            <span class="text-base font-black tracking-tight brand-gradient">PortMap</span>
+            <span class="block text-[10px] text-base-content/40 font-medium tracking-widest uppercase">Monitor</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nav Links -->
+      <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <p class="text-[10px] text-base-content/30 font-semibold uppercase tracking-widest px-3 mb-2">Navegação</p>
+        <a href="{% url 'dashboard' %}" onclick="closeSidebar()"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+                  {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'target_detail' %}
+                    nav-item-active text-indigo-400
+                  {% else %}
+                    text-base-content/60 hover:bg-base-300 hover:text-base-content
+                  {% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 flex-shrink-0">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
           </svg>
-          Menu
-        </button>
+          Dashboard
+        </a>
+        <a href="{% url 'add_targets' %}" onclick="closeSidebar()"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+                  {% if request.resolver_match.url_name == 'add_targets' %}
+                    nav-item-active text-indigo-400
+                  {% else %}
+                    text-base-content/60 hover:bg-base-300 hover:text-base-content
+                  {% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 flex-shrink-0">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Cadastrar Portas
+        </a>
+      </nav>
+
+      <!-- User Section -->
+      <div class="px-4 py-4 border-t border-white/5 mt-auto">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
+            {{ user.username|slice:":1"|upper }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-base-content truncate">{{ user.username }}</p>
+            <p class="text-[11px] text-base-content/40 truncate">{{ user.email }}</p>
+          </div>
+          <form action="{% url 'logout' %}" method="post" class="flex-shrink-0">
+            {% csrf_token %}
+            <button type="submit" title="Sair do sistema"
+              class="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-error hover:bg-error/10 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+              </svg>
+            </button>
+          </form>
+        </div>
       </div>
     </aside>
 
@@ -198,12 +284,19 @@
 
       <!-- Mobile top bar -->
       <div class="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 bg-base-100/80 backdrop-blur border-b border-white/5 lg:hidden">
-        <button onclick="toggleSidebar()" class="btn btn-ghost btn-sm btn-square">
+        <button onclick="toggleSidebar()" class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-base-content/60 hover:text-base-content hover:bg-white/5 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
           </svg>
         </button>
-        <span class="text-sm font-bold brand-gradient">PortMap Monitor</span>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-indigo-600 flex items-center justify-center shadow-md flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="white" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+            </svg>
+          </div>
+          <span class="text-sm font-bold brand-gradient">PortMap Monitor</span>
+        </div>
       </div>
 
       <!-- Flash Messages / Notifications -->

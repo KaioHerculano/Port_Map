@@ -3,85 +3,91 @@
 {% block title %}Editar Alvo - Port Monitor{% endblock %}
 
 {% block content %}
-<div class="content-header">
-  <div class="header-title">
-    <h1>Editar Alvo de Monitoramento</h1>
-    <p>Altere as informações de identificação, IP/Hostname ou porta do alvo.</p>
+<div class="max-w-3xl mx-auto">
+
+  <div class="mb-8">
+    <h1 class="text-2xl font-black tracking-tight text-base-content">Editar Alvo de Monitoramento</h1>
+    <p class="text-sm text-base-content/40 mt-1">Altere as informações de identificação, IP/Hostname ou porta do alvo.</p>
   </div>
-</div>
 
-<div class="glass-panel form-panel" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
-  <form method="post" action="{% url 'edit_target' target.pk %}">
-    {% csrf_token %}
+  <div class="glass-card rounded-2xl p-6 md:p-8">
+    <form method="post" action="{% url 'edit_target' target.pk %}" class="space-y-8">
+      {% csrf_token %}
 
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_group" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Grupo (Opcional)</label>
-      <select id="id_group" name="group" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-        <option value="">---------</option>
-        {% for choice in form.fields.group.queryset %}
-          <option value="{{ choice.id }}" {% if target.group_id == choice.id %}selected{% endif %}>{{ choice.name }}</option>
-        {% endfor %}
-      </select>
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Associe este alvo a um grupo de monitoramento.</span>
-    </div>
+      {% if form.errors %}
+        <div class="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <ul class="list-disc list-inside space-y-0.5">
+            {% for field in form %}
+              {% for error in field.errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
 
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_label" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Rótulo / Identificação</label>
-      <input type="text" id="id_label" name="label" value="{{ target.label|default_if_none:'' }}" class="form-input" placeholder="Ex: Câmera Estádio, Servidor SSH, etc." style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Um nome amigável para identificar esse alvo nas listas e gráficos.</span>
-    </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="id_group" class="block text-sm font-semibold text-base-content/80 mb-2">Grupo (Opcional)</label>
+          <select id="id_group" name="group" class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+            <option value="">---------</option>
+            {% for choice in form.fields.group.queryset %}
+              <option value="{{ choice.id }}" {% if target.group_id == choice.id %}selected{% endif %}>{{ choice.name }}</option>
+            {% endfor %}
+          </select>
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Associe este alvo a um grupo de monitoramento.</span>
+        </div>
+        <div>
+          <label for="id_check_interval" class="block text-sm font-semibold text-base-content/80 mb-2">Frequência de Verificação</label>
+          <select id="id_check_interval" name="check_interval" class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+            {% for val, name in form.fields.check_interval.choices %}
+              <option value="{{ val }}" {% if target.check_interval == val %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Intervalo entre as checagens automáticas deste sensor.</span>
+        </div>
+      </div>
 
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_host" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Endereço IP ou Hostname</label>
-      <input type="text" id="id_host" name="host" value="{{ target.host }}" class="form-input" placeholder="Ex: 45.174.193.10 ou gateway.loja.com" required style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Insira o endereço IP ou domínio DNS correspondente.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_port" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Porta TCP</label>
-      <input type="number" id="id_port" name="port" value="{{ target.port }}" class="form-input" placeholder="Ex: 40001" min="1" max="65535" required style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Insira o número da porta TCP que será testada.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_check_interval" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Frequência de Verificação</label>
-      <select id="id_check_interval" name="check_interval" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-        {% for val, name in form.fields.check_interval.choices %}
-          <option value="{{ val }}" {% if target.check_interval == val %}selected{% endif %}>{{ name }}</option>
-        {% endfor %}
-      </select>
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione o intervalo de tempo entre as checagens automáticas deste sensor.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 2rem;">
-      <label for="id_telegram_alert_threshold" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Alerta de Falha do Telegram</label>
-      <select id="id_telegram_alert_threshold" name="telegram_alert_threshold" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-        {% for val, name in form.fields.telegram_alert_threshold.choices %}
-          <option value="{{ val }}" {% if target.telegram_alert_threshold == val %}selected{% endif %}>{{ name }}</option>
-        {% endfor %}
-      </select>
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Escolha após quantas falhas consecutivas o Telegram deve notificar neste sensor.</span>
-    </div>
-
-    {% if form.errors %}
-    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
-      <ul style="margin: 0; padding-left: 1.25rem; color: #ef4444; font-size: 0.9rem;">
-        {% for field in form %}
-          {% for error in field.errors %}
-            <li>{{ error }}</li>
+      <div>
+        <label for="id_telegram_alert_threshold" class="block text-sm font-semibold text-base-content/80 mb-2">Alerta de Falha do Telegram</label>
+        <select id="id_telegram_alert_threshold" name="telegram_alert_threshold" class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+          {% for val, name in form.fields.telegram_alert_threshold.choices %}
+            <option value="{{ val }}" {% if target.telegram_alert_threshold == val %}selected{% endif %}>{{ name }}</option>
           {% endfor %}
-        {% endfor %}
-        {% for error in form.non_field_errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
+        </select>
+        <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Escolha após quantas falhas consecutivas o Telegram deve notificar neste sensor.</span>
+      </div>
 
-    <div class="form-actions" style="display: flex; gap: 1rem; justify-content: flex-end;">
-      <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-      <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
-    </div>
-  </form>
+      <div>
+        <label for="id_label" class="block text-sm font-semibold text-base-content/80 mb-2">Rótulo / Identificação</label>
+        <input type="text" id="id_label" name="label" value="{{ target.label|default_if_none:'' }}" placeholder="Ex: Câmera Estádio, Servidor SSH, etc."
+          class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+        <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Um nome amigável para identificar esse alvo nas listas e gráficos.</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="id_host" class="block text-sm font-semibold text-base-content/80 mb-2">Endereço IP ou Hostname</label>
+          <input type="text" id="id_host" name="host" value="{{ target.host }}" placeholder="Ex: 45.174.193.10 ou gateway.loja.com" required
+            class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Endereço IP ou domínio DNS correspondente.</span>
+        </div>
+        <div>
+          <label for="id_port" class="block text-sm font-semibold text-base-content/80 mb-2">Porta TCP</label>
+          <input type="number" id="id_port" name="port" value="{{ target.port }}" placeholder="Ex: 40001" min="1" max="65535" required
+            class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Número da porta TCP que será testada.</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3 justify-end border-t border-white/5 pt-6">
+        <button type="submit" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity">Salvar Alterações</button>
+        <a href="{% url 'dashboard' %}" class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors">Cancelar</a>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
