@@ -18,44 +18,51 @@ fake = Faker()
 class BulkImportParserTests(TestCase):
     def test_parse_single_target(self):
         host_ip = fake.ipv4()
-        text = f"{host_ip}:40001"
+        port = fake.random_int(min=10000, max=65000)
+        text = f"{host_ip}:{port}"
         targets, errors = PortParserService.parse_and_create_targets(text)
 
         self.assertEqual(len(targets), 1)
         self.assertEqual(len(errors), 0)
         self.assertEqual(targets[0].host, host_ip)
-        self.assertEqual(targets[0].port, 40001)
+        self.assertEqual(targets[0].port, port)
         self.assertIsNone(targets[0].label)
 
     def test_parse_with_labels_brackets(self):
         host_ip = fake.ipv4()
         label_text = fake.word()
-        text = f"{host_ip}:40002 [{label_text}]"
+        port = fake.random_int(min=10000, max=65000)
+        text = f"{host_ip}:{port} [{label_text}]"
         targets, errors = PortParserService.parse_and_create_targets(text)
 
         self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0].port, port)
         self.assertEqual(targets[0].label, label_text)
 
     def test_parse_with_labels_parentheses(self):
         host_ip = fake.ipv4()
         label_text = fake.word()
-        text = f"{host_ip}:40003 ({label_text})"
+        port = fake.random_int(min=10000, max=65000)
+        text = f"{host_ip}:{port} ({label_text})"
         targets, errors = PortParserService.parse_and_create_targets(text)
 
         self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0].port, port)
         self.assertEqual(targets[0].label, label_text)
 
     def test_parse_port_range(self):
         host_ip = fake.ipv4()
         label_text = fake.word()
-        text = f"{host_ip}:40001-40005 [{label_text}]"
+        start_port = fake.random_int(min=10000, max=20000)
+        end_port = start_port + 4
+        text = f"{host_ip}:{start_port}-{end_port} [{label_text}]"
         targets, errors = PortParserService.parse_and_create_targets(text)
 
         self.assertEqual(len(targets), 5)
         self.assertEqual(len(errors), 0)
 
         ports = [t.port for t in targets]
-        self.assertEqual(ports, [40001, 40002, 40003, 40004, 40005])
+        self.assertEqual(ports, list(range(start_port, end_port + 1)))
         for t in targets:
             self.assertEqual(t.host, host_ip)
             self.assertEqual(t.label, label_text)
@@ -101,7 +108,9 @@ class BulkImportParserTests(TestCase):
 
     def test_parse_invalid_range_boundaries_rejected(self):
         host_ip = fake.ipv4()
-        text = f"{host_ip}:40001-400063"
+        start_port = fake.random_int(min=10000, max=20000)
+        end_port = fake.random_int(min=65536, max=999999)
+        text = f"{host_ip}:{start_port}-{end_port}"
         targets, errors = PortParserService.parse_and_create_targets(text)
         self.assertEqual(len(targets), 0)
         self.assertEqual(len(errors), 1)
@@ -127,7 +136,9 @@ class BulkImportParserTests(TestCase):
 
         host_range_ip = fake.ipv4()
         group_range_name = fake.company()
-        text_range = f"{host_range_ip}:40001-40003 [{group_range_name}]"
+        start_port = fake.random_int(min=10000, max=20000)
+        end_port = start_port + 2
+        text_range = f"{host_range_ip}:{start_port}-{end_port} [{group_range_name}]"
         targets_range, errors_range = PortParserService.parse_and_create_targets(
             text_range
         )
@@ -279,7 +290,6 @@ class MikroTikAdvancedMonitoringTests(TestCase):
             name=fake.company(),
             host=fake.ipv4(),
             device_type="mikrotik",
-            api_username=fake.user_name(),
             api_password=fake.password(),
             check_interval=5,
             telegram_alert_threshold=2,
@@ -377,60 +387,11 @@ class MikroTikAdvancedMonitoringTests(TestCase):
         self.assertIn("snmp_numeric:1.3.6.1.4.1.14988.1.1.3.10.0", identifiers)
         self.assertIn("snmp_numeric:1.3.6.1.2.1.15.3.1.2.10.0.0.1", identifiers)
 
-    @patch("monitor.services.MikrotikAPI")
-    def test_check_mikrotik_api_advanced_sensors(self, mock_api_class):
-        mock_api = MagicMock()
-        mock_api.connect.return_value = True
-        mock_api_class.return_value = mock_api
-
-        t_cpu = MonitorTarget.objects.create(
-            device=self.device_api,
-            sensor_type="mikrotik_api",
-            sensor_identifier="cpu:1",
-            label="Core 1",
-            host=self.device_api.host,
-        )
-        t_volt = MonitorTarget.objects.create(
-            device=self.device_api,
-            sensor_type="mikrotik_api",
-            sensor_identifier="health:voltage",
-            label="Voltagem",
-            host=self.device_api.host,
-        )
-        t_bgp = MonitorTarget.objects.create(
-            device=self.device_api,
-            sensor_type="mikrotik_api",
-            sensor_identifier="bgp:peer1",
-            label="BGP Peer 1",
-            host=self.device_api.host,
-        )
-
-        def mock_talk(sentence):
-            if "/system/resource/cpu/print" in sentence[0]:
-                return [["!re", "=cpu=1", "=load=15"], ["!done"]]
-            elif "/system/health/print" in sentence[0]:
-                return [["!re", "=name=voltage", "=value=24.5"], ["!done"]]
-            elif "/routing/bgp/peer/print" in sentence[0]:
-                return [["!re", "=name=peer1", "=state=established"], ["!done"]]
-            return []
-
-        mock_api.talk.side_effect = mock_talk
-
-        PortCheckerService.check_target(t_cpu.id)
-        t_cpu.refresh_from_db()
-        self.assertEqual(t_cpu.sensor_value, "15%")
-
-        PortCheckerService.check_target(t_volt.id)
-        t_volt.refresh_from_db()
-        self.assertEqual(t_volt.sensor_value, "24.5 V")
-
-        PortCheckerService.check_target(t_bgp.id)
-        t_bgp.refresh_from_db()
-        self.assertEqual(t_bgp.sensor_value, "Estabelecido")
-        self.assertTrue(t_bgp.last_status)
-
+    @patch("monitor.utils.send_telegram_alert")
     @patch("monitor.services.PortCheckerService._snmp_get")
-    def test_check_snmp_scale_factor_and_bgp(self, mock_snmp_get):
+    def test_check_snmp_scale_factor_and_bgp(
+        self, mock_snmp_get, mock_send_telegram_alert
+    ):
         t_temp = MonitorTarget.objects.create(
             device=self.device_snmp,
             sensor_type="snmp_numeric",

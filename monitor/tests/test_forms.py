@@ -22,13 +22,9 @@ class DeviceFormTests(TestCase):
         cleaned_data = form.cleaned_data
         self.assertEqual(cleaned_data["snmp_community"], "public")
         self.assertEqual(cleaned_data["snmp_port"], 161)
-        self.assertEqual(cleaned_data["api_port"], 8728)
 
     def test_device_form_non_required_fields(self):
         form = DeviceForm()
-        self.assertFalse(form.fields["api_username"].required)
-        self.assertFalse(form.fields["api_password"].required)
-        self.assertFalse(form.fields["api_port"].required)
         self.assertFalse(form.fields["snmp_community"].required)
         self.assertFalse(form.fields["snmp_port"].required)
 

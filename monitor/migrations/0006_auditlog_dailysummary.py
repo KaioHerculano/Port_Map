@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
                 (
                     "object_repr",
                     models.CharField(
-                        help_text="Representação do objeto (ex: Câmera Portão - 45.174.193.10:40001)",
+                        help_text="Representação do objeto (ex: Câmera Portão - 10.0.0.1:8080)",
                         max_length=255,
                     ),
                 ),
