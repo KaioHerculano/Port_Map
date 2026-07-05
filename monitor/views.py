@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 class DashboardView(LoginRequiredMixin, generic.ListView):
     model = MonitorTarget
-    template_name = "monitor/dashboard.html"
+    template_name = "dashboard.html"
     context_object_name = "targets"
     paginate_by = 10
 
@@ -78,7 +78,7 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
 
 
 class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
-    template_name = "monitor/add_targets.html"
+    template_name = "add_targets.html"
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
@@ -209,7 +209,7 @@ class AddTargetsView(LoginRequiredMixin, generic.TemplateView):
 
 class TargetDetailView(LoginRequiredMixin, generic.DetailView):
     model = MonitorTarget
-    template_name = "monitor/target_detail.html"
+    template_name = "target_detail.html"
     context_object_name = "target"
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
@@ -364,7 +364,7 @@ class TriggerCheckView(LoginRequiredMixin, View):
 class UpdateTargetView(LoginRequiredMixin, generic.UpdateView):
     model = MonitorTarget
     context_object_name = "target"
-    template_name = "monitor/update_target.html"
+    template_name = "update_target.html"
     fields = [
         "group",
         "label",
@@ -439,7 +439,7 @@ class UpdateGroupView(LoginRequiredMixin, View):
             "check_interval_choices": check_interval_choices,
             "telegram_alert_threshold_choices": telegram_alert_threshold_choices,
         }
-        return render(request, "monitor/update_group.html", context)
+        return render(request, "update_group.html", context)
 
     def post(
         self, request: HttpRequest, pk: int, *args: Any, **kwargs: Any
@@ -511,7 +511,7 @@ class TriggerMonthlyReportView(LoginRequiredMixin, View):
 class AddDeviceView(LoginRequiredMixin, generic.CreateView):
     model = Device
     form_class = DeviceForm
-    template_name = "monitor/create_device.html"
+    template_name = "create_device.html"
     success_url = reverse_lazy("dashboard")
 
     def form_valid(self, form):
@@ -550,7 +550,7 @@ class AddDeviceView(LoginRequiredMixin, generic.CreateView):
 class UpdateDeviceView(LoginRequiredMixin, generic.UpdateView):
     model = Device
     form_class = DeviceForm
-    template_name = "monitor/update_device.html"
+    template_name = "update_device.html"
     success_url = reverse_lazy("dashboard")
 
     def get_context_data(self, **kwargs):
@@ -599,7 +599,7 @@ class DiscoverDeviceSensorsView(LoginRequiredMixin, View):
         interfaces, error = DeviceDiscoveryService.discover_interfaces(device)
 
         context = {"device": device, "interfaces": interfaces, "error": error}
-        return render(request, "monitor/discover_sensors.html", context)
+        return render(request, "discover_sensors.html", context)
 
     def post(self, request, pk):
         device = get_object_or_404(Device, pk=pk)
@@ -652,28 +652,17 @@ class DiscoverPreviewAPIView(LoginRequiredMixin, View):
         host = request.POST.get("host", "").strip()
         snmp_community = request.POST.get("snmp_community", "public").strip()
         snmp_port = request.POST.get("snmp_port", "161")
-        api_port = request.POST.get("api_port", "8728")
-        api_username = request.POST.get("api_username", "").strip()
-        api_password = request.POST.get("api_password", "").strip()
 
         try:
             snmp_port = int(snmp_port) if snmp_port else 161
         except ValueError:
             snmp_port = 161
 
-        try:
-            api_port = int(api_port) if api_port else 8728
-        except ValueError:
-            api_port = 8728
-
         device = Device(
             device_type=device_type,
             host=host,
             snmp_community=snmp_community,
             snmp_port=snmp_port,
-            api_port=api_port,
-            api_username=api_username,
-            api_password=api_password,
         )
 
         from .services import DeviceDiscoveryService

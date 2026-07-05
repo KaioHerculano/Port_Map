@@ -97,22 +97,6 @@ class Device(models.Model):
     )
     snmp_port = models.IntegerField(default=161, help_text="Porta SNMP (padrão: 161)")
 
-    # MikroTik RouterOS API configurations
-    api_username = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-        help_text="Usuário da API MikroTik (opcional)",
-    )
-    api_password = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-        help_text="Senha da API MikroTik (opcional)",
-    )
-    api_port = models.IntegerField(
-        default=8728, help_text="Porta da API MikroTik (padrão: 8728)"
-    )
     check_interval = models.IntegerField(
         default=60,
         choices=CHECK_INTERVAL_CHOICES,
@@ -160,12 +144,12 @@ class MonitorTarget(models.Model):
     host = models.CharField(
         max_length=255,
         validators=[validate_host],
-        help_text="Endereço IP ou Hostname (ex: 45.174.193.10 ou google.com)",
+        help_text="Endereço IP ou Hostname (ex: 10.0.0.1 ou google.com)",
     )
     port = models.IntegerField(
         null=True,
         blank=True,
-        help_text="Porta TCP (ex: 40001) - Opcional para sensores não-TCP",
+        help_text="Porta TCP (ex: 8080) - Opcional para sensores não-TCP",
     )
     sensor_type = models.CharField(
         max_length=50,
@@ -175,7 +159,6 @@ class MonitorTarget(models.Model):
             ("ping", "Ping (ICMP)"),
             ("snmp_traffic", "Tráfego SNMP"),
             ("snmp_numeric", "Valor Numérico SNMP"),
-            ("mikrotik_api", "MikroTik API"),
         ],
         help_text="Tipo de monitoramento/coleta",
     )
@@ -323,7 +306,7 @@ class AuditLog(models.Model):
     )
     object_repr = models.CharField(
         max_length=255,
-        help_text="Representação do objeto (ex: Câmera Portão - 45.174.193.10:40001)",
+        help_text="Representação do objeto (ex: Câmera Portão - 10.0.0.1:8080)",
     )
     changes = models.TextField(
         blank=True, null=True, help_text="Descrição amigável das alterações efetuadas"

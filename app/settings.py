@@ -12,11 +12,16 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-in-production-secret-key-placeholder")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+
+# Validação para produção
+if not DEBUG and SECRET_KEY == "change-this-in-production-secret-key-placeholder":
+    raise ValueError(
+        "A SECRET_KEY deve ser definida obrigatoriamente no ambiente de produção!"
+    )
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -26,9 +31,7 @@ ALLOWED_HOSTS = [
 
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
-    for origin in os.getenv(
-        "CSRF_TRUSTED_ORIGINS", "https://portmap.livesyncapp.com"
-    ).split(",")
+    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:8003").split(",")
     if origin.strip()
 ]
 

@@ -36,7 +36,7 @@ class UserLoginForm(forms.Form):
 
 
 class UserLoginView(FormView):
-    template_name = "accounts/login.html"
+    template_name = "login.html"
     form_class = UserLoginForm
     success_url = "/"
 

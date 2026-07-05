@@ -22,9 +22,6 @@ class DeviceForm(forms.ModelForm):
             "telegram_alert_threshold",
             "snmp_community",
             "snmp_port",
-            "api_username",
-            "api_password",
-            "api_port",
         ]
         widgets = {
             "name": forms.TextInput(
@@ -57,26 +54,10 @@ class DeviceForm(forms.ModelForm):
                 }
             ),
             "snmp_port": forms.NumberInput(attrs={"class": _DEVICE_INPUT_CLASS}),
-            "api_username": forms.TextInput(
-                attrs={
-                    "class": _DEVICE_INPUT_CLASS,
-                    "placeholder": "Ex: admin",
-                }
-            ),
-            "api_password": forms.PasswordInput(
-                attrs={
-                    "class": _DEVICE_INPUT_CLASS,
-                    "render_value": True,
-                }
-            ),
-            "api_port": forms.NumberInput(attrs={"class": _DEVICE_INPUT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["api_username"].required = False
-        self.fields["api_password"].required = False
-        self.fields["api_port"].required = False
         self.fields["snmp_community"].required = False
         self.fields["snmp_port"].required = False
 
@@ -86,6 +67,4 @@ class DeviceForm(forms.ModelForm):
             cleaned_data["snmp_community"] = "public"
         if not cleaned_data.get("snmp_port"):
             cleaned_data["snmp_port"] = 161
-        if not cleaned_data.get("api_port"):
-            cleaned_data["api_port"] = 8728
         return cleaned_data

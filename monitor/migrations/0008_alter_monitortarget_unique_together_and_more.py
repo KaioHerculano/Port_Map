@@ -74,7 +74,7 @@ class Migration(migrations.Migration):
             name="port",
             field=models.IntegerField(
                 blank=True,
-                help_text="Porta TCP (ex: 40001) - Opcional para sensores não-TCP",
+                help_text="Porta TCP (ex: 8080) - Opcional para sensores não-TCP",
                 null=True,
             ),
         ),

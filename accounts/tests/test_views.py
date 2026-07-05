@@ -8,7 +8,7 @@ class AccountsViewTests(TestCase):
         url = reverse("login")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "accounts/login.html")
+        self.assertTemplateUsed(response, "login.html")
 
     def test_login_view_post_redirects(self):
         User = get_user_model()

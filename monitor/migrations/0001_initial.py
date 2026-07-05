@@ -35,11 +35,11 @@ class Migration(migrations.Migration):
                 (
                     "host",
                     models.CharField(
-                        help_text="Endereço IP ou Hostname (ex: 45.174.193.10 ou google.com)",
+                        help_text="Endereço IP ou Hostname (ex: 10.0.0.1 ou google.com)",
                         max_length=255,
                     ),
                 ),
-                ("port", models.IntegerField(help_text="Porta TCP (ex: 40001)")),
+                ("port", models.IntegerField(help_text="Porta TCP (ex: 8080)")),
                 (
                     "is_active",
                     models.BooleanField(

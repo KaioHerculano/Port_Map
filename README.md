@@ -16,11 +16,9 @@ Cada equipamento pode ter **vários sensores independentes** configurados:
 | **TCP** | TCP Socket | Verifica se uma porta está aberta e responsiva |
 | **SNMP Numérico** | SNMP v2c | Lê OIDs numéricos (CPU, temperatura, uptime) |
 | **SNMP Tráfego** | SNMP v2c | Mede taxa de tráfego (Mbps) em interfaces |
-| **MikroTik API** | RouterOS API | Lê CPU, temperatura e uptime via API nativa |
 
 ### Equipamentos Suportados
 
-- **MikroTik (API RouterOS)** — CPU, temperatura da board, uptime via API
 - **MikroTik (SNMP)** — CPU (`hrProcessorLoad`), temperatura (`mtxrHlCpuTemperature`), uptime (`sysUpTime`)
 - **OLT Parks GPON (SNMP)** — Ping + SNMP genérico
 - **Genérico (SNMP)** — Qualquer OID customizado
@@ -42,7 +40,7 @@ Ao cadastrar um equipamento, o formulário exibe **checkboxes dinâmicos** com t
 ### Outras Funcionalidades
 
 - **Autenticação por e-mail ou usuário**
-- **Cadastro em lote (Bulk)** com suporte a faixas de portas (`10.0.0.1:40001-40048`) e múltiplas portas por vírgula
+- **Cadastro em lote (Bulk)** com suporte a faixas de portas (`10.0.0.1:8080-8090`) e múltiplas portas por vírgula
 - **Dashboard estatístico** com filtros rápidos, busca textual e tabela com controle AJAX
 - **Relatórios SLA** em PDF por grupo
 - **Alertas Telegram** configuráveis por sensor (1ª falha, 2ª falha, 3ª falha consecutiva, ou desabilitado)
@@ -74,7 +72,6 @@ O projeto segue princípios **SOLID, DRY, KISS e Clean Code**:
 | Fila de tarefas | Celery |
 | Message Broker | Redis |
 | SNMP | pysnmp (hlapi.asyncio) |
-| RouterOS | routeros-api |
 | Frontend | HTML5, Vanilla CSS, JS Puro, Chart.js, Bootstrap Icons |
 
 ---
