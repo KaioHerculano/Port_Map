@@ -34,7 +34,7 @@ COPY . /app/
 
 # Cria o diretório de staticfiles e media (garante que existam)
 RUN mkdir -p /app/staticfiles /app/media
-RUN chown -R www-data:www-data /app/staticfiles /app/media
+RUN chown -R www-data:www-data /app
 RUN chmod -R 755 /app/staticfiles /app/media
 
 # Configura o Entrypoint
@@ -46,5 +46,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Informa a porta exposta
 EXPOSE 8003
+
+USER www-data
 
 ENTRYPOINT ["entrypoint.sh"]

@@ -16,9 +16,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-in-production-secret-key-placeholder")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True") == "True"
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    if host.strip()
+]
 
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
@@ -27,6 +31,21 @@ CSRF_TRUSTED_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+
+# Production security settings
+import sys
+
+if not DEBUG and "test" not in sys.argv:
+    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True") == "True"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+    # Informa ao Django para confiar no header do Proxy (EasyPanel/Traefik) sobre HTTPS
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition
@@ -146,14 +165,28 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # WhiteNoise storage to compress and hash static files for long-term caching
+# Usamos o storage simples em desenvolvimento (DEBUG=True) para evitar erros de permissao (utime/chmod) no WSL/Windows.
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "file_permissions_mode": None,
+            "directory_permissions_mode": None,
+        },
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
     },
 }
+
+
+# Evita o erro de PermissionError ao dar chmod em arquivos estáticos montados via volumes docker (comum em WSL/Windows)
+FILE_UPLOAD_PERMISSIONS = None
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = None
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

@@ -44,8 +44,6 @@ class DashboardView(LoginRequiredMixin, generic.ListView):
         context = super().get_context_data(**kwargs)
         group_id = self.request.GET.get("group", "").strip()
 
-        DashboardService.auto_correct_sensor_labels()
-
         stats = DashboardService.get_dashboard_stats(group_id)
         context.update(stats)
 
