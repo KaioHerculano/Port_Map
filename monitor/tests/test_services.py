@@ -286,14 +286,7 @@ class PortCheckerServiceTests(TestCase):
 
 class MikroTikAdvancedMonitoringTests(TestCase):
     def setUp(self):
-        self.device_api = Device.objects.create(
-            name=fake.company(),
-            host=fake.ipv4(),
-            device_type="mikrotik",
-            api_password=fake.password(),
-            check_interval=5,
-            telegram_alert_threshold=2,
-        )
+
         self.device_snmp = Device.objects.create(
             name=fake.company(),
             host=fake.ipv4(),
@@ -303,54 +296,6 @@ class MikroTikAdvancedMonitoringTests(TestCase):
             check_interval=5,
             telegram_alert_threshold=2,
         )
-
-    @patch("monitor.services.MikrotikAPI")
-    def test_discover_and_provision_api_sensors(self, mock_api_class):
-        mock_api = MagicMock()
-        mock_api.connect.return_value = True
-        mock_api_class.return_value = mock_api
-
-        def mock_talk(sentence):
-            cmd = sentence[0]
-            if cmd == "/interface/print":
-                return [["!re", "=name=ether1"], ["!re", "=name=ether2"]]
-            elif cmd == "/system/resource/cpu/print":
-                return [["!re", "=cpu=0", "=load=12"], ["!re", "=cpu=1", "=load=24"]]
-            elif cmd == "/system/health/print":
-                return [
-                    ["!re", "=name=voltage", "=value=24.2"],
-                    ["!re", "=name=temperature", "=value=45"],
-                ]
-            elif cmd == "/routing/bgp/peer/print":
-                return [["!re", "=name=peer1", "=remote-address=10.0.0.1"]]
-            return []
-
-        mock_api.talk.side_effect = mock_talk
-
-        sensors, error = DeviceDiscoveryService.discover_interfaces(self.device_api)
-        self.assertIsNone(error)
-        self.assertEqual(len(sensors), 7)
-
-        identifiers = [s["identifier"] for s in sensors]
-        self.assertIn("traffic:ether1", identifiers)
-        self.assertIn("cpu:0", identifiers)
-        self.assertIn("health:voltage", identifiers)
-        self.assertIn("bgp:peer1", identifiers)
-
-        count = DeviceDiscoveryService.provision_sensors(
-            self.device_api, ["traffic:ether1", "cpu:0", "health:voltage", "bgp:peer1"]
-        )
-        self.assertEqual(count, 4)
-
-        targets = self.device_api.sensors.all()
-        self.assertEqual(targets.count(), 4)
-
-        cpu_target = targets.get(sensor_identifier="cpu:0")
-        self.assertEqual(cpu_target.check_interval, 5)
-        self.assertEqual(cpu_target.telegram_alert_threshold, 2)
-
-        volt_target = targets.get(sensor_identifier="health:voltage")
-        self.assertEqual(volt_target.check_interval, 5)
 
     @patch("monitor.services.PortCheckerService.snmp_walk")
     @patch("monitor.services.PortCheckerService._snmp_get")

@@ -10,16 +10,27 @@ fake = Faker()
 
 
 class MonitorViewTests(TestCase):
-    def test_group_report_pdf_view(self):
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
+    @classmethod
+    def setUpTestData(cls):
+        cls.fake = Faker()
+        cls.user_password = cls.self.fake.password()
+        cls.test_port_1 = cls.self.fake.port_number()
+        cls.test_port_2 = cls.self.fake.port_number()
 
-        group = Group.objects.create(name=fake.company())
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username=self.self.fake.user_name(),
+            password=self.user_password,
+            email=self.self.fake.email(),
+        )
+        self.client.login(username=self.user.username, password=self.user_password)
+
+    def test_group_report_pdf_view(self):
+
+        group = Group.objects.create(name=self.fake.company())
         target = MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, group=group, last_status=True
+            host=self.fake.ipv4(), port=self.test_port_1, group=group, last_status=True
         )
         MonitorLog.objects.create(target=target, status=True, latency=5.0)
 
@@ -31,16 +42,24 @@ class MonitorViewTests(TestCase):
         self.assertTrue(len(response.content) > 0)
 
     def test_group_stats_annotation_in_database(self):
-        group = Group.objects.create(name=fake.company())
+        group = Group.objects.create(name=self.fake.company())
 
         MonitorTarget.objects.create(
-            host=fake.ipv4(), port=5432, group=group, last_status=True, is_active=True
+            host=self.fake.ipv4(),
+            port=self.test_port_2,
+            group=group,
+            last_status=True,
+            is_active=True,
         )
         MonitorTarget.objects.create(
-            host=fake.ipv4(), port=5432, group=group, last_status=False, is_active=True
+            host=self.fake.ipv4(),
+            port=self.test_port_2,
+            group=group,
+            last_status=False,
+            is_active=True,
         )
         MonitorTarget.objects.create(
-            host=fake.ipv4(), port=5432, group=group, is_active=False
+            host=self.fake.ipv4(), port=self.test_port_2, group=group, is_active=False
         )
 
         annotated_group = Group.objects.annotate(
@@ -60,19 +79,22 @@ class MonitorViewTests(TestCase):
         self.assertEqual(annotated_group.inactive_count, 1)
 
     def test_group_report_pdf_view_excludes_inactive_and_supports_custom_days(self):
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
 
-        group = Group.objects.create(name=fake.company())
+        group = Group.objects.create(name=self.fake.company())
 
         MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, group=group, last_status=True, is_active=True
+            host=self.fake.ipv4(),
+            port=self.test_port_1,
+            group=group,
+            last_status=True,
+            is_active=True,
         )
         MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, group=group, last_status=True, is_active=False
+            host=self.fake.ipv4(),
+            port=self.test_port_1,
+            group=group,
+            last_status=True,
+            is_active=False,
         )
 
         url = reverse("group_report_pdf", kwargs={"group_id": group.id}) + "?days=7"
@@ -83,18 +105,13 @@ class MonitorViewTests(TestCase):
         self.assertTrue(len(response.content) > 0)
 
     def test_update_group_view_get_and_post_batch(self):
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
 
-        group = Group.objects.create(name=fake.company())
+        group = Group.objects.create(name=self.fake.company())
         target1 = MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, group=group, check_interval=1
+            host=self.fake.ipv4(), port=self.test_port_1, group=group, check_interval=1
         )
         target2 = MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, group=group, check_interval=1
+            host=self.fake.ipv4(), port=self.test_port_1, group=group, check_interval=1
         )
 
         url = reverse("edit_group", kwargs={"pk": group.id})
@@ -105,7 +122,7 @@ class MonitorViewTests(TestCase):
         self.assertEqual(response.context["group"], group)
         self.assertEqual(len(response.context["targets"]), 2)
 
-        new_group_name = fake.company()
+        new_group_name = self.fake.company()
         post_data = {
             "name": new_group_name,
             "check_interval": "5",
@@ -124,14 +141,11 @@ class MonitorViewTests(TestCase):
         self.assertEqual(target2.check_interval, 1)
 
     def test_delete_group_view_successful(self):
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
 
-        group = Group.objects.create(name=fake.company())
-        target = MonitorTarget.objects.create(host=fake.ipv4(), port=80, group=group)
+        group = Group.objects.create(name=self.fake.company())
+        target = MonitorTarget.objects.create(
+            host=self.fake.ipv4(), port=self.test_port_1, group=group
+        )
 
         url = reverse("delete_group", kwargs={"pk": group.id})
         response = self.client.post(url)
@@ -147,14 +161,8 @@ class MonitorViewTests(TestCase):
 
         from django.utils import timezone
 
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
-
         target = MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, last_status=True
+            host=self.fake.ipv4(), port=self.test_port_1, last_status=True
         )
         now = timezone.now()
 
@@ -185,14 +193,8 @@ class MonitorViewTests(TestCase):
     def test_send_test_telegram_successful(self):
         from unittest.mock import patch
 
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
-
         target = MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, last_status=True
+            host=self.fake.ipv4(), port=self.test_port_1, last_status=True
         )
         url = reverse("send_test_telegram", kwargs={"pk": target.id})
 
@@ -209,12 +211,6 @@ class MonitorViewTests(TestCase):
     def test_trigger_monthly_report_view(self):
         from unittest.mock import MagicMock, patch
 
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
-
         url = reverse("trigger_monthly_report")
         with patch("monitor.tasks.send_monthly_telegram_report.delay") as mock_delay:
             mock_delay.return_value = MagicMock(id="mock_task_id")
@@ -229,50 +225,43 @@ class MonitorViewTests(TestCase):
     def test_audit_log_creation_on_toggle_and_delete(self):
         from monitor.models import AuditLog
 
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
+        test_ip = self.fake.ipv4()
+        target = MonitorTarget.objects.create(
+            host=test_ip, port=self.test_port_1, is_active=True
         )
-        self.client.login(username=user.username, password="testpassword")
-
-        test_ip = fake.ipv4()
-        target = MonitorTarget.objects.create(host=test_ip, port=80, is_active=True)
 
         toggle_url = reverse("toggle_target", kwargs={"pk": target.id})
         response = self.client.post(toggle_url)
         self.assertEqual(response.status_code, 200)
 
         audit1 = AuditLog.objects.filter(
-            user=user, action="Desativar", model_name="Dispositivo"
+            user=self.user, action="Desativar", model_name="Dispositivo"
         ).first()
         self.assertIsNotNone(audit1)
-        self.assertIn(f"{test_ip}:80", audit1.object_repr)
+        self.assertIn(f"{test_ip}:{self.test_port_1}", audit1.object_repr)
 
         delete_url = reverse("delete_target", kwargs={"pk": target.id})
         response = self.client.post(delete_url)
         self.assertEqual(response.status_code, 302)
 
         audit2 = AuditLog.objects.filter(
-            user=user, action="Excluir", model_name="Dispositivo"
+            user=self.user, action="Excluir", model_name="Dispositivo"
         ).first()
         self.assertIsNotNone(audit2)
-        self.assertIn(f"{test_ip}:80", audit2.object_repr)
+        self.assertIn(f"{test_ip}:{self.test_port_1}", audit2.object_repr)
 
     def test_status_update_api_view_returns_devices_and_groups(self):
         from monitor.models import Device
 
-        User = get_user_model()
-        user = User.objects.create_user(
-            username=fake.user_name(), password="testpassword", email=fake.email()
-        )
-        self.client.login(username=user.username, password="testpassword")
-
-        group = Group.objects.create(name=fake.company())
+        group = Group.objects.create(name=self.fake.company())
         device = Device.objects.create(
-            name=fake.name(), host=fake.ipv4(), device_type="generic_ping", group=group
+            name=self.fake.name(),
+            host=self.fake.ipv4(),
+            device_type="generic_ping",
+            group=group,
         )
         target = MonitorTarget.objects.create(
-            host=fake.ipv4(), port=80, group=group, device=device
+            host=self.fake.ipv4(), port=self.test_port_1, group=group, device=device
         )
 
         url = reverse("api_status_update")
