@@ -3,102 +3,104 @@
 {% block title %}Editar Equipamento - Port Monitor{% endblock %}
 
 {% block content %}
-<div class="content-header">
-  <div class="header-title">
-    <h1>Editar Equipamento</h1>
-    <p>Altere as configurações do equipamento e suas chaves/credenciais de monitoramento.</p>
+<div class="max-w-4xl mx-auto">
+
+  <div class="mb-8">
+    <h1 class="text-2xl font-black tracking-tight text-base-content">Editar Equipamento</h1>
+    <p class="text-sm text-base-content/40 mt-1">Altere as configurações do equipamento e suas chaves/credenciais de monitoramento.</p>
   </div>
-</div>
 
-<div class="glass-panel form-panel" style="max-width: 650px; margin: 0 auto; padding: 2rem;">
-  <form method="post">
-    {% csrf_token %}
+  <div class="glass-card rounded-2xl p-6 md:p-8">
+    <form method="post" class="space-y-8">
+      {% csrf_token %}
 
-    {% if form.errors %}
-      <div class="glass-panel" style="padding: 1rem; margin-bottom: 1.25rem; border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.1); border-radius: 8px; color: #fca5a5; font-size: 0.9rem;">
-        <h4 style="margin: 0 0 0.5rem 0; font-weight: 600; color: #ef4444;">⚠️ Por favor, corrija os erros abaixo:</h4>
-        <ul style="margin: 0; padding-left: 1.25rem;">
-          {% for field, errors in form.errors.items %}
-            {% for error in errors %}
-              <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
+      {% if form.errors %}
+        <div class="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <h4 class="font-semibold text-red-400 mb-2">Por favor, corrija os erros abaixo:</h4>
+          <ul class="list-disc list-inside space-y-0.5">
+            {% for field, errors in form.errors.items %}
+              {% for error in errors %}
+                <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
+              {% endfor %}
             {% endfor %}
-          {% endfor %}
-        </ul>
-      </div>
-    {% endif %}
+          </ul>
+        </div>
+      {% endif %}
 
-    <div class="form-group" style="margin-bottom: 1.25rem;">
-      <label for="{{ form.name.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Nome do Equipamento</label>
-      {{ form.name }}
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Nome de identificação do equipamento.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.25rem;">
-      <label for="{{ form.host.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">IP ou Hostname</label>
-      {{ form.host }}
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Endereço de rede do equipamento (ex: 172.31.255.2).</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.25rem;">
-      <label for="{{ form.device_type.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Tipo de Equipamento</label>
-      {{ form.device_type }}
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione o tipo para carregar o protocolo correto de monitoramento.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.25rem;">
-      <label for="{{ form.group.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Grupo (Opcional)</label>
-      {{ form.group }}
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione um grupo para organizar seus sensores.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.25rem;">
-      <label for="{{ form.check_interval.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Frequência de Verificação</label>
-      {{ form.check_interval }}
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Frequência de verificação padrão para todos os sensores criados sob este equipamento.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.25rem;">
-      <label for="{{ form.telegram_alert_threshold.id_for_label }}" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Regra de Alerta do Telegram</label>
-      {{ form.telegram_alert_threshold }}
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Define a quantidade padrão de falhas consecutivas antes de notificar no Telegram.</span>
-    </div>
-
-    <!-- SNMP Configuration Section -->
-    <div id="snmp-section" class="glass-panel" style="padding: 1.25rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1.25rem; background: rgba(0,0,0,0.15); display: none;">
-      <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 1rem; font-weight: 600;">Configurações do SNMP</h3>
-
-      <div class="form-group" style="margin-bottom: 1rem;">
-        <label for="{{ form.snmp_community.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Comunidade SNMP</label>
-        {{ form.snmp_community }}
-      </div>
-
-      <div class="form-group" style="margin-bottom: 0;">
-        <label for="{{ form.snmp_port.id_for_label }}" style="display: block; color: var(--text-muted); margin-bottom: 0.4rem; font-size: 0.85rem;">Porta SNMP</label>
-        {{ form.snmp_port }}
-      </div>
-    </div>
-
-    <!-- Sensor Selection -->
-    <div id="sensor-section" style="margin-bottom: 1.5rem; display: none;">
-      <div style="border: 1px solid rgba(99,102,241,0.3); border-radius: 10px; padding: 1.25rem; background: rgba(99,102,241,0.05);">
-        <h3 style="color: white; font-size: 1rem; margin-top: 0; margin-bottom: 0.25rem; font-weight: 600;">🔌 Sensores do Equipamento</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 1rem 0;">Selecione os sensores básicos a manter ativos neste equipamento.</p>
-        <div id="sensor-options" style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
-          <!-- Populated by JS -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="{{ form.name.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">Nome do Equipamento</label>
+          {{ form.name }}
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Nome de identificação do equipamento.</span>
+        </div>
+        <div>
+          <label for="{{ form.host.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">IP ou Hostname</label>
+          {{ form.host }}
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Endereço de rede do equipamento (ex: 172.31.255.2).</span>
         </div>
       </div>
-    </div>
 
-    <div class="form-group" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-      {{ form.is_active }}
-      <label for="{{ form.is_active.id_for_label }}" style="color: white; font-weight: 500; cursor: pointer; user-select: none;">Ativar monitoramento deste equipamento</label>
-    </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="{{ form.device_type.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">Tipo de Equipamento</label>
+          {{ form.device_type }}
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Selecione o tipo para carregar o protocolo correto de monitoramento.</span>
+        </div>
+        <div>
+          <label for="{{ form.group.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">Grupo (Opcional)</label>
+          {{ form.group }}
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Selecione um grupo para organizar seus sensores.</span>
+        </div>
+      </div>
 
-    <div class="form-actions" style="display: flex; gap: 1rem; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.25rem;">
-      <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Salvar Alterações</button>
-      <a href="{% url 'dashboard' %}" class="btn btn-secondary" style="padding: 0.6rem 1.5rem;">Cancelar</a>
-    </div>
-  </form>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="{{ form.check_interval.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">Frequência de Verificação</label>
+          {{ form.check_interval }}
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Frequência padrão para todos os sensores criados sob este equipamento.</span>
+        </div>
+        <div>
+          <label for="{{ form.telegram_alert_threshold.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">Regra de Alerta do Telegram</label>
+          {{ form.telegram_alert_threshold }}
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Quantidade padrão de falhas consecutivas antes de notificar no Telegram.</span>
+        </div>
+      </div>
+
+      <div id="snmp-section" class="hidden rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-5 space-y-6">
+        <h3 class="text-sm font-bold text-base-content">Configurações do SNMP</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label for="{{ form.snmp_community.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">Comunidade SNMP</label>
+            {{ form.snmp_community }}
+          </div>
+          <div>
+            <label for="{{ form.snmp_port.id_for_label }}" class="block text-sm font-semibold text-base-content/80 mb-2">Porta SNMP</label>
+            {{ form.snmp_port }}
+          </div>
+        </div>
+      </div>
+
+      <div id="sensor-section" class="hidden">
+        <div class="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-5">
+          <div class="mb-4">
+            <h3 class="text-sm font-bold text-base-content">Sensores do Equipamento</h3>
+            <p class="text-xs text-zinc-400 mt-1">Selecione os sensores básicos a manter ativos neste equipamento.</p>
+          </div>
+          <div id="sensor-options" class="flex flex-wrap gap-3"></div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        {{ form.is_active }}
+        <label for="{{ form.is_active.id_for_label }}" class="text-sm font-medium text-base-content cursor-pointer select-none">Ativar monitoramento deste equipamento</label>
+      </div>
+
+      <div class="flex flex-wrap gap-3 justify-end border-t border-white/5 pt-6">
+        <button type="submit" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity">Salvar Alterações</button>
+        <a href="{% url 'dashboard' %}" class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors">Cancelar</a>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
 
@@ -109,17 +111,19 @@
     const snmpSection = document.getElementById("snmp-section");
     const sensorSection = document.getElementById("sensor-section");
     const sensorOptions = document.getElementById("sensor-options");
-
-    // Dynamic discovered sensors list from Django view context
     const discoveredSensors = {{ discovered_sensors_json|safe }};
 
     function buildSensorCheckboxes() {
       sensorOptions.innerHTML = '';
-      if (discoveredSensors.length === 0) { sensorSection.style.display = 'none'; return; }
-      sensorSection.style.display = 'block';
+      if (discoveredSensors.length === 0) {
+        sensorSection.classList.add('hidden');
+        sensorSection.classList.remove('block');
+        return;
+      }
+      sensorSection.classList.remove('hidden');
+      sensorSection.classList.add('block');
 
       discoveredSensors.forEach(function(s) {
-        // Safe identifier for HTML id
         const cbId = 'sensor_' + s.identifier.replace(/[^a-zA-Z0-9]/g, '_');
         const isChecked = s.is_monitored ? 'checked' : '';
 
@@ -131,33 +135,28 @@
 
         const wrapper = document.createElement('label');
         wrapper.htmlFor = cbId;
-        wrapper.style.cssText = 'display:flex;align-items:center;gap:0.6rem;cursor:pointer;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.5rem 0.85rem;user-select:none;transition:background 0.2s;';
+        wrapper.className = 'flex items-center gap-2.5 cursor-pointer bg-white/[0.04] border border-white/[0.08] rounded-lg px-3.5 py-2.5 select-none transition-colors hover:bg-indigo-500/10';
         wrapper.innerHTML =
-          '<input type="checkbox" name="sensors" id="' + cbId + '" value="' + s.identifier + '" ' + isChecked + ' ' +
-          'style="accent-color:#6366f1;width:16px;height:16px;cursor:pointer;">' +
+          '<input type="checkbox" name="sensors" id="' + cbId + '" value="' + s.identifier + '" ' + isChecked + ' class="checkbox checkbox-xs checkbox-primary">' +
           '<i class="bi ' + icon + '" style="font-size:1rem;color:#a5b4fc;flex-shrink:0;"></i>' +
           '<span>' +
-          '<strong style="color:white;font-size:0.9rem;">' + s.name + '</strong>' +
-          '<span style="display:block;color:var(--text-muted);font-size:0.75rem;">' + s.type_label + '</span>' +
+          '<strong class="text-sm text-base-content block">' + s.name + '</strong>' +
+          '<span class="text-xs text-zinc-400 block">' + s.type_label + '</span>' +
           '</span>';
-
-        wrapper.addEventListener('mouseenter', function() { wrapper.style.background = 'rgba(99,102,241,0.12)'; });
-        wrapper.addEventListener('mouseleave', function() {
-          const cb = wrapper.querySelector('input');
-          wrapper.style.background = cb.checked ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.04)';
-        });
         sensorOptions.appendChild(wrapper);
       });
     }
 
     function toggleSections() {
       const type = deviceTypeSelect.value;
-      snmpSection.style.display = (type === 'parks_olt' || type === 'generic_snmp' || type === 'mikrotik_snmp') ? 'block' : 'none';
+      const showSnmp = (type === 'parks_olt' || type === 'generic_snmp' || type === 'mikrotik_snmp');
+      snmpSection.classList.toggle('hidden', !showSnmp);
+      snmpSection.classList.toggle('block', showSnmp);
       buildSensorCheckboxes();
     }
 
     deviceTypeSelect.addEventListener("change", toggleSections);
-    toggleSections(); // run on load
+    toggleSections();
   });
 </script>
 {% endblock %}
