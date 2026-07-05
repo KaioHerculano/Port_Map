@@ -2,6 +2,12 @@ from django import forms
 
 from .models import Device
 
+_DEVICE_INPUT_CLASS = (
+    "w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm "
+    "text-base-content placeholder:text-zinc-500 focus:outline-none focus:ring-2 "
+    "focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors"
+)
+
 
 class DeviceForm(forms.ModelForm):
     class Meta:
@@ -23,80 +29,47 @@ class DeviceForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(
                 attrs={
-                    "class": "form-input",
+                    "class": _DEVICE_INPUT_CLASS,
                     "placeholder": "Ex: OLT Parks GPON, MikroTik BGP",
-                    "style": "width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
                 }
             ),
             "host": forms.TextInput(
                 attrs={
-                    "class": "form-input",
+                    "class": _DEVICE_INPUT_CLASS,
                     "placeholder": "Ex: 172.31.255.2",
-                    "style": "width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
                 }
             ),
-            "device_type": forms.Select(
-                attrs={
-                    "class": "form-input",
-                    "style": "width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
-                }
-            ),
-            "group": forms.Select(
-                attrs={
-                    "class": "form-input",
-                    "style": "width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
-                }
-            ),
+            "device_type": forms.Select(attrs={"class": _DEVICE_INPUT_CLASS}),
+            "group": forms.Select(attrs={"class": _DEVICE_INPUT_CLASS}),
             "is_active": forms.CheckboxInput(
                 attrs={
-                    "style": "width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer;"
+                    "class": "checkbox checkbox-sm checkbox-primary",
                 }
             ),
-            "check_interval": forms.Select(
-                attrs={
-                    "class": "form-input",
-                    "style": "width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
-                }
-            ),
+            "check_interval": forms.Select(attrs={"class": _DEVICE_INPUT_CLASS}),
             "telegram_alert_threshold": forms.Select(
-                attrs={
-                    "class": "form-input",
-                    "style": "width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
-                }
+                attrs={"class": _DEVICE_INPUT_CLASS}
             ),
             "snmp_community": forms.TextInput(
                 attrs={
-                    "class": "form-input",
+                    "class": _DEVICE_INPUT_CLASS,
                     "placeholder": "public",
-                    "style": "width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
                 }
             ),
-            "snmp_port": forms.NumberInput(
-                attrs={
-                    "class": "form-input",
-                    "style": "width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
-                }
-            ),
+            "snmp_port": forms.NumberInput(attrs={"class": _DEVICE_INPUT_CLASS}),
             "api_username": forms.TextInput(
                 attrs={
-                    "class": "form-input",
+                    "class": _DEVICE_INPUT_CLASS,
                     "placeholder": "Ex: admin",
-                    "style": "width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
                 }
             ),
             "api_password": forms.PasswordInput(
                 attrs={
-                    "class": "form-input",
+                    "class": _DEVICE_INPUT_CLASS,
                     "render_value": True,
-                    "style": "width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
                 }
             ),
-            "api_port": forms.NumberInput(
-                attrs={
-                    "class": "form-input",
-                    "style": "width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;",
-                }
-            ),
+            "api_port": forms.NumberInput(attrs={"class": _DEVICE_INPUT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):

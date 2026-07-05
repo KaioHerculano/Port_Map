@@ -11,7 +11,7 @@
 <div class="content-header">
   <div class="header-title">
     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-      <a href="{% url 'dashboard' %}" class="btn btn-secondary btn-icon" title="Voltar ao Painel" style="padding: 0.35rem 0.6rem;">
+      <a href="{% url 'dashboard' %}" class="inline-flex items-center justify-center w-6 h-6 rounded-md text-base-content/40 hover:text-base-content hover:bg-white/8 transition-colors" title="Voltar ao Painel">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 16px; height: 16px;">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
@@ -23,19 +23,19 @@
     <p>Estatísticas de latência e histórico de atividade da porta</p>
   </div>
   <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-    <a href="{% url 'edit_target' target.pk %}" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.25rem;">
+    <a href="{% url 'edit_target' target.pk %}" class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
         <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
       </svg>
       Editar Alvo
     </a>
-    <button class="btn btn-secondary" onclick="testTelegramAlert()" style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+    <button class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors" onclick="testTelegramAlert()" style="cursor: pointer;">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
       </svg>
       Testar Telegram
     </button>
-    <button id="btn-check-now" class="btn btn-primary" onclick="checkNow({{ target.id }})">
+    <button id="btn-check-now" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity" onclick="checkNow({{ target.id }})">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
       </svg>
@@ -76,7 +76,7 @@
           <input type="date" name="end_date" value="{{ end_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
         </div>
 
-        <button type="submit" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 0.25rem; cursor: pointer;">
+        <button type="submit" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity" style="height: 32px; border-radius: 6px; cursor: pointer;">
           Filtrar
         </button>
       </form>
@@ -170,15 +170,14 @@
         <span class="text-muted">{{ target.created_at|date:"d/m/Y H:i" }}</span>
       </div>
 
-      <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-        <!-- Delete and toggle -->
-        <button class="btn btn-secondary" style="flex-grow: 1; font-size: 0.8rem; padding: 0.5rem;" onclick="toggleActive({{ target.id }})">
+      <div class="border-t border-white/5 pt-4 mt-2 flex w-full gap-3">
+        <button class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors flex-1" onclick="toggleActive({{ target.id }})">
           {% if target.is_active %}Pausar Monitoramento{% else %}Ativar Monitoramento{% endif %}
         </button>
-
-        <form method="post" action="{% url 'delete_target' target.pk %}" style="display: inline;" onsubmit="return confirm('Excluir este monitoramento permanentemente?');">
+        <form method="post" action="{% url 'delete_target' target.pk %}" class="flex-1 min-w-0"
+          onsubmit="return confirm('Excluir este monitoramento permanentemente?');">
           {% csrf_token %}
-          <button type="submit" class="btn btn-danger" style="font-size: 0.8rem; padding: 0.5rem;">
+          <button type="submit" class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-red-500/25 bg-red-500/5 text-red-400 text-sm hover:bg-red-500/10 transition-colors w-full">
             Excluir
           </button>
         </form>

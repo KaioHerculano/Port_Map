@@ -3,113 +3,108 @@
 {% block title %}Editar Grupo - Port Monitor{% endblock %}
 
 {% block content %}
-<div class="content-header">
-  <div class="header-title">
-    <h1>Editar Grupo de Monitoramento</h1>
-    <p>Altere o nome do grupo e gerencie a frequência de verificação de seus dispositivos em lote.</p>
+<div class="max-w-3xl mx-auto">
+
+  <div class="mb-8">
+    <h1 class="text-2xl font-black tracking-tight text-base-content">Editar Grupo de Monitoramento</h1>
+    <p class="text-sm text-base-content/40 mt-1">Altere o nome do grupo e gerencie a frequência de verificação de seus dispositivos em lote.</p>
   </div>
-</div>
 
-<div class="glass-panel form-panel" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
-  <form method="post" action="{% url 'edit_group' group.pk %}">
-    {% csrf_token %}
+  <div class="glass-card rounded-2xl p-6 md:p-8">
+    <form method="post" action="{% url 'edit_group' group.pk %}" class="space-y-8">
+      {% csrf_token %}
 
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_name" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Nome do Grupo</label>
-      <input type="text" id="id_name" name="name" value="{{ group.name }}" class="form-input" placeholder="Ex: Câmeras Vigia, Servidores BD, etc." required style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Insira o nome amigável para identificar este grupo.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_check_interval" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Alterar Frequência de Verificação em Lote (Opcional)</label>
-      <select id="id_check_interval" name="check_interval" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-        <option value="">-- Manter frequências atuais de cada dispositivo --</option>
-        {% for val, name in check_interval_choices %}
-          <option value="{{ val }}">{{ name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label for="id_telegram_alert_threshold" style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Alterar Regra de Alerta do Telegram em Lote (Opcional)</label>
-      <select id="id_telegram_alert_threshold" name="telegram_alert_threshold" class="form-input" style="width: 100%; padding: 0.75rem; background: #1a1a24; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: white; font-size: 0.95rem;">
-        <option value="">-- Manter regras de alerta atuais de cada dispositivo --</option>
-        {% for val, name in telegram_alert_threshold_choices %}
-          <option value="{{ val }}">{{ name }}</option>
-        {% endfor %}
-      </select>
-      <span class="form-help" style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Selecione uma regra caso queira sobrescrever a regra de alertas do Telegram dos dispositivos selecionados abaixo.</span>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-      <label style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Portas do Grupo (Selecione para aplicar a frequência/alerta acima)</label>
-
-      <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
-        <button type="button" onclick="selectAllTargets(true);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Marcar Todas</button>
-        <button type="button" onclick="selectAllTargets(false);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Desmarcar Todas</button>
+      <div>
+        <label for="id_name" class="block text-sm font-semibold text-base-content/80 mb-2">Nome do Grupo</label>
+        <input type="text" id="id_name" name="name" value="{{ group.name }}" placeholder="Ex: Câmeras Vigia, Servidores BD, etc." required
+          class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+        <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Insira o nome amigável para identificar este grupo.</span>
       </div>
 
-      <div style="max-height: 200px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem;">
-        {% for target in targets %}
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
-          <input type="checkbox" name="selected_targets" value="{{ target.id }}" checked id="target_cb_{{ target.id }}" style="width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;">
-          <label for="target_cb_{{ target.id }}" style="color: white; font-size: 0.9rem; cursor: pointer; display: flex; flex-direction: column;">
-            <span>{% if target.label %}<strong>{{ target.label }}</strong> ({{ target.host }}:{{ target.port }}){% else %}<strong>{{ target.host }}:{{ target.port }}</strong>{% endif %}</span>
-            <span style="color: var(--text-muted); font-size: 0.75rem;">Frequência atual: {{ target.get_check_interval_display }} | Alerta: {{ target.get_telegram_alert_threshold_display }}</span>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="id_check_interval" class="block text-sm font-semibold text-base-content/80 mb-2">Frequência em Lote (Opcional)</label>
+          <select id="id_check_interval" name="check_interval" class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+            <option value="">-- Manter frequências atuais --</option>
+            {% for val, name in check_interval_choices %}
+              <option value="{{ val }}">{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="id_telegram_alert_threshold" class="block text-sm font-semibold text-base-content/80 mb-2">Alerta Telegram em Lote (Opcional)</label>
+          <select id="id_telegram_alert_threshold" name="telegram_alert_threshold" class="w-full py-2.5 px-4 rounded-lg border border-zinc-800 bg-zinc-950/50 text-sm text-base-content focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-colors">
+            <option value="">-- Manter regras atuais --</option>
+            {% for val, name in telegram_alert_threshold_choices %}
+              <option value="{{ val }}">{{ name }}</option>
+            {% endfor %}
+          </select>
+          <span class="block text-xs text-zinc-400 mt-1.5 leading-relaxed">Sobrescreve a regra de alertas do Telegram nos dispositivos selecionados abaixo.</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-base-content/80 mb-2">Portas do Grupo</label>
+        <p class="text-xs text-zinc-400 mb-3 leading-relaxed">Selecione as portas para aplicar a frequência/alerta acima.</p>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button type="button" onclick="selectAllTargets(true);" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">Marcar Todas</button>
+          <button type="button" onclick="selectAllTargets(false);" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">Desmarcar Todas</button>
+        </div>
+        <div class="max-h-52 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
+          {% for target in targets %}
+          <label for="target_cb_{{ target.id }}" class="flex items-start gap-3 cursor-pointer group">
+            <input type="checkbox" name="selected_targets" value="{{ target.id }}" checked id="target_cb_{{ target.id }}" class="checkbox checkbox-xs checkbox-primary mt-0.5">
+            <span class="min-w-0">
+              <span class="text-sm text-base-content block group-hover:text-indigo-300 transition-colors">
+                {% if target.label %}<strong>{{ target.label }}</strong> ({{ target.host }}:{{ target.port }}){% else %}<strong>{{ target.host }}:{{ target.port }}</strong>{% endif %}
+              </span>
+              <span class="text-xs text-zinc-400 block mt-0.5">Frequência: {{ target.get_check_interval_display }} · Alerta: {{ target.get_telegram_alert_threshold_display }}</span>
+            </span>
           </label>
+          {% empty %}
+          <p class="text-sm text-zinc-400 text-center py-6">Nenhuma porta associada a este grupo ainda.</p>
+          {% endfor %}
         </div>
-        {% empty %}
-        <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem;">
-          Nenhuma porta associada a este grupo ainda.
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 2rem;">
-      <label style="display: block; color: white; margin-bottom: 0.5rem; font-weight: 500;">Equipamentos do Grupo (Marque para associar ao grupo)</label>
-
-      <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
-        <button type="button" onclick="selectAllDevices(true);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Selecionar Todos</button>
-        <button type="button" onclick="selectAllDevices(false);" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">Limpar Seleção</button>
       </div>
 
-      <div style="max-height: 200px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1rem;">
-        {% for device in devices %}
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
-          <input type="checkbox" name="selected_devices" value="{{ device.id }}" {% if device.group == group %}checked{% endif %} id="device_cb_{{ device.id }}" style="width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;">
-          <label for="device_cb_{{ device.id }}" style="color: white; font-size: 0.9rem; cursor: pointer; display: flex; flex-direction: column;">
-            <span><strong>{{ device.name }}</strong> ({{ device.host }})</span>
-            <span style="color: var(--text-muted); font-size: 0.75rem;">Grupo atual: {% if device.group %}{{ device.group.name }}{% else %}Nenhum{% endif %}</span>
+      <div>
+        <label class="block text-sm font-semibold text-base-content/80 mb-2">Equipamentos do Grupo</label>
+        <p class="text-xs text-zinc-400 mb-3 leading-relaxed">Marque os equipamentos para associar a este grupo.</p>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button type="button" onclick="selectAllDevices(true);" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">Selecionar Todos</button>
+          <button type="button" onclick="selectAllDevices(false);" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">Limpar Seleção</button>
+        </div>
+        <div class="max-h-52 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
+          {% for device in devices %}
+          <label for="device_cb_{{ device.id }}" class="flex items-start gap-3 cursor-pointer group">
+            <input type="checkbox" name="selected_devices" value="{{ device.id }}" {% if device.group == group %}checked{% endif %} id="device_cb_{{ device.id }}" class="checkbox checkbox-xs checkbox-primary mt-0.5">
+            <span class="min-w-0">
+              <span class="text-sm text-base-content block group-hover:text-indigo-300 transition-colors"><strong>{{ device.name }}</strong> ({{ device.host }})</span>
+              <span class="text-xs text-zinc-400 block mt-0.5">Grupo atual: {% if device.group %}{{ device.group.name }}{% else %}Nenhum{% endif %}</span>
+            </span>
           </label>
+          {% empty %}
+          <p class="text-sm text-zinc-400 text-center py-6">Nenhum equipamento cadastrado no sistema ainda.</p>
+          {% endfor %}
         </div>
-        {% empty %}
-        <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem;">
-          Nenhum equipamento cadastrado no sistema ainda.
-        </div>
-        {% endfor %}
       </div>
-    </div>
 
-    <div class="form-actions" style="display: flex; gap: 1rem; justify-content: flex-end;">
-      <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-      <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</a>
-    </div>
-  </form>
+      <div class="flex flex-wrap gap-3 justify-end border-t border-white/5 pt-6">
+        <button type="submit" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity">Salvar Alterações</button>
+        <a href="{% url 'dashboard' %}" class="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-white/10 bg-white/5 text-base-content/60 text-sm hover:text-base-content hover:bg-white/10 transition-colors">Cancelar</a>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
   function selectAllTargets(status) {
-    document.querySelectorAll("input[name='selected_targets']").forEach(cb => {
-      cb.checked = status;
-    });
+    document.querySelectorAll("input[name='selected_targets']").forEach(cb => { cb.checked = status; });
   }
   function selectAllDevices(status) {
-    document.querySelectorAll("input[name='selected_devices']").forEach(cb => {
-      cb.checked = status;
-    });
+    document.querySelectorAll("input[name='selected_devices']").forEach(cb => { cb.checked = status; });
   }
 </script>
 {% endblock %}
