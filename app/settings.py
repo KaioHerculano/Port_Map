@@ -44,6 +44,9 @@ if not DEBUG and "test" not in sys.argv:
     SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
 
+    # Informa ao Django para confiar no header do Proxy (EasyPanel/Traefik) sobre HTTPS
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 
 # Application definition
 
