@@ -1149,24 +1149,28 @@ class TargetDetailService:
         from django.utils.dateparse import parse_date
 
         now = timezone.now()
-        start_date_val = None
-        end_date_val = None
 
-        if start_date_str and end_date_str:
+        # Only treat start_date/end_date as a custom range when period is
+        # explicitly "custom".  For every pre-set period (1h, 6h, …) the date
+        # inputs are ignored – they are still present in the form submission
+        # because display:none does not suppress HTML inputs.
+        if period == "custom" and start_date_str and end_date_str:
             start_date_val = parse_date(start_date_str)
             end_date_val = parse_date(end_date_str)
-
-        if start_date_val and end_date_val:
-            start_dt = timezone.make_aware(
-                datetime.datetime.combine(start_date_val, datetime.time.min)
-            )
-            end_dt = timezone.make_aware(
-                datetime.datetime.combine(end_date_val, datetime.time.max)
-            )
-            period = "custom"
-        else:
-            if not period:
+            if start_date_val and end_date_val:
+                start_dt = timezone.make_aware(
+                    datetime.datetime.combine(start_date_val, datetime.time.min)
+                )
+                end_dt = timezone.make_aware(
+                    datetime.datetime.combine(end_date_val, datetime.time.max)
+                )
+            else:
+                # Fallback: invalid date strings → last 24 h
                 period = "24h"
+                start_dt = now - timedelta(hours=24)
+                end_dt = now
+        else:
+            # Pre-set period: compute exact datetime window relative to now
             period_map = {
                 "1h": timedelta(hours=1),
                 "3h": timedelta(hours=3),
@@ -1176,40 +1180,45 @@ class TargetDetailService:
                 "7d": timedelta(days=7),
                 "30d": timedelta(days=30),
             }
-            delta = period_map.get(period, timedelta(hours=24))
-            start_dt = now - delta
+            if period not in period_map:
+                period = "24h"
+            start_dt = now - period_map[period]
             end_dt = now
-            start_date_str = start_dt.strftime("%Y-%m-%d")
-            end_date_str = now.strftime("%Y-%m-%d")
 
-        # Bucket size: keep full resolution for short ranges,
-        # increase aggregation as the selected period grows.
+        # Strings used by the template to repopulate the date pickers
+        start_date_str = start_dt.strftime("%Y-%m-%d")
+        end_date_str = end_dt.strftime("%Y-%m-%d")
+
+        # --- Bucket size ---------------------------------------------------
+        # Keep full per-minute resolution for short ranges; aggregate gradually
+        # for larger ones so the chart stays readable without losing data.
         total_seconds = (end_dt - start_dt).total_seconds()
         total_hours = total_seconds / 3600
+
         if total_hours <= 1:
-            bucket_minutes = 1  # ≤1h  → 1-min buckets  (≤60 points)
+            bucket_minutes = 1  # ≤1h  → 1-min buckets  (≤60 pts)
         elif total_hours <= 3:
-            bucket_minutes = 2  # ≤3h  → 2-min buckets  (≤90 points)
+            bucket_minutes = 2  # ≤3h  → 2-min buckets  (≤90 pts)
         elif total_hours <= 6:
-            bucket_minutes = 5  # ≤6h  → 5-min buckets  (≤72 points)
+            bucket_minutes = 5  # ≤6h  → 5-min buckets  (≤72 pts)
         elif total_hours <= 12:
-            bucket_minutes = 10  # ≤12h → 10-min buckets (≤72 points)
+            bucket_minutes = 10  # ≤12h → 10-min buckets (≤72 pts)
         elif total_hours <= 24:
-            bucket_minutes = 15  # ≤24h → 15-min buckets (≤96 points)
+            bucket_minutes = 15  # ≤24h → 15-min buckets (≤96 pts)
         elif total_hours <= 24 * 7:
-            bucket_minutes = 60  # ≤7d  → 1-hour buckets (≤168 points)
+            bucket_minutes = 60  # ≤7d  → 1-hour buckets (≤168 pts)
         else:
-            bucket_minutes = 240  # ≤30d → 4-hour buckets (≤180 points)
+            bucket_minutes = 240  # ≤30d → 4-hour buckets (≤180 pts)
 
         bucket_delta = timedelta(minutes=bucket_minutes)
 
-        # Dynamic format for X-axis labels based on duration
+        # X-axis label format
         if total_hours > 24:
             timestamp_format = "%d/%m %H:%M"
         else:
             timestamp_format = "%H:%M"
 
-        # Fetch all logs in range, ordered by time
+        # --- Fetch logs inside the exact datetime window -------------------
         chart_logs_query = (
             target.logs.filter(timestamp__gte=start_dt, timestamp__lte=end_dt)
             .order_by("timestamp")
@@ -1219,13 +1228,12 @@ class TargetDetailService:
 
         is_metric = target.sensor_type not in ("ping", "tcp")
 
-        # Time-bucket aggregation
+        # --- Time-bucket aggregation ----------------------------------------
         chart_timestamps_final = []
         chart_latencies = []
         chart_statuses_final = []
 
         if raw_logs:
-            # Walk through buckets from start_dt to end_dt
             bucket_start = start_dt
             log_index = 0
             total_logs = len(raw_logs)
@@ -1235,7 +1243,6 @@ class TargetDetailService:
                 bucket_values = []
                 bucket_has_offline = False
 
-                # Collect all logs that fall within [bucket_start, bucket_end)
                 while log_index < total_logs:
                     ts, status, latency, metric_value = raw_logs[log_index]
                     if ts >= bucket_end:
@@ -1249,13 +1256,11 @@ class TargetDetailService:
                             bucket_values.append(val)
 
                 if bucket_has_offline or bucket_values:
-                    # Label the bucket at its midpoint time
                     bucket_mid = bucket_start + bucket_delta / 2
                     label = timezone.localtime(bucket_mid).strftime(timestamp_format)
                     chart_timestamps_final.append(label)
 
                     if bucket_has_offline and not bucket_values:
-                        # Entire bucket is offline
                         chart_latencies.append(0)
                         chart_statuses_final.append(0)
                     else:

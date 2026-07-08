@@ -75,9 +75,13 @@
         </select>
 
         <div id="customDatesWrapper" style="display: {% if period == 'custom' %}flex{% else %}none{% endif %}; gap: 0.25rem; align-items: center;">
-          <input type="date" name="start_date" value="{{ start_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
+          <input type="date" name="start_date" id="startDateInput" value="{{ start_date }}"
+            {% if period != 'custom' %}disabled{% endif %}
+            style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
           <span style="color: var(--text-muted); font-size: 0.8rem;">até</span>
-          <input type="date" name="end_date" value="{{ end_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
+          <input type="date" name="end_date" id="endDateInput" value="{{ end_date }}"
+            {% if period != 'custom' %}disabled{% endif %}
+            style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
         </div>
 
         <button type="submit" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity" style="height: 32px; border-radius: 6px; cursor: pointer;">
@@ -425,17 +429,25 @@
 </script>
 {% endif %}
 <script>
-  // Toggle custom date range fields visibility
+  // Toggle custom date range fields visibility.
+  // IMPORTANT: disabled inputs are NOT submitted with the form, so toggling
+  // the disabled attribute is the reliable way to exclude date values when a
+  // pre-set period (1h, 6h, …) is active.
   function toggleCustomDates() {
     const periodSelect = document.getElementById('periodSelect');
     const customDatesWrapper = document.getElementById('customDatesWrapper');
-    if (periodSelect && customDatesWrapper) {
-      if (periodSelect.value === 'custom') {
-        customDatesWrapper.style.display = 'flex';
-      } else {
-        customDatesWrapper.style.display = 'none';
-        document.getElementById('chartFilterForm').submit();
-      }
+    const startInput = document.getElementById('startDateInput');
+    const endInput   = document.getElementById('endDateInput');
+    if (!periodSelect || !customDatesWrapper) return;
+
+    const isCustom = periodSelect.value === 'custom';
+    customDatesWrapper.style.display = isCustom ? 'flex' : 'none';
+    startInput.disabled = !isCustom;
+    endInput.disabled   = !isCustom;
+
+    if (!isCustom) {
+      // Submit immediately so the pre-set period takes effect
+      document.getElementById('chartFilterForm').submit();
     }
   }
 
