@@ -5,6 +5,10 @@
 {% block extra_head %}
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Hammer.js (touch support for zoom plugin) -->
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<!-- Chart.js Zoom Plugin -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -36,7 +40,7 @@
       Testar Telegram
     </button>
     <button id="btn-check-now" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity" onclick="checkNow({{ target.id }})">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 shrink-0">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
       </svg>
       Testar Agora
@@ -71,9 +75,13 @@
         </select>
 
         <div id="customDatesWrapper" style="display: {% if period == 'custom' %}flex{% else %}none{% endif %}; gap: 0.25rem; align-items: center;">
-          <input type="date" name="start_date" value="{{ start_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
+          <input type="date" name="start_date" id="startDateInput" value="{{ start_date }}"
+            {% if period != 'custom' %}disabled{% endif %}
+            style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
           <span style="color: var(--text-muted); font-size: 0.8rem;">até</span>
-          <input type="date" name="end_date" value="{{ end_date }}" style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
+          <input type="date" name="end_date" id="endDateInput" value="{{ end_date }}"
+            {% if period != 'custom' %}disabled{% endif %}
+            style="padding: 0.25rem 0.5rem; background: #1a1a24; border: 1px solid var(--primary); border-radius: 8px; color: white; font-size: 0.8rem; height: 32px; outline: none; font-family: inherit;">
         </div>
 
         <button type="submit" class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-content text-sm font-semibold hover:opacity-90 transition-opacity" style="height: 32px; border-radius: 6px; cursor: pointer;">
@@ -296,11 +304,24 @@
     const rawStatuses = {{ chart_statuses|safe }};
     const chartLabel = "{{ chart_label|escapejs }}";
     const chartUnit = "{{ chart_unit|escapejs }}";
+    const bucketMinutes = {{ bucket_minutes|default:1 }};
 
     // Gradient fill for line
     const gradient = ctx.createLinearGradient(0, 0, 0, 300);
     gradient.addColorStop(0, 'rgba(110, 68, 255, 0.4)');
     gradient.addColorStop(1, 'rgba(110, 68, 255, 0.0)');
+
+    // Hide individual dots when there are many points (aggregated view)
+    const denseChart = rawTimestamps.length > 60;
+    const pointRadius = denseChart ? 0 : 4;
+    const pointHoverRadius = denseChart ? 4 : 6;
+
+    // Describe the aggregation bucket in the tooltip
+    function bucketLabel() {
+      if (bucketMinutes < 60) return `${bucketMinutes}min`;
+      if (bucketMinutes < 1440) return `${bucketMinutes / 60}h`;
+      return `${bucketMinutes / 1440}d`;
+    }
 
     const chart = new Chart(ctx, {
       type: 'line',
@@ -310,7 +331,7 @@
           label: `${chartLabel} (${chartUnit})`,
           data: rawLatencies,
           borderColor: '#6e44ff',
-          borderWidth: 3,
+          borderWidth: denseChart ? 2 : 3,
           backgroundColor: gradient,
           fill: true,
           tension: 0.3,
@@ -319,8 +340,8 @@
             return rawStatuses[index] === 1 ? '#10b981' : '#ef4444';
           },
           pointBorderColor: '#0f131a',
-          pointRadius: 4,
-          pointHoverRadius: 6,
+          pointRadius: pointRadius,
+          pointHoverRadius: pointHoverRadius,
         }]
       },
       options: {
@@ -337,6 +358,13 @@
             borderColor: 'rgba(255,255,255,0.08)',
             borderWidth: 1,
             callbacks: {
+              title: function(items) {
+                if (!items.length) return '';
+                const label = items[0].label;
+                return bucketMinutes > 1
+                  ? `${label}  (avg ${bucketLabel()})`
+                  : label;
+              },
               label: function(context) {
                 const index = context.dataIndex;
                 if (rawStatuses[index] === 0) {
@@ -344,6 +372,20 @@
                 }
                 return `${chartLabel}: ${context.parsed.y} ${chartUnit}`;
               }
+            }
+          },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x',
+            },
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              mode: 'x',
+            },
+            limits: {
+              x: { minRange: 2 }
             }
           }
         },
@@ -358,7 +400,7 @@
               maxTicksLimit: 12,
               maxRotation: 0,
               font: {
-                family: 'Plus Jakarta Sans',
+                family: 'Inter',
                 size: 10
               }
             }
@@ -370,7 +412,7 @@
             ticks: {
               color: '#9ca3af',
               font: {
-                family: 'Plus Jakarta Sans'
+                family: 'Inter'
               }
             },
             suggestedMin: 0
@@ -378,21 +420,34 @@
         }
       }
     });
+
+    // Double-click to reset zoom
+    document.getElementById('latencyChart').addEventListener('dblclick', function() {
+      chart.resetZoom();
+    });
   });
 </script>
 {% endif %}
 <script>
-  // Toggle custom date range fields visibility
+  // Toggle custom date range fields visibility.
+  // IMPORTANT: disabled inputs are NOT submitted with the form, so toggling
+  // the disabled attribute is the reliable way to exclude date values when a
+  // pre-set period (1h, 6h, …) is active.
   function toggleCustomDates() {
     const periodSelect = document.getElementById('periodSelect');
     const customDatesWrapper = document.getElementById('customDatesWrapper');
-    if (periodSelect && customDatesWrapper) {
-      if (periodSelect.value === 'custom') {
-        customDatesWrapper.style.display = 'flex';
-      } else {
-        customDatesWrapper.style.display = 'none';
-        document.getElementById('chartFilterForm').submit();
-      }
+    const startInput = document.getElementById('startDateInput');
+    const endInput   = document.getElementById('endDateInput');
+    if (!periodSelect || !customDatesWrapper) return;
+
+    const isCustom = periodSelect.value === 'custom';
+    customDatesWrapper.style.display = isCustom ? 'flex' : 'none';
+    startInput.disabled = !isCustom;
+    endInput.disabled   = !isCustom;
+
+    if (!isCustom) {
+      // Submit immediately so the pre-set period takes effect
+      document.getElementById('chartFilterForm').submit();
     }
   }
 

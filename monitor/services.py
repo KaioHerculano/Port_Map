@@ -1149,95 +1149,126 @@ class TargetDetailService:
         from django.utils.dateparse import parse_date
 
         now = timezone.now()
-        start_date_val = None
-        end_date_val = None
 
-        if start_date_str and end_date_str:
+        # Only treat start_date/end_date as a custom range when period is
+        # explicitly "custom".  For every pre-set period (1h, 6h, …) the date
+        # inputs are ignored – they are still present in the form submission
+        # because display:none does not suppress HTML inputs.
+        if period == "custom" and start_date_str and end_date_str:
             start_date_val = parse_date(start_date_str)
             end_date_val = parse_date(end_date_str)
-
-        if start_date_val and end_date_val:
-            start_dt = timezone.make_aware(
-                datetime.datetime.combine(start_date_val, datetime.time.min)
-            )
-            end_dt = timezone.make_aware(
-                datetime.datetime.combine(end_date_val, datetime.time.max)
-            )
-            period = "custom"
-        else:
-            if not period:
-                period = "24h"
-            if period == "1h":
-                start_dt = now - timedelta(hours=1)
-                start_date_str = (now - timedelta(hours=1)).strftime("%Y-%m-%d")
-            elif period == "3h":
-                start_dt = now - timedelta(hours=3)
-                start_date_str = (now - timedelta(hours=3)).strftime("%Y-%m-%d")
-            elif period == "6h":
-                start_dt = now - timedelta(hours=6)
-                start_date_str = (now - timedelta(hours=6)).strftime("%Y-%m-%d")
-            elif period == "12h":
-                start_dt = now - timedelta(hours=12)
-                start_date_str = (now - timedelta(hours=12)).strftime("%Y-%m-%d")
-            elif period == "7d":
-                start_dt = now - timedelta(days=7)
-                start_date_str = (now - timedelta(days=7)).strftime("%Y-%m-%d")
-            elif period == "30d":
-                start_dt = now - timedelta(days=30)
-                start_date_str = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            if start_date_val and end_date_val:
+                start_dt = timezone.make_aware(
+                    datetime.datetime.combine(start_date_val, datetime.time.min)
+                )
+                end_dt = timezone.make_aware(
+                    datetime.datetime.combine(end_date_val, datetime.time.max)
+                )
             else:
-                start_dt = now - timedelta(days=1)
+                # Fallback: invalid date strings → last 24 h
                 period = "24h"
-                start_date_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-            end_dt = now
-            end_date_str = now.strftime("%Y-%m-%d")
-
-        # Filter logs in range
-        chart_logs_query = target.logs.filter(
-            timestamp__gte=start_dt, timestamp__lte=end_dt
-        ).order_by("timestamp")
-
-        # Downsample if log count exceeds 80 to optimize performance
-        log_count = chart_logs_query.count()
-        if log_count > 80:
-            step = (log_count + 79) // 80
-            chart_logs = list(chart_logs_query)[::step]
+                start_dt = now - timedelta(hours=24)
+                end_dt = now
         else:
-            chart_logs = list(chart_logs_query)
+            # Pre-set period: compute exact datetime window relative to now
+            period_map = {
+                "1h": timedelta(hours=1),
+                "3h": timedelta(hours=3),
+                "6h": timedelta(hours=6),
+                "12h": timedelta(hours=12),
+                "24h": timedelta(hours=24),
+                "7d": timedelta(days=7),
+                "30d": timedelta(days=30),
+            }
+            if period not in period_map:
+                period = "24h"
+            start_dt = now - period_map[period]
+            end_dt = now
 
-        # Dynamic format for X-axis labels based on duration
-        if (end_dt - start_dt) > timedelta(days=1):
+        # Strings used by the template to repopulate the date pickers
+        start_date_str = start_dt.strftime("%Y-%m-%d")
+        end_date_str = end_dt.strftime("%Y-%m-%d")
+
+        # --- Bucket size ---------------------------------------------------
+        # Keep full per-minute resolution for short ranges; aggregate gradually
+        # for larger ones so the chart stays readable without losing data.
+        total_seconds = (end_dt - start_dt).total_seconds()
+        total_hours = total_seconds / 3600
+
+        if total_hours <= 1:
+            bucket_minutes = 1  # ≤1h  → 1-min buckets  (≤60 pts)
+        elif total_hours <= 3:
+            bucket_minutes = 2  # ≤3h  → 2-min buckets  (≤90 pts)
+        elif total_hours <= 6:
+            bucket_minutes = 5  # ≤6h  → 5-min buckets  (≤72 pts)
+        elif total_hours <= 12:
+            bucket_minutes = 10  # ≤12h → 10-min buckets (≤72 pts)
+        elif total_hours <= 24:
+            bucket_minutes = 15  # ≤24h → 15-min buckets (≤96 pts)
+        elif total_hours <= 24 * 7:
+            bucket_minutes = 60  # ≤7d  → 1-hour buckets (≤168 pts)
+        else:
+            bucket_minutes = 240  # ≤30d → 4-hour buckets (≤180 pts)
+
+        bucket_delta = timedelta(minutes=bucket_minutes)
+
+        # X-axis label format
+        if total_hours > 24:
             timestamp_format = "%d/%m %H:%M"
         else:
             timestamp_format = "%H:%M"
 
-        # Determine if we should plot metric_value instead of latency
+        # --- Fetch logs inside the exact datetime window -------------------
+        chart_logs_query = (
+            target.logs.filter(timestamp__gte=start_dt, timestamp__lte=end_dt)
+            .order_by("timestamp")
+            .values_list("timestamp", "status", "latency", "metric_value")
+        )
+        raw_logs = list(chart_logs_query)
+
         is_metric = target.sensor_type not in ("ping", "tcp")
-        chart_latencies = []
+
+        # --- Time-bucket aggregation ----------------------------------------
         chart_timestamps_final = []
+        chart_latencies = []
         chart_statuses_final = []
-        for log in chart_logs:
-            if not log.status:
-                chart_timestamps_final.append(
-                    timezone.localtime(log.timestamp).strftime(timestamp_format)
-                )
-                chart_latencies.append(0)
-                chart_statuses_final.append(0)
-            else:
-                if is_metric:
-                    if log.metric_value is not None:
-                        chart_timestamps_final.append(
-                            timezone.localtime(log.timestamp).strftime(timestamp_format)
-                        )
-                        chart_latencies.append(log.metric_value)
-                        chart_statuses_final.append(1)
-                    # Skip points with no metric_value (old logs before field was added)
-                else:
-                    chart_timestamps_final.append(
-                        timezone.localtime(log.timestamp).strftime(timestamp_format)
-                    )
-                    chart_latencies.append(log.latency)
-                    chart_statuses_final.append(1)
+
+        if raw_logs:
+            bucket_start = start_dt
+            log_index = 0
+            total_logs = len(raw_logs)
+
+            while bucket_start < end_dt:
+                bucket_end = bucket_start + bucket_delta
+                bucket_values = []
+                bucket_has_offline = False
+
+                while log_index < total_logs:
+                    ts, status, latency, metric_value = raw_logs[log_index]
+                    if ts >= bucket_end:
+                        break
+                    log_index += 1
+                    if not status:
+                        bucket_has_offline = True
+                    else:
+                        val = metric_value if is_metric else latency
+                        if val is not None:
+                            bucket_values.append(val)
+
+                if bucket_has_offline or bucket_values:
+                    bucket_mid = bucket_start + bucket_delta / 2
+                    label = timezone.localtime(bucket_mid).strftime(timestamp_format)
+                    chart_timestamps_final.append(label)
+
+                    if bucket_has_offline and not bucket_values:
+                        chart_latencies.append(0)
+                        chart_statuses_final.append(0)
+                    else:
+                        avg_val = sum(bucket_values) / len(bucket_values)
+                        chart_latencies.append(round(avg_val, 2))
+                        chart_statuses_final.append(0 if bucket_has_offline else 1)
+
+                bucket_start = bucket_end
 
         return {
             "chart_timestamps": chart_timestamps_final,
@@ -1246,6 +1277,7 @@ class TargetDetailService:
             "period": period,
             "start_date": start_date_str,
             "end_date": end_date_str,
+            "bucket_minutes": bucket_minutes,
         }
 
 
