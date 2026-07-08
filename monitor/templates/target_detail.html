@@ -5,6 +5,10 @@
 {% block extra_head %}
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Hammer.js (touch support for zoom plugin) -->
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<!-- Chart.js Zoom Plugin -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -296,11 +300,24 @@
     const rawStatuses = {{ chart_statuses|safe }};
     const chartLabel = "{{ chart_label|escapejs }}";
     const chartUnit = "{{ chart_unit|escapejs }}";
+    const bucketMinutes = {{ bucket_minutes|default:1 }};
 
     // Gradient fill for line
     const gradient = ctx.createLinearGradient(0, 0, 0, 300);
     gradient.addColorStop(0, 'rgba(110, 68, 255, 0.4)');
     gradient.addColorStop(1, 'rgba(110, 68, 255, 0.0)');
+
+    // Hide individual dots when there are many points (aggregated view)
+    const denseChart = rawTimestamps.length > 60;
+    const pointRadius = denseChart ? 0 : 4;
+    const pointHoverRadius = denseChart ? 4 : 6;
+
+    // Describe the aggregation bucket in the tooltip
+    function bucketLabel() {
+      if (bucketMinutes < 60) return `${bucketMinutes}min`;
+      if (bucketMinutes < 1440) return `${bucketMinutes / 60}h`;
+      return `${bucketMinutes / 1440}d`;
+    }
 
     const chart = new Chart(ctx, {
       type: 'line',
@@ -310,7 +327,7 @@
           label: `${chartLabel} (${chartUnit})`,
           data: rawLatencies,
           borderColor: '#6e44ff',
-          borderWidth: 3,
+          borderWidth: denseChart ? 2 : 3,
           backgroundColor: gradient,
           fill: true,
           tension: 0.3,
@@ -319,8 +336,8 @@
             return rawStatuses[index] === 1 ? '#10b981' : '#ef4444';
           },
           pointBorderColor: '#0f131a',
-          pointRadius: 4,
-          pointHoverRadius: 6,
+          pointRadius: pointRadius,
+          pointHoverRadius: pointHoverRadius,
         }]
       },
       options: {
@@ -337,6 +354,13 @@
             borderColor: 'rgba(255,255,255,0.08)',
             borderWidth: 1,
             callbacks: {
+              title: function(items) {
+                if (!items.length) return '';
+                const label = items[0].label;
+                return bucketMinutes > 1
+                  ? `${label}  (avg ${bucketLabel()})`
+                  : label;
+              },
               label: function(context) {
                 const index = context.dataIndex;
                 if (rawStatuses[index] === 0) {
@@ -344,6 +368,20 @@
                 }
                 return `${chartLabel}: ${context.parsed.y} ${chartUnit}`;
               }
+            }
+          },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x',
+            },
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              mode: 'x',
+            },
+            limits: {
+              x: { minRange: 2 }
             }
           }
         },
@@ -358,7 +396,7 @@
               maxTicksLimit: 12,
               maxRotation: 0,
               font: {
-                family: 'Plus Jakarta Sans',
+                family: 'Inter',
                 size: 10
               }
             }
@@ -370,13 +408,18 @@
             ticks: {
               color: '#9ca3af',
               font: {
-                family: 'Plus Jakarta Sans'
+                family: 'Inter'
               }
             },
             suggestedMin: 0
           }
         }
       }
+    });
+
+    // Double-click to reset zoom
+    document.getElementById('latencyChart').addEventListener('dblclick', function() {
+      chart.resetZoom();
     });
   });
 </script>
