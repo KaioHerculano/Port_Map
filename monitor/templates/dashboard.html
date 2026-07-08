@@ -416,32 +416,34 @@
           placeholder="Buscar IP, Porta ou Identificador..."
           class="join-item input input-sm input-bordered border-white/10 bg-base-300 flex-1 min-w-0 focus:outline-none focus:border-indigo-500/50">
         {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+        {% if group_id %}<input type="hidden" name="group" value="{{ group_id }}">{% endif %}
       </div>
     </form>
 
     <div class="inline-flex items-center gap-0.5 bg-base-200/80 p-1 rounded-xl border border-white/5">
-      <a href="?q={{ search_query }}"
+      <a href="?q={{ search_query }}{% if group_id %}&group={{ group_id }}{% endif %}"
         class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
           {% if not status_filter %}bg-base-100 text-base-content shadow-sm{% else %}text-base-content/40 hover:text-base-content{% endif %}">
         Todos
       </a>
-      <a href="?q={{ search_query }}&status=online"
+      <a href="?q={{ search_query }}&status=online{% if group_id %}&group={{ group_id }}{% endif %}"
         class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
           {% if status_filter == 'online' %}bg-emerald-500/15 text-emerald-400{% else %}text-base-content/40 hover:text-base-content{% endif %}">
         Abertas
       </a>
-      <a href="?q={{ search_query }}&status=offline"
+      <a href="?q={{ search_query }}&status=offline{% if group_id %}&group={{ group_id }}{% endif %}"
         class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
           {% if status_filter == 'offline' %}bg-red-500/15 text-red-400{% else %}text-base-content/40 hover:text-base-content{% endif %}">
         Fechadas
       </a>
-      <a href="?q={{ search_query }}&status=inactive"
+      <a href="?q={{ search_query }}&status=inactive{% if group_id %}&group={{ group_id }}{% endif %}"
         class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-150
           {% if status_filter == 'inactive' %}bg-amber-500/15 text-amber-400{% else %}text-base-content/40 hover:text-base-content{% endif %}">
         Inativos
       </a>
     </div>
   </div>
+
 
   <!-- Desktop Table -->
   <div class="glass-card rounded-2xl overflow-hidden mb-4 hidden md:block">
