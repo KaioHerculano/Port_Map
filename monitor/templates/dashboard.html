@@ -574,16 +574,16 @@
     {% if page_obj.has_other_pages %}
     <div class="flex items-center justify-center gap-1 py-4 border-t border-white/5">
       {% if page_obj.has_previous %}
-        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">«</a>
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">‹</a>
+        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">‹</a>
       {% else %}
         <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>«</button>
         <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>‹</button>
       {% endif %}
       <span class="inline-flex items-center justify-center h-6 px-2 rounded-md bg-primary/15 text-primary text-xs font-mono pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">›</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">»</a>
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">»</a>
       {% else %}
         <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>›</button>
         <button class="inline-flex items-center justify-center h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs opacity-40 cursor-not-allowed" disabled>»</button>
@@ -679,13 +679,13 @@
     {% if page_obj.has_other_pages %}
     <div class="flex items-center justify-center gap-1 py-2">
       {% if page_obj.has_previous %}
-        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">«</a>
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">‹</a>
+        <a href="?page=1&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">‹</a>
       {% endif %}
       <span class="inline-flex items-center justify-center h-6 px-2 rounded-md bg-primary/15 text-primary text-xs font-mono pointer-events-none">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">›</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">»</a>
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&status={{ status_filter }}{% if group_id %}&group={{ group_id }}{% endif %}" class="inline-flex items-center justify-center gap-1 h-6 px-2 rounded-md border border-white/10 bg-white/5 text-base-content/60 text-xs hover:text-base-content hover:bg-white/10 transition-colors">»</a>
       {% endif %}
     </div>
     {% endif %}

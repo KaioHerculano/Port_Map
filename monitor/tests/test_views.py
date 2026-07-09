@@ -78,6 +78,42 @@ class MonitorViewTests(TestCase):
         self.assertEqual(annotated_group.offline_count, 1)
         self.assertEqual(annotated_group.inactive_count, 1)
 
+    def test_dashboard_group_pagination_preserves_group_filter(self):
+        selected_group = Group.objects.create(name=self.fake.company())
+        other_group = Group.objects.create(name=self.fake.company())
+
+        for index in range(11):
+            MonitorTarget.objects.create(
+                host=f"10.0.0.{index + 1}",
+                port=8000 + index,
+                group=selected_group,
+            )
+        MonitorTarget.objects.create(host="10.0.1.1", port=9000, group=other_group)
+
+        url = reverse("dashboard") + f"?group={selected_group.id}"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["group_id"], str(selected_group.id))
+        self.assertTrue(response.context["page_obj"].has_next())
+        self.assertContains(
+            response,
+            f"?page=2&q=&status=&group={selected_group.id}",
+        )
+
+        response = self.client.get(
+            reverse("dashboard") + f"?group={selected_group.id}&page=2"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["paginator"].count, 11)
+        self.assertTrue(
+            all(
+                target.group_id == selected_group.id
+                for target in response.context["page_obj"]
+            )
+        )
+
     def test_group_report_pdf_view_excludes_inactive_and_supports_custom_days(self):
 
         group = Group.objects.create(name=self.fake.company())
