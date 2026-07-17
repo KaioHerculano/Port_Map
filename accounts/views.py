@@ -70,3 +70,15 @@ class UserLogoutView(View):
         UserService.logout_user(request)
         messages.info(request, "Você foi desconectado com sucesso.")
         return redirect("login")
+
+
+def custom_csrf_failure(request: HttpRequest, reason: str = "") -> HttpResponse:
+    """
+    Trata falhas de CSRF. Se o usuário já estiver autenticado e tentar logar novamente
+    com um token CSRF antigo, redireciona para a dashboard.
+    """
+    from django.views.csrf import csrf_failure
+
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+    return csrf_failure(request, reason=reason)
