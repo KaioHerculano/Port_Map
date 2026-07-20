@@ -70,3 +70,11 @@ class UserLogoutView(View):
         UserService.logout_user(request)
         messages.info(request, "Você foi desconectado com sucesso.")
         return redirect("login")
+
+
+def custom_csrf_failure(request: HttpRequest, reason: str = "") -> HttpResponse:
+    from django.views.csrf import csrf_failure
+
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+    return csrf_failure(request, reason=reason)
