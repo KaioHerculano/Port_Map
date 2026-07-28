@@ -6,6 +6,13 @@ from .validators import validate_host
 
 
 class Device(models.Model):
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="devices",
+    )
     name = models.CharField(max_length=255)
     host = models.CharField(max_length=255, validators=[validate_host])
     device_type = models.CharField(
