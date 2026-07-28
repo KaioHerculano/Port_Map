@@ -10,6 +10,9 @@ from .validators import validate_host
 
 
 class MonitorTarget(models.Model):
+    company = models.ForeignKey(
+        "accounts.Company", on_delete=models.CASCADE, related_name="targets"
+    )
     device = models.ForeignKey(
         Device, on_delete=models.CASCADE, null=True, blank=True, related_name="sensors"
     )
