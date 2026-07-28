@@ -1881,9 +1881,11 @@ class DeviceDiscoveryService:
 
 class DashboardService:
     @staticmethod
-    def get_filtered_queryset(search_query: str, status_filter: str, group_id: str):
+    def get_filtered_queryset(
+        search_query: str, status_filter: str, group_id: str, company=None
+    ):
         queryset = MonitorTarget.objects.select_related("group").filter(
-            device__isnull=True
+            device__isnull=True, company=company
         )
         if search_query:
             queryset = queryset.filter(
