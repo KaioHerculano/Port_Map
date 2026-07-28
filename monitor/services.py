@@ -23,6 +23,7 @@ class PortParserService:
         group: Optional[Group] = None,
         check_interval: int = 60,
         telegram_alert_threshold: int = 1,
+        company=None,
     ) -> Tuple[List[MonitorTarget], List[str]]:
         lines = text.strip().split("\n")
         created_targets: List[MonitorTarget] = []
@@ -131,7 +132,7 @@ class PortParserService:
             # Create/get group if label was specified and no explicit group was provided
             line_group = group
             if not line_group and label:
-                line_group, _ = Group.objects.get_or_create(name=label)
+                line_group, _ = Group.objects.get_or_create(name=label, company=company)
 
             # Create targets in DB
             for port in ports:
@@ -139,6 +140,7 @@ class PortParserService:
                     target, created = MonitorTarget.objects.update_or_create(
                         host=host,
                         port=port,
+                        company=company,
                         defaults={
                             "group": line_group,
                             "label": label,
@@ -1901,12 +1903,12 @@ class DashboardService:
         return queryset
 
     @staticmethod
-    def get_dashboard_stats(group_id: str = ""):
-        all_targets = MonitorTarget.objects.filter(device__isnull=True)
+    def get_dashboard_stats(group_id: str = "", company=None):
+        all_targets = MonitorTarget.objects.filter(device__isnull=True, company=company)
         if group_id:
             all_targets = all_targets.filter(group_id=group_id)
 
-        devices = Device.objects.all()
+        devices = Device.objects.filter(company=company)
         if group_id:
             devices = devices.filter(group_id=group_id)
         devices = devices.prefetch_related("sensors")
@@ -2117,30 +2119,34 @@ class TargetService:
 
 class GroupService:
     @staticmethod
-    def get_groups_with_stats():
-        groups = Group.objects.annotate(
-            total_count=Count("targets", filter=Q(targets__device__isnull=True)),
-            online_count=Count(
-                "targets",
-                filter=Q(
-                    targets__last_status=True,
-                    targets__is_active=True,
-                    targets__device__isnull=True,
+    def get_groups_with_stats(company=None):
+        groups = (
+            Group.objects.filter(company=company)
+            .annotate(
+                total_count=Count("targets", filter=Q(targets__device__isnull=True)),
+                online_count=Count(
+                    "targets",
+                    filter=Q(
+                        targets__last_status=True,
+                        targets__is_active=True,
+                        targets__device__isnull=True,
+                    ),
                 ),
-            ),
-            offline_count=Count(
-                "targets",
-                filter=Q(
-                    targets__last_status=False,
-                    targets__is_active=True,
-                    targets__device__isnull=True,
+                offline_count=Count(
+                    "targets",
+                    filter=Q(
+                        targets__last_status=False,
+                        targets__is_active=True,
+                        targets__device__isnull=True,
+                    ),
                 ),
-            ),
-            inactive_count=Count(
-                "targets",
-                filter=Q(targets__is_active=False, targets__device__isnull=True),
-            ),
-        ).prefetch_related("devices", "devices__sensors")
+                inactive_count=Count(
+                    "targets",
+                    filter=Q(targets__is_active=False, targets__device__isnull=True),
+                ),
+            )
+            .prefetch_related("devices", "devices__sensors")
+        )
 
         for g in groups:
             g.devices_total = 0
@@ -2173,8 +2179,8 @@ class GroupService:
         return groups
 
     @staticmethod
-    def create_group(name: str, user: Any) -> Tuple[Group, bool]:
-        group, created = Group.objects.get_or_create(name=name)
+    def create_group(name: str, user: Any, company=None) -> Tuple[Group, bool]:
+        group, created = Group.objects.get_or_create(name=name, company=company)
         if created:
             log_audit(
                 user=user,
