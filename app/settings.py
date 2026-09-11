@@ -28,6 +28,10 @@ ALLOWED_HOSTS = [
     for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if host.strip()
 ]
+for local_host in ("localhost", "127.0.0.1"):
+    if local_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(local_host)
+
 
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
