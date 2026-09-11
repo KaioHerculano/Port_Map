@@ -1,8 +1,37 @@
-.venv
+# Git and IDE
 .git
+.gitignore
+.idea
+.vscode
+
+# Python and virtual environments
+.venv
+venv/
+ENV/
+env/
 __pycache__
-*.pyc
-*.pyo
-*.pyd
-.db.sqlite3
+*.py[cod]
+*$py.class
+*.so
+
+# Environment and SQLite
 .env
+.env.*
+*.sqlite3
+.db.sqlite3
+
+# Testing, Coverage and Linters
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.flake8
+.pre-commit-config.yaml
+.coveragerc
+
+# Build artifacts and documentation
+dist/
+build/
+*.egg-info/
+docs/
+
