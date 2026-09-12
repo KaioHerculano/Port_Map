@@ -77,4 +77,3 @@ EXPOSE 8003
 USER www-data
 
 ENTRYPOINT ["entrypoint.sh"]
-
